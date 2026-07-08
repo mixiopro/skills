@@ -1,0 +1,14 @@
+{
+  "name": "mixio",
+  "version": "0.1.0",
+  "description": "Mixio AI skills: generate images, video, and audio with 10+ models, manage media workspaces, upload/cache files, and track usage credits.",
+  "author": {
+    "name": "Mixio",
+    "email": "dev@mixio.pro",
+    "url": "https://mixio.pro"
+  },
+  "homepage": "https://mixio.pro",
+  "repository": "https://github.com/mixiopro/skills",
+  "license": "Apache-2.0",
+  "skills": "./"
+}

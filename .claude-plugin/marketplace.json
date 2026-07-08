@@ -1,0 +1,17 @@
+{
+  "name": "mixio",
+  "owner": {
+    "name": "Mixio",
+    "email": "dev@mixio.pro",
+    "url": "https://mixio.pro"
+  },
+  "plugins": [
+    {
+      "name": "mixio",
+      "source": "./",
+      "description": "AI media generation, workspace management, and creative tools for Mixio Studio.",
+      "homepage": "https://mixio.pro",
+      "license": "Apache-2.0"
+    }
+  ]
+}

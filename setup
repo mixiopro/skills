@@ -1,0 +1,34 @@
+#!/bin/bash
+# Mixio Skills — universal setup script
+set -e
+
+echo "Mixio Skills Setup"
+echo "=================="
+echo ""
+
+# Check Node.js
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js not found. Install Node.js 22+ first."
+    echo "   https://nodejs.org/"
+    exit 1
+fi
+
+NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+if [ "$NODE_VERSION" -lt 22 ]; then
+    echo "⚠ Node.js $NODE_VERSION detected. Node 22+ recommended."
+fi
+
+# Install mixiocode
+echo "Installing mixiocode..."
+npm install -g mixiocode
+
+# Run setup
+echo ""
+echo "Running setup wizard..."
+mixio setup
+
+echo ""
+echo "✅ Done! Skills are ready to use."
+echo ""
+echo "Try: mixio"
+echo "Then ask: 'Generate a cinematic landscape image'"
