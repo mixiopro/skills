@@ -1,0 +1,21 @@
+{
+  "name": "eval-mcp-agent",
+  "version": "1.0.0",
+  "description": "MCP server and skills for visual continuity evaluation",
+  "main": "server.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch server.ts",
+    "start": "tsx server.ts"
+  },
+  "dependencies": {
+    "@prefecthq/fastmcp-ts": "^0.0.5",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.1"
+  }
+}
