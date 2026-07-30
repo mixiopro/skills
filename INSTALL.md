@@ -5,17 +5,23 @@
 - Node.js 22+ (for MCP server)
 - A Mixio Studio account and API key
 
-## Method 1: npm (recommended)
+## Method 1: MCP server (recommended)
 
-```bash
-npm install -g mixiocode
-mixio setup
+Add `@mixio-pro/mcp` to your agent's MCP config (e.g. `~/.claude/claude_desktop_config.json`, `~/.cursor/mcp.json`, or a project-level `.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "mixio": {
+      "command": "npx",
+      "args": ["-y", "@mixio-pro/mcp"],
+      "env": { "MIXIO_API_KEY": "your-key-here" }
+    }
+  }
+}
 ```
 
-This installs the CLI globally and runs the setup wizard which:
-- Prompts for your API key
-- Configures the MCP server in `~/.mastracode/mcp.json`
-- Creates local state directory at `~/.mixio/`
+No install step or setup wizard — `npx` fetches it on first run. It creates a local cache at `~/.mixio/mcp-cache.db` (SQLite) that maps local files to their uploaded Mixio URLs.
 
 ## Method 2: Clone skills only
 
@@ -50,13 +56,7 @@ Clone this repo into your project, Cursor auto-discovers `.cursor-plugin/plugin.
 
 ## Verify Installation
 
-After setup, test with:
-```bash
-mixio
-# Then type: "Check my credit balance"
+In any MCP-compatible agent, once the server is configured:
 ```
-
-Or in any MCP-compatible agent:
-```
-Use the credits_balance tool to check my Mixio balance
+Use the studio_ping tool to check the Mixio Studio MCP connection
 ```

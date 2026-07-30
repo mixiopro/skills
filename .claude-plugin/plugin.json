@@ -1,7 +1,7 @@
 {
   "name": "mixio",
   "version": "0.1.0",
-  "description": "Mixio AI skills: generate images, video, and audio with 10+ models, manage media workspaces, upload/cache files, and track usage credits. Works with Claude Code, Cursor, Codex, and MCP-compatible agents.",
+  "description": "Mixio AI skills: generate images, video, and audio with 10+ models, manage media workspaces, upload/cache files, and run continuity evaluations. Works with Claude Code, Cursor, Codex, and MCP-compatible agents.",
   "author": {
     "name": "Mixio",
     "email": "dev@mixio.pro",
@@ -22,11 +22,11 @@
     "creative",
     "workspace"
   ],
-  "skills": "./",
+  "skills": "./skills",
   "interface": {
     "displayName": "Mixio",
     "shortDescription": "AI media generation and workspace management",
-    "longDescription": "Generate images, video, and audio with AI models (Fal, Gemini, GPT-Image, Sora, BytePlus). Manage media workspaces, upload files, track usage and credits. Built for film, media, and creative professionals.",
+    "longDescription": "Generate images, video, and audio with AI models (Fal, Gemini, GPT-Image, Sora, BytePlus). Manage media workspaces, upload files, and run continuity evaluations. Built for film, media, and creative professionals.",
     "developerName": "Mixio",
     "category": "Creativity",
     "capabilities": [
@@ -37,7 +37,7 @@
     "defaultPrompt": [
       "Generate a cinematic establishing shot of a mountain landscape at golden hour",
       "Upload this video to my workspace and get a public URL",
-      "Show my credit balance and recent generation history"
+      "Show my recent generation history"
     ],
     "brandColor": "#0a0a0a"
   }

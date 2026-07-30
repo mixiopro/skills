@@ -11,11 +11,11 @@ Generate images, video, and audio through Mixio Studio's unified generation API.
 
 ## Prerequisites
 
-- Mixio CLI installed: `npm install -g mixiocode`
-- Setup complete: `mixio setup` (configures API key + MCP)
-- Or: MCP server configured in your agent (see INSTALL.md)
+- MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
 
 ## Available Models
+
+Call `studio_generation_catalog_get` for the current, authoritative model/workflow catalog. The table below is a quick reference — confirm model IDs against the catalog before use.
 
 ### Image Generation
 
@@ -44,69 +44,24 @@ Generate images, video, and audio through Mixio Studio's unified generation API.
 
 ## MCP Tools
 
-### `generate`
+| Tool | Purpose |
+|------|---------|
+| `studio_submit_studio_job` | Submit a single image/video/keyframe generation job |
+| `studio_batch_submit_studio_jobs` | Submit up to 50 generation jobs in one call, with reference slots |
+| `studio_get_job_status` | Check real-time status and output URLs of a job by ID |
+| `studio_jobs_get` | Read bounded production jobs in current scope |
+| `studio_generation_catalog_get` | Get available generator models and workflow catalogs |
+| `studio_get_studio_job_api_schema` | Get the internal job API schema definitions |
 
-Start a generation job.
-
-```json
-{
-  "tool": "generate",
-  "arguments": {
-    "model": "fal/flux-pro",
-    "prompt": "A cinematic wide shot of a neon-lit Tokyo alley at night, rain reflections, 4K",
-    "aspect_ratio": "16:9",
-    "num_images": 1
-  }
-}
-```
-
-**Parameters:**
-- `model` (required) — model ID from tables above
-- `prompt` (required) — generation prompt
-- `negative_prompt` — what to avoid
-- `aspect_ratio` — `1:1`, `16:9`, `9:16`, `4:3`, `3:4`
-- `num_images` — 1-4 (image models only)
-- `duration` — seconds (video models, typically 4-16)
-- `style` — model-specific style preset
-- `seed` — reproducibility
-
-### `generation_status`
-
-Check job progress.
-
-```json
-{
-  "tool": "generation_status",
-  "arguments": {
-    "job_id": "gen_abc123"
-  }
-}
-```
-
-Returns: `queued`, `processing`, `completed`, `failed`
-
-### `generation_result`
-
-Get completed output URLs.
-
-```json
-{
-  "tool": "generation_result",
-  "arguments": {
-    "job_id": "gen_abc123"
-  }
-}
-```
-
-Returns: array of `{ url, content_type, width, height, duration }`
+Call `studio_tools_describe` on any of these for the exact input schema before your first call — parameters aren't hardcoded here since they come from the live tool definition.
 
 ## Workflow
 
 ```
-1. generate(model, prompt, ...)     → job_id
-2. generation_status(job_id)        → wait for "completed"
-3. generation_result(job_id)        → get output URLs
-4. (optional) upload_file(local_path) → persist to workspace
+1. studio_generation_catalog_get()          → confirm model/workflow IDs
+2. studio_submit_studio_job(...)            → job_id
+3. studio_get_job_status(job_id)            → poll until completed, get output URLs
+4. (optional) upload_file(local_path)       → persist a local render to workspace
 ```
 
 ## Prompt Tips
@@ -127,15 +82,6 @@ Returns: array of `{ url, content_type, width, height, duration }`
 - Specify voice characteristics: "warm male narrator", "energetic female"
 - Include pacing cues: pauses with `...`, emphasis with CAPS
 - Keep segments under 2 minutes for best quality
-
-## Credits
-
-Each generation deducts credits based on model + parameters:
-- Image: 1-5 credits depending on resolution and model
-- Video: 5-20 credits depending on duration and model
-- Audio: 1-3 credits per minute
-
-Check balance: use `credits_balance` tool or Studio dashboard.
 
 ## References
 

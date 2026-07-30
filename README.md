@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](./VERSION)
-[![Skills](https://img.shields.io/badge/skills-4-blueviolet.svg)](#skills)
+[![Skills](https://img.shields.io/badge/skills-3-blueviolet.svg)](#skills)
 
 AI agent skills for media generation, workspace management, and creative workflows via [Mixio Studio](https://mixio.pro). Works with Claude Code, Cursor, Codex, and other AI coding agents that load Markdown-based skills.
 
@@ -10,11 +10,15 @@ AI agent skills for media generation, workspace management, and creative workflo
 
 Pick one. Each method configures the Mixio MCP server and loads skills into your agent.
 
-### `npx` — recommended, cross-agent
+### `npx skills` — recommended, works with 70+ agents
+
+Installs the skill docs (this repo) into whichever agents you have installed — Claude Code, Cursor, Codex, OpenCode, Antigravity, Kiro, and more:
 
 ```bash
-npx mixiocode setup
+npx skills add mixiopro/skills
 ```
+
+Then configure the MCP server (see [Manual](#manual-any-agent) below).
 
 ### Claude Code marketplace
 
@@ -40,9 +44,9 @@ Then add the MCP server to your agent's config:
 ```json
 {
   "mcpServers": {
-    "mixio-studio": {
+    "mixio": {
       "command": "npx",
-      "args": ["-y", "mixiocode", "--mcp"],
+      "args": ["-y", "@mixio-pro/mcp"],
       "env": { "MIXIO_API_KEY": "your-key-here" }
     }
   }
@@ -55,10 +59,9 @@ Get your API key from [Mixio Studio](https://studio.mixio.pro) → Settings → 
 
 | Skill | Invoke | Description |
 |-------|--------|-------------|
-| [`mixio-generate`](./mixio-generate) | `/mixio:generate` | Image, video, and audio generation across 10+ models (Fal FLUX, Recraft, Gemini Imagen, GPT-Image, Sora, BytePlus, Fal Kling, ElevenLabs). Prompt engineering tips and batch workflows. |
-| [`mixio-workspace`](./mixio-workspace) | `/mixio:workspace` | Upload local files to Mixio Studio, get permanent public URLs, manage cached assets. SHA-256 deduplication, 500MB max. |
-| [`mixio-credits`](./mixio-credits) | `/mixio:credits` | Check credit balance, view usage history, understand per-model pricing, and top up. |
-| [`mixio-eval`](./mixio-eval) | `/mixio:eval` | Score generated outputs on quality criteria (composition, lighting, motion, prompt adherence). Compare variants, enforce quality gates, run evaluation blueprints. |
+| [`mixio-generate`](./skills/mixio-generate) | `/mixio:generate` | Image, video, and audio generation across 10+ models (Fal FLUX, Recraft, Gemini Imagen, GPT-Image, Sora, BytePlus, Fal Kling, ElevenLabs). Prompt engineering tips and batch workflows. |
+| [`mixio-workspace`](./skills/mixio-workspace) | `/mixio:workspace` | Upload local files to Mixio Studio, get permanent public URLs, manage cached assets. SHA-256 deduplication, 500MB max. |
+| [`mixio-eval`](./skills/mixio-eval) | `/mixio:eval` | Run visual continuity / consistency evaluation jobs on generated or uploaded media before delivery. |
 
 ## Typical Workflow
 
@@ -66,10 +69,8 @@ Get your API key from [Mixio Studio](https://studio.mixio.pro) → Settings → 
 User prompt: "Create a product video for my app"
 
 1. /mixio:generate  → Generate video with Sora
-2. /mixio:eval      → Score the output (composition, motion quality)
-3. /mixio:generate  → If score < 80, regenerate with refined prompt
-4. /mixio:workspace → Upload final video, get public URL
-5. /mixio:credits   → Check remaining balance
+2. /mixio:workspace → Upload final video, get public URL
+3. /mixio:eval      → Run a continuity/consistency evaluation before delivery
 ```
 
 ## Models

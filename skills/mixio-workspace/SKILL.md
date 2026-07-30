@@ -11,8 +11,7 @@ Upload, organize, and retrieve media files in Mixio Studio workspaces. The MCP s
 
 ## Prerequisites
 
-- Mixio CLI installed: `npm install -g mixiocode && mixio setup`
-- Or: MCP server configured in your agent
+- MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
 
 ## MCP Tools
 
@@ -116,12 +115,10 @@ Drop all cached file mappings. Next upload of any file will re-upload.
 
 ## Cache Location
 
-Local cache is stored at `~/.mixio/cache.db` (SQLite). The cache maps:
-- Local file path → public URL
-- SHA-256 hash → deduplication
+Local cache is stored at `~/.mixio/mcp-cache.db` (SQLite, WAL mode — safe across concurrent sessions/processes). The cache maps local file path ↔ SHA-256 hash ↔ Mixio URL.
+
+Override the cache path with the `MIXIO_FASTMCP_CACHE` env var, or the whole `~/.mixio` state dir with `MIXIO_HOME`.
 
 ## Limits
 
-- Max file size: 500MB (video), 50MB (image/audio)
-- Rate limit: 100 uploads/hour per API key
-- Storage: unlimited on paid plans, 5GB on free tier
+Not exposed by the MCP server — check your Studio plan/dashboard for current upload size and storage limits.
