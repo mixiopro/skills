@@ -4,29 +4,34 @@ You have access to Mixio Studio tools via MCP. Use these skills to generate medi
 
 ## Available Skills
 
+Mixio's data model: a **project** contains episodes and a Cast & World roster. An **episode** owns script/breakdown/scenes/shots. Cast & World (characters/locations/props) is **project**-scoped and feeds generation for consistency.
+
 | Skill | Invoke | Use For |
 |-------|--------|---------|
-| `mixio-generate` | `/mixio:generate` | Image, video, audio generation with 10+ models |
+| `mixio-project` | `/mixio:project` | Project CRUD, whole-graph reads (`get_production_context`) |
+| `mixio-references` | `/mixio:references` | Cast & World — characters, locations, props, reference images |
+| `mixio-episode` | `/mixio:episode` | Episode CRUD, script, scene/shot breakdown, relations |
+| `mixio-generate` | `/mixio:generate` | Image and video generation via Studio jobs (script breakdown, keyframes, image/video models) |
 | `mixio-workspace` | `/mixio:workspace` | Upload files, get public URLs, manage cache |
-| `mixio-eval` | `/mixio:eval` | Score outputs, compare variants, quality gates |
+| `mixio-eval` | `/mixio:eval` | Visual continuity/consistency evaluation before delivery |
 
 ## Quick Start
 
 ```
 # Generate media
-studio_submit_studio_job(...)      → job_id
-studio_get_job_status(job_id)      → wait for completed, get output URLs
+studio_submit_studio_job(...)              → job id
+studio_get_job_status({ jobId, projectId }) → wait for completed, get output URL
 
 # Upload a local file
-upload_file(path: "/path/to/file.mp4")  → public URL
+upload_file({ path: "/path/to/file.mp4" })  → public URL
 
 # Evaluate an output
 register_asset(...)                → @alias
-run_evaluation(...)                → evaluation job
-get_evaluation_result(...)         → status + results
+run_evaluation(...)                → run_id (resp_...)
+get_evaluation_result(run_id)      → status + results
 ```
 
-Exact parameters aren't hardcoded here — call `studio_tools_describe` to get the current input schema for any tool, or `studio_tools_search` to discover tools by keyword.
+`studio_*` tools are proxied from the Studio server — call `studio_tools_describe` for their current input schema, or `studio_tools_search` to discover more by keyword. `upload_file`, `register_asset`, `run_evaluation`, and `get_evaluation_result` are local to `@mixio-pro/mcp` itself (no `studio_` prefix, not covered by `studio_tools_describe`) — see the mixio-workspace/mixio-eval skills for their exact parameters.
 
 ## MCP Server
 

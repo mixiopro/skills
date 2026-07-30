@@ -1,67 +1,63 @@
 ---
 name: mixio-generate
-description: "Generate images, video, and audio with Mixio Studio. Supports 10+ models: Fal (FLUX, Recraft), Gemini Imagen, GPT-Image, Sora, BytePlus, ElevenLabs. Includes prompt enhancement and quality evaluation."
+description: "Generate images and video through Mixio Studio jobs — script breakdown, keyframe sequences, image and video generation with character/location reference consistency."
 version: 0.1.0
 invoke: /mixio:generate
 ---
 
 # Mixio Generate
 
-Generate images, video, and audio through Mixio Studio's unified generation API. All generation is metered via credits.
+Submit and track Studio generation jobs (image, video, script breakdown, keyframe sequences) through the proxied `studio_*` MCP tools. Jobs are billable and run async by default.
 
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
 
-## Available Models
+## Models & Use Cases
 
-Call `studio_generation_catalog_get` for the current, authoritative model/workflow catalog. The table below is a quick reference — confirm model IDs against the catalog before use.
+Model and use-case IDs change as Studio adds providers — always confirm with `studio_list_generation_models` / `studio_list_use_cases` before hardcoding an ID. As a starting point:
 
-### Image Generation
+| Media | Model IDs |
+|-------|-----------|
+| Image | `gpt_image_2`, `gemini_image`, `seedream_5_pro` |
+| Video | `seedance_image_to_video_pro`, `seedance_text_to_video_pro`, `seedance_image_to_video_v2`, `veo_3_1`, `sora_2`, `kling_text_to_video_2_6_pro` |
 
-| Model | ID | Best For |
-|-------|-----|----------|
-| Fal FLUX Pro | `fal/flux-pro` | Photorealistic images, high detail |
-| Fal Recraft v3 | `fal/recraft-v3` | Stylized illustrations, design assets |
-| Gemini Imagen 4 | `gemini/imagen-4` | Creative compositions, text in images |
-| GPT Image | `gpt-image-1` | Versatile, instruction-following |
-
-### Video Generation
-
-| Model | ID | Best For |
-|-------|-----|----------|
-| Sora | `sora/v1` | Cinematic, narrative video |
-| BytePlus | `byteplus/video` | Fast, cost-effective clips |
-| Fal Kling | `fal/kling-video` | Motion, action sequences |
-| Fal Minimax | `fal/minimax-video` | Character animation |
-
-### Audio Generation
-
-| Model | ID | Best For |
-|-------|-----|----------|
-| ElevenLabs TTS | `elevenlabs/tts` | Voice narration, dialogue |
-| ElevenLabs SFX | `elevenlabs/sfx` | Sound effects |
+Common `useCaseId` values: `image-hub` (general image gen with references), `production-generate-keyframes`, `image-edit` (requires a source image), `refine-character-image`, `production-generate-video`, `keyframe-sequence` (multi-frame continuity workflow), `script-preproduction`.
 
 ## MCP Tools
 
 | Tool | Purpose |
 |------|---------|
-| `studio_submit_studio_job` | Submit a single image/video/keyframe generation job |
-| `studio_batch_submit_studio_jobs` | Submit up to 50 generation jobs in one call, with reference slots |
-| `studio_get_job_status` | Check real-time status and output URLs of a job by ID |
-| `studio_jobs_get` | Read bounded production jobs in current scope |
-| `studio_generation_catalog_get` | Get available generator models and workflow catalogs |
-| `studio_get_studio_job_api_schema` | Get the internal job API schema definitions |
+| `studio_submit_studio_job` | Submit one image/video/script-breakdown/keyframe-sequence job |
+| `studio_batch_submit_studio_jobs` | Submit up to 50 jobs in one call (same job shape, wrapped in a `jobs` array) |
+| `studio_get_job_status` | Poll a job by `jobId` **and** `projectId` — returns status + output URL when complete |
+| `studio_list_generation_models` | List model IDs, optionally filtered by `useCaseId` or `mediaType` |
+| `studio_list_use_cases` | List use-case IDs, optionally filtered by `outputType` |
+| `studio_list_references` | List a project's CHARACTER/LOCATION/PROP elements — use to get reference image URLs |
+| `studio_generation_catalog_get` | Bounded catalog read (newer discovery adapter, smaller result set than `list_generation_models`) |
+| `studio_get_studio_job_api_schema` | Returns the underlying HTTP contract for `/api/studio-jobs/*` — rarely needed since the tools above cover submit/status directly |
 
-Call `studio_tools_describe` on any of these for the exact input schema before your first call — parameters aren't hardcoded here since they come from the live tool definition.
+Call `studio_tools_describe` on any of these for the exact current input schema.
+
+### Key gotchas (from the tool's own docs)
+
+- **Reference images and aspect ratio must go through `input.media` / `input.parameters`.** Omitting them silently generates without reference consistency at a default `1:1` aspect ratio.
+- **`input.media` slots take real URLs, not Payload media IDs.** The server rejects UUID-looking values. `studio_list_references` only returns a summary (`hasAttachments` boolean, no URLs) — get the actual attachment URLs from `studio_get_element`/`studio_get_production_context` (`referenceVariants[].attachments[].media.url`), or upload fresh with `upload_file`/`get_public_url`. See `mixio-references` for the full Cast & World reference workflow.
+- Media slots: `primary`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `endFrame` — each accepts `{ url }` or an array of them.
+- `input.parameters`: `aspect_ratio` (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9`), `quality`, `duration` (video, seconds), `style`, `output_format`, `keyframe_count` (4-12, for `keyframe-sequence`), `orchestrate_frames` (true for >12 frames — dispatches one child job per frame).
+- `studio_get_job_status` requires **both** `jobId` and `projectId` — it's not a bare job lookup.
+- There's no MCP cancel tool. Cancellation is HTTP-only (`POST /api/studio-jobs/{id}/cancel`), outside this tool set.
+- Job status values: `PENDING`, `RUNNING`, `IN_QUEUE`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `CANCELLED`.
 
 ## Workflow
 
 ```
-1. studio_generation_catalog_get()          → confirm model/workflow IDs
-2. studio_submit_studio_job(...)            → job_id
-3. studio_get_job_status(job_id)            → poll until completed, get output URLs
-4. (optional) upload_file(local_path)       → persist a local render to workspace
+1. studio_list_use_cases() / studio_list_generation_models()   → confirm useCaseId / model
+2. studio_list_references(projectId) → studio_get_element(referenceId)   → get character/location reference image URLs, if needed
+3. studio_submit_studio_job({ jobType, model, useCaseId, prompt, input: { media, parameters }, context: { projectId } })
+                                                                  → job id + tracking
+4. studio_get_job_status({ jobId, projectId })                  → poll until COMPLETED, read output.output_url
+5. (optional) upload_file(local_path)                            → persist a local render to workspace
 ```
 
 ## Prompt Tips
@@ -70,22 +66,12 @@ Call `studio_tools_describe` on any of these for the exact input schema before y
 - Be specific about composition: "wide shot", "close-up", "overhead"
 - Specify lighting: "golden hour", "neon-lit", "soft diffused"
 - Include medium: "photograph", "digital painting", "3D render"
-- Add quality cues: "4K", "high detail", "professional"
 
 ### Video
 - Describe motion: "slow pan left", "tracking shot", "zoom in"
 - Keep prompts shorter than image prompts (models handle less complexity)
-- Specify duration when possible
-- Describe start and end states for best results
-
-### Audio (TTS)
-- Specify voice characteristics: "warm male narrator", "energetic female"
-- Include pacing cues: pauses with `...`, emphasis with CAPS
-- Keep segments under 2 minutes for best quality
+- Specify duration and a start frame (`input.media.primary`) when possible
 
 ## References
 
-See `references/` for:
-- `model-comparison.md` — detailed model capabilities and pricing
-- `prompt-engineering.md` — advanced prompting techniques per model
-- `batch-generation.md` — generating multiple variants efficiently
+See `references/model-comparison.md` for how to pick a model/use case from the live catalog.

@@ -1,29 +1,20 @@
 # Model Comparison
 
-## Image Models
+Resolution, speed, and cost vary by model and change as Studio adds providers — there's no static table to keep in sync. Get current values from the live catalog instead:
 
-| Model | Resolution | Speed | Cost | Strengths | Weaknesses |
-|-------|-----------|-------|------|-----------|------------|
-| Fal FLUX Pro | Up to 2048x2048 | ~5s | 3 credits | Photorealistic, consistent | Less creative/artistic |
-| Fal Recraft v3 | Up to 2048x2048 | ~4s | 2 credits | Design assets, illustrations | Less photorealistic |
-| Gemini Imagen 4 | Up to 2048x2048 | ~8s | 3 credits | Text rendering, creative | Slower |
-| GPT Image | Up to 1792x1024 | ~10s | 4 credits | Instruction following | Most expensive |
+```
+studio_list_generation_models({ mediaType: "image" | "video" })
+studio_list_generation_models({ useCaseId: "..." })
+studio_list_use_cases({ outputType: "IMAGE" | "VIDEO" })
+```
 
-## Video Models
+## Known model IDs (confirm before use)
 
-| Model | Max Duration | Resolution | Speed | Cost | Strengths |
-|-------|-------------|-----------|-------|------|-----------|
-| Sora | 20s | 1080p | ~60s | 3/s | Cinematic, narrative coherence |
-| BytePlus | 10s | 720p | ~15s | 1/s | Fast, cheap, good for drafts |
-| Fal Kling | 16s | 1080p | ~30s | 2/s | Action, motion quality |
-| Fal Minimax | 10s | 1080p | ~25s | 2/s | Characters, facial expressions |
+| Media | Model IDs |
+|-------|-----------|
+| Image | `gpt_image_2`, `gemini_image`, `seedream_5_pro` |
+| Video | `seedance_image_to_video_pro`, `seedance_text_to_video_pro`, `seedance_image_to_video_v2`, `veo_3_1`, `sora_2`, `kling_text_to_video_2_6_pro` |
 
-## Recommendation
+## Picking a model
 
-- **Draft/iteration**: BytePlus (fastest, cheapest)
-- **Final delivery**: Sora (highest quality)
-- **Action/motion**: Fal Kling
-- **Characters/faces**: Fal Minimax
-- **Photorealistic stills**: Fal FLUX Pro
-- **Design assets**: Fal Recraft v3
-- **Text in images**: Gemini Imagen 4
+Without hardcoded benchmarks, use `studio_list_use_cases` to match your job to a supported use case first (e.g. `production-generate-video`, `image-edit`, `refine-character-image`), then `studio_list_generation_models({ useCaseId })` to see which models support it. Try 2-3 candidates on a draft prompt before committing to one for a full batch.

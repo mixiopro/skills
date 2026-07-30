@@ -1,7 +1,7 @@
 {
   "name": "mixio",
   "version": "0.1.0",
-  "description": "Mixio AI skills: generate images, video, and audio with 10+ models, manage media workspaces, upload/cache files, and run continuity evaluations.",
+  "description": "Mixio AI skills: manage projects, Cast & World references, and episode script/shot breakdown; generate images and video through Studio jobs; manage media workspaces; run continuity evaluations.",
   "author": {
     "name": "Mixio",
     "email": "dev@mixio.pro",

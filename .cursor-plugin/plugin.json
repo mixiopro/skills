@@ -3,7 +3,7 @@
   "name": "mixio",
   "displayName": "Mixio",
   "version": "0.1.0",
-  "description": "AI media generation, workspace management, and creative workflows via Mixio Studio.",
+  "description": "AI project/episode/reference management, media generation, workspace management, and creative workflows via Mixio Studio.",
   "author": {
     "name": "Mixio",
     "email": "dev@mixio.pro"
@@ -18,7 +18,6 @@
     "media",
     "video",
     "image",
-    "audio",
     "generation",
     "ai",
     "creative",
