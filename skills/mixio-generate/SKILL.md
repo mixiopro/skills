@@ -34,10 +34,33 @@ Common `useCaseId` values: `image-hub` (general image gen with references), `pro
 | `studio_list_generation_models` | List model IDs, optionally filtered by `useCaseId` or `mediaType` |
 | `studio_list_use_cases` | List use-case IDs, optionally filtered by `outputType` |
 | `studio_list_references` | List a project's CHARACTER/LOCATION/PROP elements — use to get reference image URLs |
+| `studio_get_use_case_input_schema` | **Returns the exact input contract (media slots + parameters) for a use case.** Call this before submitting an unfamiliar use case instead of guessing at `input.media` / `input.parameters` |
 | `studio_generation_catalog_get` | Bounded catalog read (newer discovery adapter, smaller result set than `list_generation_models`) |
 | `studio_get_studio_job_api_schema` | Returns the underlying HTTP contract for `/api/studio-jobs/*` — rarely needed since the tools above cover submit/status directly |
 
 Call `studio_tools_describe` on any of these for the exact current input schema.
+
+### Audio — reachable, but not discoverable
+
+There is no dedicated audio MCP tool, and both discovery filters omit audio:
+`studio_list_use_cases`'s `outputType` enum is `IMAGE | VIDEO | all`, and
+`studio_list_generation_models`'s `mediaType` is `image | video | all`.
+
+Audio generation nevertheless **works through the normal job path** — the engine
+has an `AUDIO` output type and use cases including `text-to-speech`,
+`voiceover`, `voice-change`, and `audio-driven-performance`, and
+`studio_submit_studio_job` accepts any `useCaseId` string:
+
+```
+studio_list_use_cases()                       // no filter — audio use cases appear here
+studio_get_use_case_input_schema({ useCaseId: "text-to-speech" })   // exact contract
+studio_submit_studio_job({ jobType: "audio", useCaseId: "text-to-speech",
+                           prompt, input: { parameters }, context: { projectId } })
+```
+
+Call `studio_list_use_cases()` **without** `outputType` to see them — passing
+`"IMAGE"` or `"VIDEO"` filters them out, and there is no `"AUDIO"` value to pass.
+Confirm the current ids from that call rather than trusting the list above.
 
 ### Key gotchas (from the tool's own docs)
 
