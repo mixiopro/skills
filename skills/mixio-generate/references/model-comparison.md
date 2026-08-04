@@ -12,7 +12,7 @@ studio_list_use_cases({ outputType: "IMAGE" | "VIDEO" })
 
 | Media | Model IDs |
 |-------|-----------|
-| Image | `gpt_image_2`, `gemini_image`, `seedream_5_pro` |
+| Image | `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite` |
 | Video | `seedance_image_to_video_pro`, `seedance_text_to_video_pro`, `seedance_image_to_video_v2`, `veo_3_1`, `sora_2`, `kling_text_to_video_2_6_pro` |
 
 ## Picking a model

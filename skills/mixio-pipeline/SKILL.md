@@ -115,11 +115,13 @@ Then group into generation batches using `mixio-chunking`'s algorithm per model-
 - **Always ask** — confirm every job.
 
 **Use case IDs for this step:**
-- Keyframes (multi-frame sequence per shot): `production-generate-shot-keyframe-sequence`
-- Keyframes (single/counted per shot): `production-generate-shot-keyframes`
+- Keyframes, shot already locked by Step 04: `production-generate-shot-keyframes` with `keyframe_count: 1`, **one job per beat**. Our prompt is used verbatim, nothing re-plans it, and the sequence planner's diversity gate cannot reject a deliberate hold. Pass the previous beat's keyframe as a reference to chain continuity forward.
+- Keyframes, beats you want invented for you: `production-generate-shot-keyframe-sequence`. Leave `prompt` unset — a caller prompt *replaces* Studio's shot-spec assembly — and put your direction in `sequence_notes`, which is appended to the planner's prompt instead.
 - Video: `production-generate-video`
 
 Do **not** use `keyframe-sequence` — that is the Generate-page version (`outputType: IMAGE`, `surfaces: ["generate"]`) and output will not land under the shot even with correct `context`.
+
+**Run eval yourself.** The server's own evaluation pass is skipped whenever `orchestrate_frames` is true, which is the default on the production sequence path — so nothing checks the rendered frames unless you do. Run `mixio-eval` per chunk against the claims the text layer actually made: `identity_consistency`, `location_consistency`, `lighting_consistency`, `composition_consistency`, `prop_consistency`. Cross-model batch boundaries from Step 05 are where to look first.
 
 After each chunk, set shot state (`approved` / `needs_revision`) with `studio_update_shot_state` so the canvas reflects reality.
 

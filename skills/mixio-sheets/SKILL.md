@@ -86,7 +86,7 @@ Render spec:
 - **Wardrobe**: the character's default costume. One sheet per costume — see variants below.
 - **Aspect ratio**: `16:9` or `4:3` regardless of delivery ratio; a turnaround needs horizontal room.
 
-Then persist the structured identity alongside it. Since Studio PR #502/#504 one schema owns these fields for all surfaces, so what you write here is what the Cast & World UI and generation both read:
+Then persist the structured identity alongside it. Studio's reference-detail work (PRs #503–#505) makes one schema own these fields for every surface — but it is not on `dev` yet, so see the compatibility note under the location sheet before relying on the wider field set. Write it like this:
 
 ```
 studio_update_reference({
@@ -112,6 +112,15 @@ Full field set: `role` (enum), `age`, `personality`, `build`, `skin`, `hair`, `e
 The three voice fields are structured, not strings: `voiceProfile` takes `{ provider?, voiceId?, voiceName?, language?, accent?, genderPresentation?, agePresentation?, tone?, deliveryStyle?, notes?, previewUrl? }`, `voiceReference` takes `{ sampleAudioMediaId?, sampleAudioUrl?, language?, notes?, label? }`, and `voiceRegistrations` is a provider-keyed record. `looks` is owned by the variant layer — write looks through `referenceVariants`, not by hand here.
 
 `visualAnchor` is the single feature that makes the character recognizable across models — name it explicitly, and repeat it in shot prompts.
+
+### Mint the mention tag with the sheet
+
+The name you give a reference here becomes its `@tag` at generation time — `Tony` resolves `@tony`, a look variant resolves `@tony.casual`. That token is what binds this sheet's image to this character in a multi-reference prompt; without it the model receives several faces and guesses. See `mixio-generate` for the binding rules.
+
+So decide the tag **once, here**, and record it in pipeline state next to the reference id, so the breakdown, the audit and the generation step all emit the same vocabulary. Two rules that save a re-render:
+
+- Keep the reference name short and unambiguous. `Tony` is a good tag; `Tony Russo (protagonist, ep1)` slugifies into something nobody will type consistently.
+- Do not name two references so they collapse to the same slug. `TONY'S APARTMENT` and `Tonys Apartment` are one tag, and whichever image loses the race silently stops binding.
 
 **Do not put per-shot state here.** Hair state, condition/damage, and carried props are properties of an *appearance*, not of the character, and belong on the `appears_in` relation's `appearanceState` — see `mixio-script-breakdown`. A soaked-hair value on the character is one global truth that is only correct in a few shots.
 
@@ -171,7 +180,7 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
 
 ### Persisting the sheet
 
-Since Studio PR #502/#504 the sheet has real fields instead of prose blobs. Map it like this:
+Studio's reference-detail work (PRs #503–#505) gives the sheet real fields instead of prose blobs. That work is **not on `dev` yet** — see the compatibility note below before you rely on it. Map the sheet like this:
 
 | Sheet field | `locationDetails` key | Shape |
 |---|---|---|
@@ -217,7 +226,24 @@ studio_update_reference({ referenceId, locationDetails: {
 
 Note `depthAxes` is an **object keyed by depth plane**, not the prose "long axis" sentence — put the axis statement in `dimensions` or `sightlines`. These fields exist precisely so a shot needing a viewpoint the reference image doesn't show can be directed without the model inventing geography.
 
-Persist to `locationDetails` (`setting`, `timePeriod`, `mood`, `lighting`, `palette`) plus the full sheet text in the reference description.
+#### Check which half of this schema your Studio has
+
+The rich field set above lands with the reference-detail-schema work (Studio PRs #503–#505). It is **not on `dev` yet** — as of `dev@b8a24c27` (2026-08-03) `locationDetails` accepts only `setting`, `timePeriod`, `mood`, `lightingNotes`, `architecturalStyle`, and `characterDetails` only `role`, `age`, `personality`, `backstory`, `dialogueStyle`, `wardrobeNotes`. Write the full bag anyway — extra keys are retained, and they light up the moment the schema ships — but do not assume a model has seen them.
+
+**Mirror the load-bearing parts to top-level element metadata.** Generation reads a hand-listed set of keys off the *top level* of an element's `metadata` — for a LOCATION: `description`, `setting`, `locationType`, `timePeriod`, `lighting`, `palette`, `atmosphere`, `mood`. It does not open `locationDetails`. So a perfectly authored sheet is invisible to the renderer unless you also mirror it up:
+
+```
+metadata: {
+  lighting: "warm gold daylight from back-left, long afternoon shadows across the rug; lamp off by default",
+  palette:  "deep reds, navy, cream",
+  atmosphere: "warm, lived-in, cluttered",
+  description: "Open studio room. Long axis runs WINDOWS (back-left) → COUCH/COFFEE TABLE → STAIRCASE (back-right). "
+               + "Entries: BEDROOM DOOR (left wall, beside the BED), STAIRCASE (ascends from center-back). "
+               + "TWO WINDOWS on the back wall are not entries but are the key light source."
+}
+```
+
+`ponytail:` this is a workaround with a known ceiling — entries, exits and the axis have no dedicated key on this path, so they ride inside `description` as prose and are subject to prompt-budget truncation. The upgrade path is the detail-prompt projection in PRs #503–#505; drop the mirroring once it is on `dev` **and** the generation workflow you are targeting reads the nested bag.
 
 ### Time-of-day and weather variants
 
@@ -235,11 +261,20 @@ Names must sit in `variantVocabulary.LOCATION` when the project is `closed`. Sel
 
 ## Per-scene character state: appearance yes, staging not yet
 
-A character's *identity* is project-scoped and belongs here. A character's **state** is per shot and belongs elsewhere — and since Studio PR #504 it has a real home.
+A character's *identity* is project-scoped and belongs here. A character's **state** is per shot and belongs elsewhere.
 
-**Covered** by `appearanceState` on the `appears_in` relation (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`) — validated, and readable back through the relation. Write it from the breakdown or the audit; see `mixio-script-breakdown`.
+**Covered — on the PR #503–#505 stack only, not on `dev`** — by `appearanceState` on the `appears_in` relation (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`): validated, and readable back through the relation. Write it from the breakdown or the audit; see `mixio-script-breakdown`. Until it ships, treat it the same as the staging columns below — session-local, and restated in each shot's own text.
 
 **Not covered**: zone, facing, posture, relative-to. The shot's canonical `blocking` is a single string describing the whole frame, not per character. So the `STAGING` block and the continuity blocking map remain session-local for those columns, and posture/facing must be restated in each shot's own `action` / `blocking` text rather than inherited.
+
+When you restate them, **hang them off the mention** rather than writing one blended sentence:
+
+```
+@tony (MC, three-quarter-left, seated cross-legged, on BED beside BEDSIDE TABLE)
+@poppy (FL, three-quarter-right, standing, at BED FRAME edge, tablet extended)
+```
+
+One clause per character keeps the columns recoverable by the next audit pass, and the mention token is the one thing that survives prompt assembly with its position intact — so the staging stays attached to the right subject instead of being re-attributed by the model.
 
 ## Prop sheet
 
