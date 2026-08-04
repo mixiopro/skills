@@ -1,0 +1,77 @@
+# Mixio Skills
+
+Agent guidance for this repository. You have access to Mixio Studio through the `@mixio-pro/mcp` MCP server; these skills document what to call, in what order, and what each step must produce.
+
+## Data model
+
+A **project** holds episodes and a Cast & World roster. An **episode** owns script, scenes and shots. Cast & World (characters, locations, props) is **project**-scoped and feeds generation for consistency, so it outlives any one episode.
+
+## Skills
+
+**Tool skills** — the MCP surface. Safe to use standalone.
+
+| Skill | Invoke | Use for |
+|-------|--------|---------|
+| `mixio-project` | `/mixio:project` | Project CRUD, whole-graph reads |
+| `mixio-references` | `/mixio:references` | Cast & World, reference images, project reference policy |
+| `mixio-episode` | `/mixio:episode` | Episode CRUD, script, scene/shot primitives, relations |
+| `mixio-generate` | `/mixio:generate` | Image, video and audio jobs |
+| `mixio-workspace` | `/mixio:workspace` | Upload local files, get permanent URLs |
+| `mixio-eval` | `/mixio:eval` | Visual continuity evaluation of rendered media |
+
+**Production skills** — the procedure, the schemas and the gates.
+
+| Skill | Invoke | Use for |
+|-------|--------|---------|
+| `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode.** Six gated steps + resumable state |
+| `mixio-sheets` | `/mixio:sheets` | Character turnarounds, location sheets, prop sheets, per-scene anchors |
+| `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → references, scenes, shot specs against the canonical schemas |
+| `mixio-continuity` | `/mixio:continuity` | Four-pass text continuity audit, before anything renders |
+| `mixio-chunking` | `/mixio:chunking` | Group shots into generation chunks, production summary for cost approval |
+
+For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a production skill directly when you only need that one step.
+
+## Order matters
+
+```
+00  lock aspect_ratio (delivery) + anchor_aspect_ratio (wider, for anchors)
+01  Script            → persisted on the episode as the source of truth
+02  Sheets + anchors  → /mixio:sheets      — references must exist before shots reference them
+03  Shot breakdown    → /mixio:script-breakdown
+04  Continuity audit  → /mixio:continuity  — text only, free, catches logic
+05  Chunking          → /mixio:chunking    — then get cost approval
+06  Generation        → /mixio:generate per chunk, then /mixio:eval before delivery
+```
+
+Steps 01, 03, 04 and 05 cost only tokens. That is the point: a continuity break caught in step 04 costs a paragraph; the same break caught in step 06 costs a re-render.
+
+Sheets come **before** the breakdown because the breakdown emits references as shallow stubs (`name`, `description`, `attributes`) and writes no `characterDetails` or `locationDetails`. Build the sheets first and the breakdown reuses their canonical names instead of minting near-duplicates.
+
+## Conventions
+
+- Call `studio_tools_describe` before using an unfamiliar tool, and `studio_get_use_case_input_schema` before submitting an unfamiliar generation use case. Don't guess parameters.
+- Read `settings.references` on the project before creating references — `createPolicy` and `variantPolicy` can forbid writes this repo otherwise describes.
+- Shot metadata keys are `snake_case`; scene metadata keys are `camelCase`. Mixing them up is rejected, not silently ignored.
+- Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
+- Upload final outputs with `upload_file` for permanent URLs, and run `run_evaluation` before delivering to a client.
+- Generation is billable. Ask before video unless the user has said otherwise.
+
+## MCP server
+
+```json
+{
+  "mcpServers": {
+    "mixio": {
+      "command": "npx",
+      "args": ["-y", "@mixio-pro/mcp"],
+      "env": { "MIXIO_API_KEY": "your-key" }
+    }
+  }
+}
+```
+
+`studio_*` tools are proxied from the Studio server. `upload_file`, `get_public_url`, `register_asset`, `run_evaluation` and `get_evaluation_result` are local to `@mixio-pro/mcp` and are **not** covered by `studio_tools_describe` — see `mixio-workspace` and `mixio-eval` for their parameters.
+
+## Scope
+
+Final assembly — stitching, mixing, export, timeline rendering — is not part of the MCP surface. The pipeline delivers approved per-chunk video, not a finished cut.

@@ -18,6 +18,8 @@ Installs the skill docs (this repo) into whichever agents you have installed —
 npx skills add mixiopro/skills
 ```
 
+This copies **skill directories only** — each folder under `skills/` that contains a `SKILL.md`, along with its `references/` and any scripts. Repo-root files are not copied, so [`AGENTS.md`](./AGENTS.md) and the MCP config below do not come with it. Clone the repo (see [Manual](#manual-any-agent)) if you want the repo-level guidance too.
+
 Then configure the MCP server (see [Manual](#manual-any-agent) below).
 
 ### Claude Code marketplace
