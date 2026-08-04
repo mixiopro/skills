@@ -171,7 +171,7 @@ studio_update_shot_state({ shots: [
 
 Prefer the relation write for facts about a *character in a shot* (they carry the tablet now) and `update_shot_state.continuity` for the *verdict* on the shot. Putting a per-character fact in the shot verdict loses which character it was about.
 
-Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, so corrections must use canonical keys (`camera_movement`, not `Camera:`) — and since Studio PR #502 a casing variant or a cross-spec key is **rejected** rather than silently ignored. See `mixio-script-breakdown` for the full mapping. Then close the step:
+Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, so corrections must use canonical keys (`camera_movement`, not `Camera:`) — and once Studio PR #503 lands a casing variant or cross-spec key is **rejected** rather than silently ignored (today it is still ignored, which is the quieter failure). See `mixio-script-breakdown` for the full mapping. Then close the step:
 
 ```
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: { step_04: "complete" } } } })

@@ -141,7 +141,7 @@ Match the move to emotional intent: `static` for tension, contemplation, dialogu
 
 ## Where the fine-grained camera detail goes
 
-Since Studio PR #502 the shot-grammar fields map **1:1 onto canonical keys** — camera detail no longer degrades into prose. (On a pre-#502 Studio, `camera_angle`, `lens`, `lighting`, `mood` and `blocking` are rejected by the strict write boundary; check before relying on them.)
+Since Studio PR #502 the shot-grammar fields map **1:1 onto canonical keys** — camera detail no longer degrades into prose. On an older Studio these keys are not rejected; they land in the unvalidated passthrough partition, and `lighting`, `mood`, `blocking` and `angle` are read by the prompt builders from there anyway. Writing them has always been safe; #502 made them validated and made `lens` reach the prompt.
 
 | Grammar field | Canonical key | Notes |
 |---|---|---|
@@ -163,12 +163,12 @@ Since Studio PR #502 the shot-grammar fields map **1:1 onto canonical keys** —
 
 Non-spec keys still persist verbatim, and since PR #505 they **reach the generation prompt** under `- Additional direction:` (a denylist, not an allowlist). So a passthrough key is prompt text now, not an inert note — write it deliberately or not at all.
 
-Two classes of key are now **rejected with a `ShotSpecValidationError`** instead of silently passing through:
+Two classes of key are **rejected with a `ShotSpecValidationError`** once Studio PR #503 lands — it is not on `dev` yet, so today the same mistakes still pass silently into passthrough where nothing reads them:
 
 1. a casing or separator variant of a key in the *same* spec — `styleambiance`, `Style_Ambiance`
 2. a canonical key belonging to the *other* spec — `timeOfDay` on a shot, `shot_type` on a scene
 
-`location`, `duration`, and `audio` are exempt, being in genuine dual use. Practical consequence: **do not write `anchor_ref` on a shot or scene** — it normalizes to the same token as the canonical scene key `anchorRef` and will throw. Use `anchorRef` on the scene. `chunk_index` and `pacing` remain safe.
+`location`, `duration`, and `audio` are exempt, being in genuine dual use. Until the guard ships, a typo costs you a silently dropped field rather than an error, which is the worse failure — so spell canonical keys exactly. Practical consequence either way: **do not write `anchor_ref`** on a shot or scene; the canonical scene key is `anchorRef`, and the variant will be ignored now and rejected later. `chunk_index` and `pacing` remain safe.
 
 ## Duration
 

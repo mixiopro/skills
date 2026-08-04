@@ -279,7 +279,7 @@ studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
 
 Since Studio PR #502 `anchorRef` (plus `anchorRefs` for extras, max 50) is a canonical scene key, and generation merges it into every job prepared for a shot in that scene. That replaces attaching the anchor by hand per shot. Anchors dedupe by slot reference id so an explicit per-shot choice still wins, and an anchor whose media can't be read is skipped rather than guessed at.
 
-Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref`: since PR #502 a separator variant of a canonical key is rejected with a validation error rather than silently passed through.
+Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref` — the canonical key is `anchorRef`. A separator variant is silently ignored today and will be rejected outright once Studio PR #503 lands.
 
 ## Workflow
 
