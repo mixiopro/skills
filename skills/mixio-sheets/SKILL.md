@@ -57,6 +57,23 @@ Two supplied images may be two angles of one space. Say what you inferred and ge
 
 Generating a reference the user already owns wastes credits and throws away the look they wanted. `studio_list_references` first, ask second, render last.
 
+## Check the project's reference policy first
+
+Before creating anything, read `settings.references` with `studio_get_project` — a configured project can forbid the writes this skill would otherwise make. See `mixio-references` for the full contract.
+
+- **`createPolicy: link_only`** — do not create references. Link to existing ones, and report any script entity with no match instead of inventing it.
+- **`createPolicy: propose`** — surface the proposed reference list for approval rather than writing it.
+- **`variantPolicy: closed`** — variant names must come from `variantVocabulary[TYPE]`. Do not invent `"Gala Dress"` when the vocabulary is `['casual','formal']`; map to the vocabulary term or ask.
+- **`aliasMatching: true`** — record aliases as you go (below), because matching depends on them.
+
+Record aliases for every reference whose script name differs from its canonical name. This is what stops episode 2 creating a second `Tony Russo` beside episode 1's `TONY`:
+
+```
+studio_update_element({ elementId: referenceId, updates: { metadata: {
+  aliases: ["Tony Russo", "Antonia"]
+}}})
+```
+
 ## Character sheet
 
 A turnaround: one image (or an image set) showing the character from the angles a shot might need, in neutral conditions so the sheet carries **identity, not mood**.
@@ -95,16 +112,22 @@ A costume change is a **named variant**, not a new character. Use `referenceVari
 
 ```
 referenceVariants: [
-  { name: "Default Look", isDefault: true, images: [{ url: defaultSheet, isPrimary: true }] },
-  { name: "Gala Dress",   images: [{ url: galaSheet, isPrimary: true }] }
+  { name: "Default Look", kind: "primary", isDefault: true, images: [{ url: defaultSheet, isPrimary: true }] },
+  { name: "formal",       kind: "look",    images: [{ url: galaSheet, isPrimary: true }] }
 ]
 ```
 
+`kind` is `primary` | `look` | `reference`. Under `variantPolicy: closed` the `name` must come from `variantVocabulary.CHARACTER` — that's why the second entry above is `"formal"` and not `"Gala Dress"`. On an open project use a descriptive name.
+
 Shots then reference the variant by name in `character_ref`. Registering `TONY (gala)` as a second CHARACTER splits the identity and both halves drift.
+
+Hair state (up/down/wet) and condition (bruised, soaked, dusty) are *not* costume changes and should not consume a wardrobe variant name. There is currently no field for them — see the state limitation below.
 
 ### Scale sheets
 
 When relative height matters (adult/child, human/creature), render one `SCALING_SHEET` element with the cast side by side at true relative height against a gridded or plain background. Retrieve it with `studio_list_references({ projectId, type: "SCALING_SHEET" })` and feed it as a reference on any shot with both characters in frame.
+
+Cheaper alternative for a single character: set `metadata.scalingLabel` on the reference (via `studio_update_element` — `update_reference` has no `metadata` param). Either mechanism causes scale constraints to be injected into generation prompts; neither one present means the model picks relative heights freshly in every shot.
 
 ## Location sheet
 
@@ -139,6 +162,30 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
 
 Persist to `locationDetails` (`setting`, `timePeriod`, `mood`, `lighting`, `palette`) plus the full sheet text in the reference description.
 
+### Time-of-day and weather variants
+
+`lightingNotes` promises "time-of-day variants" but a DAY and a NIGHT version of one room are not one lighting note — they are two different reference images. Use the **same variant mechanism as character costumes**, which works on locations too:
+
+```
+referenceVariants: [
+  { name: "day",   kind: "primary", isDefault: true, images: [{ url: dayRef,   isPrimary: true }] },
+  { name: "night", kind: "look",                     images: [{ url: nightRef, isPrimary: true }] },
+  { name: "rain",  kind: "look",                     images: [{ url: rainRef,  isPrimary: true }] }
+]
+```
+
+Names must sit in `variantVocabulary.LOCATION` when the project is `closed`. Select the variant matching the scene's `timeOfDay` when you render its anchor — nothing does this automatically today, so it is on you to pass the right one. The alternative people reach for — registering `TONY'S APARTMENT (NIGHT)` as a second LOCATION — splits the space and the two halves drift apart exactly like a split character does.
+
+## Limitation: per-scene character state has nowhere to live
+
+A character's *identity* is project-scoped and persists fine. A character's **state** — zone, facing, posture, what they're holding, whether they're bruised — is per scene and per shot, and Studio has no field for it. `linked_character_ids` persists *presence* ("TONY is in shot 7") via `appears_in` relations, but not pose.
+
+Consequences to plan around:
+
+- The `STAGING` block and the continuity blocking map are **session-local**. Re-deriving them after a break means re-reading the shots.
+- Generation cannot read staging, so posture and facing must be restated in each shot's own `action` / `blocking` text rather than inherited.
+- You *can* park state on the `appears_in` relation's `metadata` today (`studio_link_graph` accepts per-relation `role` and `metadata`), and it will persist — but it is unvalidated and nothing reads it, so treat it as a note to your future self, not as a contract.
+
 ## Prop sheet
 
 Only for props that carry story weight or change hands — the ones prop-continuity checks track. A single clean image on neutral background, plus `propDetails` (`category`, `material`, `significance`). Background dressing named in the location sheet does not need its own sheet.
@@ -167,14 +214,17 @@ studio_create_element({ projectId, type: "KEYFRAME", name: "Anchor 1 — Scene 0
 
 ```
 1. parse script → cast list + location list + story-critical props
-2. studio_list_references({ projectId })            → what already exists
-3. ask the user for reference images; confirm image→location mapping; note skips as TEXT-ONLY
-4. studio_register_reference_entities({ projectId, references })   → upsert by name
-5. per character: render turnaround → studio_update_reference({ attachments, characterDetails })
-   per location:  write the 6-field sheet → studio_update_reference({ locationDetails })
-6. per scene: render anchor at anchor_aspect_ratio with location_ref + character_ref
+2. studio_get_project({ projectId })                → settings.references policy (createPolicy, variantPolicy, vocabulary)
+3. studio_list_references({ projectId })            → what already exists
+4. ask the user for reference images; confirm image→location mapping; note skips as TEXT-ONLY
+5. studio_register_reference_entities({ projectId, references })   → upsert by name (respect createPolicy)
+   studio_update_element({ metadata: { aliases } })                → record script-name aliases
+6. per character: render turnaround → studio_update_reference({ attachments, characterDetails })
+   per location:  write the 6-field sheet → studio_update_reference({ locationDetails, referenceVariants })
+7. per scene: render anchor at anchor_aspect_ratio with location_ref + character_ref
+   (pick the location variant matching the scene's timeOfDay)
    → studio_create_element({ type: "KEYFRAME" }) → record id in metadata.pipeline.anchors
-7. show every sheet and anchor for approval → GATE → Step 03 Panel Breakdown
+8. show every sheet and anchor for approval → GATE → Step 03 Panel Breakdown
 ```
 
 ## Notes

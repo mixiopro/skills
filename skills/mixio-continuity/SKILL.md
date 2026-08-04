@@ -59,6 +59,8 @@ Rules:
 
 Build the map before looking for problems. Most breaks are invisible in prose and obvious in a table.
 
+**The map is session-local.** Studio persists character *presence* per shot (`appears_in` relations, created from `linked_character_ids`) but has no field for pose — zone, facing, posture and relative-to have nowhere contracted to live. So this table is working memory, not stored state: a later session re-derives it from the shots, and generation cannot read it. Two consequences worth acting on: restate posture and facing in each shot's own `action` / `blocking` text rather than relying on inheritance, and if you want the map to survive, park it on the `appears_in` relation's `metadata` via `studio_link_graph` — it persists, but unvalidated and unread, so treat it as a note rather than a contract.
+
 ## Pass 2 — Continuity Checks
 
 Enumerated, each one traced shot by shot, each one closing with `FINDING:` or `✅`. Show the trace — a bare verdict can't be reviewed.

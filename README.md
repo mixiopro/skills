@@ -120,7 +120,7 @@ Model IDs change as Studio adds providers — call `studio_list_generation_model
 | Image | `gpt_image_2`, `gemini_image`, `seedream_5_pro` |
 | Video | `seedance_image_to_video_pro`, `seedance_text_to_video_pro`, `seedance_image_to_video_v2`, `veo_3_1`, `sora_2`, `kling_text_to_video_2_6_pro` |
 
-There is no audio generation tool in the current MCP server.
+There is no *dedicated* audio tool, but audio generation is reachable through the normal job path — the engine exposes `text-to-speech`, `voiceover`, `voice-change` and `audio-driven-performance` use cases. Note that both discovery filters omit audio (`list_use_cases`' `outputType` is `IMAGE | VIDEO | all`), so call `studio_list_use_cases()` unfiltered to see them. Final assembly — stitching, mixing, export — is not part of the MCP surface at all.
 
 ## Contributing
 

@@ -23,12 +23,59 @@ All proxied `studio_*` tools.
 | `studio_update_reference` | Update one reference element's images and structured details |
 | `studio_list_references` | List/search a project's CHARACTER/LOCATION/PROP/SCALING_SHEET elements |
 
+## Project reference policy — read this before creating anything
+
+A project can constrain how references and variants are created, at
+`projects.settings.references`. Read it with `studio_get_project` **before** you
+create a reference or invent a variant name:
+
+| Setting | Values | Meaning |
+|---|---|---|
+| `createPolicy` | `allow` · `link_only` · `propose` | Whether a breakdown may create references it cannot match. `link_only` means link to existing only; `propose` means surface a proposal instead of writing |
+| `aliasMatching` | `true` / `false` | Whether recorded aliases participate in name matching |
+| `variantPolicy` | `open` · `closed` | Whether variant names are constrained to the vocabulary |
+| `variantVocabulary` | `{ CHARACTER: [...], LOCATION: [...], PROP: [...] }` | Allowed variant ids per type. Absent or empty means unconstrained |
+
+Defaults reproduce pre-configuration behaviour (`allow`, `aliasMatching: false`, `open`, `{}`), so an unset project behaves as it always did. But on a configured project, inventing `"Gala Dress"` under `variantPolicy: closed` with a vocabulary of `['casual','formal']` is off-contract, and creating a new CHARACTER under `createPolicy: link_only` is not yours to do. Studio's own breakdown workflow reads these settings and injects the vocabulary into its prompt — match that behaviour.
+
+**Writing settings is a read-modify-write.** `studio_update_project`'s `updates.settings` is a **replacement** object, not a merge — fetch the current settings, merge your change, send the whole thing back, or you will silently drop every other setting on the project.
+
+### Aliases — how a second episode avoids duplicate references
+
+Matching is by normalized name, so `TONY`, `Tony Russo`, and `Antonia` are three
+different references unless aliases are recorded. Aliases are read from any of
+these metadata keys (all supported, de-duplicated):
+
+```
+aliases   alternateNames   altNames   referenceAliases   keywords   alias
+customAttributes: [{ key: "alias"|..., value }]
+```
+
+`studio_update_reference` has **no `metadata` parameter** (its params are
+`name`, `description`, `characterDetails`, `locationDetails`, `propDetails`,
+`attachments`, `referenceVariants`, `tags`, `workflow`), so aliases go in
+through the generic element tool, which merges metadata:
+
+```
+studio_update_element({ elementId: referenceId, updates: { metadata: {
+  aliases: ["Tony Russo", "Antonia", "Ton"]
+}}})
+```
+
+Or at creation time via `studio_register_reference_entities`, which does take
+`metadata`. Aliases only affect matching when `aliasMatching: true`; record them
+regardless, since the setting can be turned on later and the data will be there.
+
 ### `studio_update_reference` — the critical gotcha: `attachments` vs `referenceVariants`
 
 Both parameters put images on a reference, but they are **not interchangeable**:
 
 - **`attachments`** (array of `{ url, label?, isPrimary? }`) — **additive**. Merges new images into the existing default look. Use for adding more angles/images to what's already there.
 - **`referenceVariants`** (array of `{ name, kind?, isDefault?, images: [{url, label?, isPrimary?}] }`) — **full replace** of the entire variant list. Use when images are wrong and you need to overwrite, or when you're defining multiple named looks (e.g. `"Default Look"` + `"Battle Armor"`).
+
+`kind` is a closed set: **`primary`** (the identity reference — one per element), **`look`** (a costume/state variant), **`reference`** (a supporting image that is neither). Omitting it defaults to `look` on a variant and `primary` on the first entry. Variant `name` must sit inside `variantVocabulary` when the project sets `variantPolicy: closed` — see the policy section above.
+
+**Variants are read from three historical locations**, so a reference created by an older surface may hold its looks somewhere you don't expect: `referenceVariants` (current), `characterDetails.looks` (legacy character path), and `attachments` (flat, pre-variant). When you need the full set of looks on an existing reference, check all three — writing only `referenceVariants` does not migrate the other two.
 
 Internally, `attachments` is sugar that auto-builds/merges into a `"default"` `referenceVariants` entry — so mixing both in one call is redundant; pass one or the other. **Do not use `thumbnailUrl`** to set look images — it only changes the card preview, it does not create look variants the Cast & World UI reads.
 
@@ -46,10 +93,19 @@ studio_update_reference({
 ```
 
 Structured detail params (type-gated — sent fields are ignored if the element isn't that type, and are deep-merged, not replaced):
-- `characterDetails` (CHARACTER only): `role`, `age`, `personality`, `build`, `skin`, `hair`, `distinctiveFeatures`, `visualAnchor`, `wardrobeNotes`, `bio`, `backstory`, `motivations`, `speechStyle`, `voiceProfile`, `voiceReference`, `voiceRegistrations`
+- `characterDetails` (CHARACTER only): `role`, `age`, `personality`, `build`, `skin`, `hair`, `distinctiveFeatures`, `visualAnchor`, `wardrobeNotes`, `bio`, `backstory`, `motivations`, `speechStyle`, `relationshipsSummary`, `castingNotes`, `voiceProfile`, `voiceReference`, `voiceRegistrations`
 - `locationDetails` (LOCATION only): `setting`, `timePeriod`, `mood`, `lighting`, `palette`
 - `propDetails` (PROP only): `category`, `material`, `significance`
 - `workflow.status`: `draft` | `in_review` | `approved` | `rejected` | `archived`
+
+### Relative scale
+
+Two mechanisms, both read by prompt assembly (`buildScalingConstraintPrompt`):
+
+- **`metadata.scalingLabel`** (or `metadata.attributes.scalingLabel`) — a short label on an individual reference, e.g. `"6'2\" adult male"`. Write via `studio_update_element`, since `update_reference` has no `metadata` param.
+- **A `SCALING_SHEET` element** with `metadata.entities` — one image showing several references at true relative height. Retrieve with `studio_list_references({ projectId, type: "SCALING_SHEET" })`.
+
+Either one present causes scale constraints to be injected into generation prompts. Without them, a model will render an adult and a child at whatever relative height it likes, differently in every shot.
 
 Response is terse: `{ id, name, type, action: "updated" }` — not the full object, unlike most other `studio_update_*` tools.
 
