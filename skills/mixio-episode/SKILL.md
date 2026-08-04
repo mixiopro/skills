@@ -13,10 +13,12 @@ An episode lives inside a project (see `mixio-project`) and owns everything down
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
 - **Resolved scope — required.** You must be working against a project, and an episode for anything episode-scoped that the user has
-  explicitly confirmed. If it is not already established in this session, list the
-  candidates (`studio_list_projects` / `studio_list_episodes`) and **ask the user to
-  choose** before doing anything else. Never guess an id, infer one from a name, or
-  create a new project or episode to avoid asking. See `mixio-project`.
+  explicitly confirmed. If it is not established in this session, **fetch the list and show
+  it, numbered, in the same message as the question** (`studio_list_projects` /
+  `studio_list_episodes`) so the answer is one character. Asking "which episode?" without
+  the list is a failure — it hands the lookup back to the user. Resolve this *before* any
+  expensive read; never guess an id, infer one from a title, or create something to avoid
+  asking. See `mixio-project`.
 
 ## MCP Tools
 

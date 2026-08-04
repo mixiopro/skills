@@ -7,13 +7,18 @@ Agent guidance for this repository. You have access to Mixio Studio through the 
 Every Mixio tool is stateless — there is no "current project" on the server, so whatever id you pass *is* the scope. Most element-level write tools (`update_element`, `revise_shot_specs`, `update_shot_state`, `update_reference`, `bulk_update_elements`) take no `projectId` and verify no project scope, so a stale or invented id writes to the wrong production silently.
 
 ```
-projectId unknown?  studio_list_projects()            → numbered list → ASK the user
-episodeId needed?   studio_list_episodes({ projectId }) → numbered list → ASK the user
+projectId unknown?  studio_list_projects()              → show numbered list → ASK
+episodeId needed?   studio_list_episodes({ projectId })  → show numbered list → ASK
+exactly one option? say which you're using, continue — no question needed
 either empty?       say so, offer to create, confirm first
 then                restate the resolved scope once so a wrong pick surfaces early
 ```
 
-Never guess an id, infer one from a title, or create a project or episode to avoid asking. Pass the **deepest** scope you know on every call — `submit_studio_job`'s `context` takes `{ projectId, episodeId?, sceneId?, shotId? }`, and a job without `shotId` cannot be displayed under that shot. Only `mixio-workspace`'s upload tools are genuinely project-free.
+**Show the list in the same message as the question.** Asking "which episode are you working on?" without enumerating them is a failure — it hands the lookup back to the user. Resolve scope *before* any expensive read: `list_episodes` is cheap, `get_production_context` returns 100K+ characters.
+
+Never guess an id, infer one from a title, or create a project or episode to avoid asking. Pass the **deepest** scope you know on every call — `submit_studio_job`'s `context` takes `{ projectId, episodeId?, sceneId?, shotId? }`, and a job without `shotId` cannot be displayed under that shot.
+
+Note that `Shot 2.2` means scene 2, shot 2 *of some episode* — numbering restarts per scene and per episode, so that label exists in every episode and is under-specified until the episode is known. Only `mixio-workspace`'s upload tools are genuinely project-free.
 
 ## Data model
 
