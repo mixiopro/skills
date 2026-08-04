@@ -2,6 +2,19 @@
 
 Agent guidance for this repository. You have access to Mixio Studio through the `@mixio-pro/mcp` MCP server; these skills document what to call, in what order, and what each step must produce.
 
+## Resolve scope before doing anything (required)
+
+Every Mixio tool is stateless — there is no "current project" on the server, so whatever id you pass *is* the scope. Most element-level write tools (`update_element`, `revise_shot_specs`, `update_shot_state`, `update_reference`, `bulk_update_elements`) take no `projectId` and verify no project scope, so a stale or invented id writes to the wrong production silently.
+
+```
+projectId unknown?  studio_list_projects()            → numbered list → ASK the user
+episodeId needed?   studio_list_episodes({ projectId }) → numbered list → ASK the user
+either empty?       say so, offer to create, confirm first
+then                restate the resolved scope once so a wrong pick surfaces early
+```
+
+Never guess an id, infer one from a title, or create a project or episode to avoid asking. Pass the **deepest** scope you know on every call — `submit_studio_job`'s `context` takes `{ projectId, episodeId?, sceneId?, shotId? }`, and a job without `shotId` cannot be displayed under that shot. Only `mixio-workspace`'s upload tools are genuinely project-free.
+
 ## Data model
 
 A **project** holds episodes and a Cast & World roster. An **episode** owns script, scenes and shots. Cast & World (characters, locations, props) is **project**-scoped and feeds generation for consistency, so it outlives any one episode.

@@ -27,6 +27,11 @@ Best of both: run the **composed** path but keep Studio's two safety properties 
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
+- **Resolved scope — required.** You must be working against a project and an episode that the user has
+  explicitly confirmed. If it is not already established in this session, list the
+  candidates (`studio_list_projects` / `studio_list_episodes`) and **ask the user to
+  choose** before doing anything else. Never guess an id, infer one from a name, or
+  create a new project or episode to avoid asking. See `mixio-project`.
 - A project and an episode with `script` persisted (`mixio-episode`)
 
 ## Managed path
@@ -242,6 +247,10 @@ Match Studio's own recognizers so your scene boundaries agree with the server's:
 - **Continuations** — `CONTINUED`, `INTERCUT`, `INTERCUT TO`, `BACK TO` set `isContinuation: true`.
 
 `sceneNumber` and `shotNumber` start at 1 and must be ordered. `tags.sceneNumber` and `tags.shotNumber` are set automatically on persist; `tags.episodeId` is what scopes later queries.
+
+**`shotNumber` is per scene, not per episode.** Shots are named `{sceneNumber}.{shotNumber}`, so an episode runs `1.1`, `2.1`, `2.2`, `3.1` … `3.5`, `4.1`. There is no global shot index. When a user says "shot 5", ask whether they mean the fifth shot *within a scene* (`3.5`) or the fifth shot in the episode — those are different shots and the names don't disambiguate.
+
+**Only scenes carry script text.** `scriptBody`, `screenplayLines`, `dialogueLines`, `cameraNotes` and `directorNotes` are scene fields; there is no per-shot script field. The shot's own `subject` / `action` / `context` *are* its narrative slice, so writing them is not optional garnish — a shot left at `subject: ""` has no content at all, and anything generating from it has only the scene's script to infer from. If you want a literal generation prompt on the shot, put it in the passthrough `keyframePrompt` or `generationPrompt` keys.
 
 ### The deterministic pass wins
 

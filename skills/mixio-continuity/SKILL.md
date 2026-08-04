@@ -23,6 +23,11 @@ Vocabulary and the issue taxonomy: `mixio-pipeline/references/shot-grammar.md`.
 
 ## Prerequisites
 
+- **Resolved scope — required.** You must be working against a project and an episode that
+  the user has explicitly confirmed. If it is not already established in this session,
+  list the candidates (`studio_list_projects` / `studio_list_episodes`) and **ask the
+  user to choose** before doing anything else. Never guess an id, infer one from a
+  name, or create a new project or episode to avoid asking. See `mixio-project`.
 - A persisted breakdown (Step 03) with `duration`, camera, action, and staging fields on every shot
 - Ideally an anchor frame per scene (`mixio-sheets`) — determines the mode below
 

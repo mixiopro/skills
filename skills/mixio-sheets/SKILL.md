@@ -24,6 +24,11 @@ Vocabulary: `mixio-pipeline/references/shot-grammar.md`.
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
+- **Resolved scope — required.** You must be working against a project (and an episode for anchors) that the user has
+  explicitly confirmed. If it is not already established in this session, list the
+  candidates (`studio_list_projects` / `studio_list_episodes`) and **ask the user to
+  choose** before doing anything else. Never guess an id, infer one from a name, or
+  create a new project or episode to avoid asking. See `mixio-project`.
 - A locked script (Step 01) — the cast and location lists come from its sluglines and CAPS tokens
 - `aspect_ratio` and `anchor_aspect_ratio` locked on the episode
 
