@@ -14,6 +14,13 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 | `mixio-generate` | `/mixio:generate` | Image and video generation via Studio jobs (script breakdown, keyframes, image/video models) |
 | `mixio-workspace` | `/mixio:workspace` | Upload files, get public URLs, manage cache |
 | `mixio-eval` | `/mixio:eval` | Visual continuity/consistency evaluation before delivery |
+| `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode** — six gated steps, progress state, shared shot grammar |
+| `mixio-sheets` | `/mixio:sheets` | Character turnarounds, location sheets, prop sheets, per-scene anchor frames |
+| `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → references/scenes/shots; canonical shot+scene schemas, camera enums, verbatim rules |
+| `mixio-continuity` | `/mixio:continuity` | Four-pass text continuity audit before rendering |
+| `mixio-chunking` | `/mixio:chunking` | Group shots into generation chunks + production summary for cost approval |
+
+For a full episode, run `/mixio:pipeline` and let it gate the steps. The first six skills are MCP tool references; the last five encode the production procedure and can be invoked directly for a single step.
 
 ## Quick Start
 
