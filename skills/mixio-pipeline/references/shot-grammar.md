@@ -62,10 +62,10 @@ Shot 7 — 4.5s [M2]
 
 - `Camera` must state **size / angle / movement / lens**, then **placement** (where the lens physically is, relative to CAPS set elements), then **In frame** as explicit `FG` / `MG` / `BG` layers. "Close-up on Tony" is not a camera field — it doesn't say where the lens is, so two shots can't be checked against each other.
 - `Lighting: as Anchor N` is the normal value. Any deviation must be stated and justified, because deviating from the anchor is exactly what makes a cut look like a different room.
-- `duration` in seconds, one decimal place. Chunking and cost are arithmetic on it. **Fractional durations only survive the composed persistence path** — Studio's managed breakdown workflow snaps every duration to `5 / 8 / 10 / 12 / 15`. See `mixio-script-breakdown`.
+- `duration` in seconds, one decimal place. Chunking and cost are arithmetic on it. Studio persists a continuous float 1–60 (pre-#502 it snapped to `5/8/10/12/15`) — see `mixio-script-breakdown`.
 - `Pacing` drives the rapid-pacing warning in the production summary.
 
-This is the **authoring** format. It is not the persisted shape: `Camera` splits across `shot_type` / `camera_movement` / `angle`, and `Lighting` has no canonical field at all. `mixio-script-breakdown` owns the field-by-field mapping onto what actually persists — read it before writing a breakdown to Studio.
+This is the **authoring** format, and since Studio PR #502 it maps essentially 1:1 onto canonical keys: `Camera` splits across `shot_type` / `camera_angle` / `camera_movement` / `lens`, `In frame` becomes `blocking`, and `Lighting` is its own field. `mixio-script-breakdown` owns the field-by-field mapping — read it before writing a breakdown to Studio.
 
 ## Scene staging block
 

@@ -59,7 +59,9 @@ Rules:
 
 Build the map before looking for problems. Most breaks are invisible in prose and obvious in a table.
 
-**The map is session-local.** Studio persists character *presence* per shot (`appears_in` relations, created from `linked_character_ids`) but has no field for pose — zone, facing, posture and relative-to have nowhere contracted to live. So this table is working memory, not stored state: a later session re-derives it from the shots, and generation cannot read it. Two consequences worth acting on: restate posture and facing in each shot's own `action` / `blocking` text rather than relying on inheritance, and if you want the map to survive, park it on the `appears_in` relation's `metadata` via `studio_link_graph` — it persists, but unvalidated and unread, so treat it as a note rather than a contract.
+**Half of this map is now persistable.** Since Studio PR #504, `appearanceState` on each `appears_in` relation carries `wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef` and `continuityNotes` per character per shot — validated, and readable back. Write the map's wardrobe/condition/held-props columns there as you build it and the next session inherits them instead of re-deriving.
+
+**Zone, facing, posture and relative-to are still session-local.** `appearanceState` is appearance, not staging, and the shot's canonical `blocking` is one string for the whole frame. So restate posture and facing in each shot's own `action` / `blocking` text rather than relying on inheritance, and expect to rebuild those four columns on re-entry.
 
 ## Pass 2 — Continuity Checks
 
@@ -146,6 +148,12 @@ Rules:
 # content fixes
 studio_revise_shot_specs({ shots: [{ shotId, metadata: { action, camera_movement, ... } }] })
 
+# per-character appearance facts the corrections established
+studio_link_graph({ projectId, relations: [{
+  fromId: characterId, toId: shotId, relationType: "appears_in",
+  metadata: { carriedProps: ["TABLET"], continuityNotes: "phone put down in this shot [M2]" }
+}]})
+
 # verdict + audit trail
 studio_update_shot_state({ shots: [
   { shotId: cleanId,     state: "approved" },
@@ -156,7 +164,9 @@ studio_update_shot_state({ shots: [
 
 `update_shot_state` takes `{ shotId, state?, feedback?, continuity?, review?, metadata?, tags? }`. `state`, `feedback`, `continuity`, and `review` are written to `metadata.state` / `.feedback` / `.continuity` / `.review`. `continuity` and `feedback` each accept **a string or an object** — prefer an object so the report is machine-readable on re-entry. `state` values: `approved`, `needs_revision`, `in_review`, `scripting`.
 
-Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, so corrections must use canonical keys (`camera_movement`, not `Camera:`) — see `mixio-script-breakdown` for the full mapping. Then close the step:
+Prefer the relation write for facts about a *character in a shot* (they carry the tablet now) and `update_shot_state.continuity` for the *verdict* on the shot. Putting a per-character fact in the shot verdict loses which character it was about.
+
+Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, so corrections must use canonical keys (`camera_movement`, not `Camera:`) — and since Studio PR #502 a casing variant or a cross-spec key is **rejected** rather than silently ignored. See `mixio-script-breakdown` for the full mapping. Then close the step:
 
 ```
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: { step_04: "complete" } } } })
