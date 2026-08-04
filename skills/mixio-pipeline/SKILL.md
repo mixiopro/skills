@@ -114,6 +114,13 @@ Then group into generation batches using `mixio-chunking`'s algorithm per model-
 - **Ask before video** — images are cheap, video is not; this is the sensible default.
 - **Always ask** — confirm every job.
 
+**Use case IDs for this step:**
+- Keyframes (multi-frame sequence per shot): `production-generate-shot-keyframe-sequence`
+- Keyframes (single/counted per shot): `production-generate-shot-keyframes`
+- Video: `production-generate-video`
+
+Do **not** use `keyframe-sequence` — that is the Generate-page version (`outputType: IMAGE`, `surfaces: ["generate"]`) and output will not land under the shot even with correct `context`.
+
 After each chunk, set shot state (`approved` / `needs_revision`) with `studio_update_shot_state` so the canvas reflects reality.
 
 **Final assembly is out of scope for this tool surface.** None of the 39 MCP tools stitch, concatenate, export, or render a timeline — the pipeline delivers approved per-chunk video, not a finished cut. Say so rather than implying a single deliverable file is reachable. Audio *is* reachable (`text-to-speech`, `voiceover` and friends through `studio_submit_studio_job` — see `mixio-generate`), so a narration or dialogue track can be generated per shot even though mixing cannot.

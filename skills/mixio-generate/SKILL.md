@@ -29,7 +29,7 @@ Model and use-case IDs change as Studio adds providers — always confirm with `
 | Image | `gpt_image_2`, `gemini_image`, `seedream_5_pro` |
 | Video | `seedance_image_to_video_pro`, `seedance_text_to_video_pro`, `seedance_image_to_video_v2`, `veo_3_1`, `sora_2`, `kling_text_to_video_2_6_pro` |
 
-Common `useCaseId` values: `image-hub` (general image gen with references), `production-generate-keyframes`, `image-edit` (requires a source image), `refine-character-image`, `production-generate-video`, `keyframe-sequence` (multi-frame continuity workflow), `script-preproduction`.
+Common `useCaseId` values: `image-hub` (general image gen with references), `production-generate-shot-keyframe-sequence` (production keyframes — see table below), `image-edit` (requires a source image), `refine-character-image`, `production-generate-video`, `keyframe-sequence` (Generate-page multi-frame workflow — does **not** land under a shot), `script-preproduction`.
 
 ## The use case decides where output lands — not `context`
 
@@ -37,16 +37,22 @@ This is the single easiest thing to get wrong, and it costs a paid job. Passing 
 
 | Use case | Scope | Output appears |
 |---|---|---|
-| `production-generate-keyframes` | production, current scope | **under the scene/shot** in the production view |
-| `production-generate-shot-keyframes` | one shot | under that shot |
-| `production-generate-scene-keyframes` | one scene | under that scene |
-| `production-generate-shot-keyframe-grid` / `-sequence` | one shot, multi-frame | under that shot |
-| `production-generate-scene-keyframe-grid` | one scene, multi-frame | under that scene |
+| **`production-generate-shot-keyframe-sequence`** | **one shot, multi-frame sequence (4–12 frames)** | **under that shot — default for pipeline Step 06 keyframes** |
+| `production-generate-keyframes` | production, current scope | under the scene/shot in the production view |
+| `production-generate-shot-keyframes` | one shot, single or counted keyframes | under that shot |
+| `production-generate-scene-keyframes` | one scene, single or counted keyframes | under that scene |
+| `production-generate-shot-keyframe-grid` | one shot, storyboard grid | under that shot |
+| `production-generate-scene-keyframe-grid` | one scene, storyboard grid | under that scene |
 | `production-generate-video` | production, current scope | under the scene/shot |
-| `keyframe-sequence` | **not production-scoped** | general / Image Hub list, *not* under the shot |
+| `keyframe-sequence` | **not production-scoped** (`outputType: IMAGE`, `surfaces: ["generate"]`) | general / Image Hub list, *not* under the shot |
+| `keyframe-grid` | not production-scoped (`outputType: IMAGE`, `surfaces: ["generate"]`) | general / Image Hub list |
 | `image-hub`, `image-edit`, `refine-character-image` | general | Image Hub list |
 
-Observed in real use: a `keyframe-sequence` job submitted with a fully correct `context` including `shotId` still landed in the general Image Hub list and never appeared under the shot. The fix was resubmitting as `production-generate-keyframes`. `keyframe-sequence` plans a run of frames as a unit and only attaches per-shot when `orchestrate_frames: true`.
+All `production-*` use cases share `outputType: "STUDIO"` and `surfaces: ["studio"]`.
+
+⚠️ **Discovery pitfall:** Because their `outputType` is `"STUDIO"`, production use cases are **invisible** when calling `studio_list_use_cases({ outputType: "IMAGE" })`. Call with no filter or `outputType: "all"` to see them. When operating inside a production pipeline, use the IDs directly — do not try to discover them via an `IMAGE` or `VIDEO` filter.
+
+Observed in real use: a `keyframe-sequence` job submitted with a fully correct `context` including `shotId` still landed in the general Image Hub list and never appeared under the shot. The fix was resubmitting as `production-generate-shot-keyframe-sequence`. The Generate-page `keyframe-sequence` runs the same multi-pass Agno workflow but lacks production scope binding.
 
 **Rule: if the user expects to see the result under a scene or shot in Studio, use a `production-*` use case.** Call `studio_list_use_cases()` to confirm the current set, and `studio_get_use_case_input_schema({ useCaseId })` for its exact contract, before submitting.
 
@@ -116,7 +122,7 @@ Four separate context mechanisms, and they do different jobs. Pass all of them y
 Prefer `slotReferences` over bare `input.media` when the image came from a Studio element — the `elementId` is what lets scene anchors dedupe against an explicit per-shot choice instead of attaching twice. `type` in `selectedElements` is one of `CHARACTER`, `LOCATION`, `PROP`, `SHOT`, `SCENE`.
 
 A job that passes only `projectId` and raw URLs will still render, but nothing downstream can tell what it was *for*.
-- `input.parameters`: `aspect_ratio` (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9`), `quality`, `duration` (video, seconds), `style`, `output_format`, `keyframe_count` (4-12, for `keyframe-sequence`), `orchestrate_frames` (true for >12 frames — dispatches one child job per frame).
+- `input.parameters`: `aspect_ratio` (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9`), `quality`, `duration` (video, seconds), `style`, `output_format`, `keyframe_count` (4-12, for `production-generate-shot-keyframe-sequence` or `keyframe-sequence`), `orchestrate_frames` (true for >12 frames — dispatches one child job per frame).
 - `studio_get_job_status` requires **both** `jobId` and `projectId` — it's not a bare job lookup.
 - There's no MCP cancel tool. Cancellation is HTTP-only (`POST /api/studio-jobs/{id}/cancel`), outside this tool set.
 - Job status values: `PENDING`, `RUNNING`, `IN_QUEUE`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `CANCELLED`.
