@@ -104,14 +104,14 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 }}}})
 ```
 
-| What Dashtoon keeps in shared memory | Where it lives in Mixio |
+| Pipeline state | Where it lives in Mixio |
 |---|---|
-| `source` (script, synopsis, aspect ratios) | episode `script`, `summary`, `metadata.pipeline` |
-| `locations` | LOCATION references + `locationDetails` (`mixio-references`) |
-| `direction` / `scenes` | scene elements via `studio_upsert_scene_packages` |
-| `progress` | episode `metadata.pipeline` |
-| `chunks` | shot `metadata.chunk_index` |
-| `assets` / `videos` | KEYFRAME / VIDEO elements + `upload_file` URLs |
+| Source (script, synopsis, aspect ratios) | episode `script`, `summary`, `metadata.pipeline` |
+| Locations | LOCATION references + `locationDetails` (`mixio-references`) |
+| Scenes and direction | scene elements via `studio_upsert_scene_packages` |
+| Step progress | episode `metadata.pipeline` |
+| Chunk assignments | shot `metadata.chunk_index` |
+| Rendered assets and video | KEYFRAME / VIDEO elements + `upload_file` URLs |
 
 On resume, read `studio_get_episode` (cheap) rather than `studio_get_production_context` (100K+ chars on a real production) to find where you left off.
 
