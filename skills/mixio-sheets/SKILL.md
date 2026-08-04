@@ -24,13 +24,6 @@ Vocabulary: `mixio-pipeline/references/shot-grammar.md`.
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- **Resolved scope — required.** You must be working against a project (and an episode for anchors) that the user has
-  explicitly confirmed. If it is not established in this session, **fetch the list and show
-  it, numbered, in the same message as the question** (`studio_list_projects` /
-  `studio_list_episodes`) so the answer is one character. Asking "which episode?" without
-  the list is a failure — it hands the lookup back to the user. Resolve this *before* any
-  expensive read; never guess an id, infer one from a title, or create something to avoid
-  asking. See `mixio-project`.
 - A locked script (Step 01) — the cast and location lists come from its sluglines and CAPS tokens
 - `aspect_ratio` and `anchor_aspect_ratio` locked on the episode
 
@@ -114,9 +107,7 @@ studio_update_reference({
 })
 ```
 
-Full field set: `role` (enum), `age`, `personality`, `build`, `skin`, `hair`, `eyes`, `height`, `distinctiveFeatures`, `visualAnchor`, `bio`, `backstory`, `motivations`, `speechStyle`, `wardrobeNotes`, `relationshipsSummary`, `castingNotes`, `voiceProfile`, `voiceReference`, `voiceRegistrations`, `looks`, `customAttributes`. Legacy spellings are mapped on read (`dialogueStyle` → `speechStyle`, `visual_anchor` → `visualAnchor`, `age_range` → `age`, `custom_attributes` → `customAttributes`, and similar), so old data keeps working — but write the canonical name.
-
-The three voice fields are structured, not strings: `voiceProfile` takes `{ provider?, voiceId?, voiceName?, language?, accent?, genderPresentation?, agePresentation?, tone?, deliveryStyle?, notes?, previewUrl? }`, `voiceReference` takes `{ sampleAudioMediaId?, sampleAudioUrl?, language?, notes?, label? }`, and `voiceRegistrations` is a provider-keyed record. `looks` is owned by the variant layer — write looks through `referenceVariants`, not by hand here.
+Full field set: `role` (enum), `age`, `personality`, `build`, `skin`, `hair`, `eyes`, `height`, `distinctiveFeatures`, `visualAnchor`, `bio`, `backstory`, `motivations`, `speechStyle`, `wardrobeNotes`, `relationshipsSummary`, `castingNotes`, `voiceProfile`, `voiceReference`, `voiceRegistrations`, `looks`, `customAttributes`. Legacy spellings are mapped on read (`dialogueStyle` → `speechStyle`, `visual_anchor` → `visualAnchor`, `age_range` → `age`, and similar), so old data keeps working — but write the canonical name.
 
 `visualAnchor` is the single feature that makes the character recognizable across models — name it explicitly, and repeat it in shot prompts.
 
@@ -188,15 +179,10 @@ Since Studio PR #502/#504 the sheet has real fields instead of prose blobs. Map 
 | Depth & axes | `depthAxes` | **object**: `{ foreground?, midground?, background? }` |
 | — | `sightlines` | text — what sees what, ≤2000 |
 | — | `dimensions` | text, e.g. `"about 6m × 4m, 3m ceiling"` |
-| Light sources | `lightSources` | array of strings, max 50 — the practicals and windows themselves |
-| — | `lighting` | text — the key lighting *setup and quality*, ≤2000 |
-| Surfaces & palette | `surfaces` + `palette` | `surfaces` = floors, walls, ceiling, decor (≤4000); `palette` = **colour only** |
-| — | `architecturalStyle` | text |
+| Light sources | `lighting` | text, ≤2000 |
+| Surfaces & palette | `palette` + `architecturalStyle` | text |
 | (header) | `setting` | enum: `interior` \| `exterior` \| `both` |
 | — | `timePeriod`, `mood` | text |
-| — | `customAttributes` | `[{ key, value }]`, max 100 — anything the fields above don't cover |
-
-Note the two pairs that are easy to collapse and shouldn't be: `lightSources` lists the *fixtures* while `lighting` describes the *setup they produce*; `surfaces` carries material and decor while `palette` is colour alone. Before these fields existed both halves ended up jammed into one free-text note.
 
 ```
 studio_update_reference({ referenceId, locationDetails: {
@@ -212,13 +198,9 @@ studio_update_reference({ referenceId, locationDetails: {
                background: "STAIRCASE at back-right, TWO WINDOWS at back-left" },
   sightlines: "From the BED you see the staircase and the front door; the DESK faces away from both",
   dimensions: "long axis WINDOWS (back-left) → COUCH → STAIRCASE (back-right)",
-  lightSources: ["TWO WINDOWS — back wall, primary daylight",
-                 "CEILING FIXTURE — above the staircase landing",
-                 "TABLE LAMP — on the BEDSIDE TABLE"],
-  lighting: "warm gold daylight from back-left, long afternoon shadows across the rug; lamp off by default",
-  surfaces: "dark hardwood floor, pressed tin ceiling, off-white plaster walls, framed photos on the staircase wall",
-  palette: "deep reds, navy, cream",
-  architecturalStyle: "brownstone, lived-in"
+  lighting: "NATURAL DAYLIGHT through the two windows, warm gold, long afternoon shadows; CEILING FIXTURE above the landing; TABLE LAMP on the BEDSIDE TABLE",
+  palette: "dark hardwood, deep reds/navy/cream rug, pressed tin ceiling, off-white walls",
+  architecturalStyle: "Brooklyn brownstone, lived-in Italian-American"
 }})
 ```
 
@@ -250,9 +232,7 @@ A character's *identity* is project-scoped and belongs here. A character's **sta
 
 ## Prop sheet
 
-Only for props that carry story weight or change hands — the ones prop-continuity checks track. A single clean image on neutral background, plus `propDetails`: `category` (enum: `handheld` | `furniture` | `vehicle` | `costume` | `weapon` | `food` | `technology` | `other`), `material`, `sizeScale`, `significance`, and `customAttributes`. Background dressing named in the location sheet does not need its own sheet.
-
-`sizeScale` is the prop's own scale label (`"fits one hand"`, `"waist height"`) and feeds the same scale-constraint path as a character's `scalingLabel` — set it for anything whose size a model could get wrong.
+Only for props that carry story weight or change hands — the ones prop-continuity checks track. A single clean image on neutral background, plus `propDetails` (`category`, `material`, `significance`). Background dressing named in the location sheet does not need its own sheet.
 
 ## Anchor frames
 
@@ -281,7 +261,7 @@ studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
 
 Since Studio PR #502 `anchorRef` (plus `anchorRefs` for extras, max 50) is a canonical scene key, and generation merges it into every job prepared for a shot in that scene. That replaces attaching the anchor by hand per shot. Anchors dedupe by slot reference id so an explicit per-shot choice still wins, and an anchor whose media can't be read is skipped rather than guessed at.
 
-Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref` — the canonical key is `anchorRef`. A separator variant is silently ignored today and will be rejected outright once Studio PR #503 lands.
+Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref`: since PR #502 a separator variant of a canonical key is rejected with a validation error rather than silently passed through.
 
 ## Workflow
 
