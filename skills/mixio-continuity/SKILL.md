@@ -100,6 +100,7 @@ Run all of these, every time:
 8. **Anchor consistency** (GROUNDED only) — does the described staging match what the anchor image actually shows?
 9. **Field completeness** — `GAP` for a missing field, `VAGUE` for a present-but-underspecified one (`seated`, `nearby`, `some light`).
 10. **Marker integrity** — every `[Mn]` referenced by another shot exists, and the referencing shot comes after it.
+11. **Reference readiness** — for each `character_links` / `location_links` / `prop_links` entry, confirm the reference element exists and (for characters/locations appearing in ≥2 shots) has at least one attached image. This is a cross-check against Step 02.5's audit — a reference that passed the audit but was later deleted or corrupted is caught here. Findings use code `REF_MISSING` (no element) or `REF_NO_IMAGE` (element exists, no media attached).
 
 ## Pass 3 — Report
 

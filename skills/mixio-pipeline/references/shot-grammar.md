@@ -109,5 +109,7 @@ The closed set of things the audit reports. Anything that isn't one of these isn
 | `GAP` | A required field is missing entirely |
 | `VAGUE` | A field is present but underspecified (`seated`, `nearby`, `some light`) |
 | `ANCHOR` | Staging contradicts the scene's anchor frame (GROUNDED mode only) |
+| `REF_MISSING` | A linked character/location/prop has no corresponding reference element in the project |
+| `REF_NO_IMAGE` | A linked reference element exists but has no attached media — generation will lack visual consistency |
 
 Report format is one line per issue: `Shot 7 | TONY | PROP — phone disappears with no stated put-down action`.

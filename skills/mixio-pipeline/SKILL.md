@@ -1,7 +1,7 @@
 ---
 name: mixio-pipeline
-description: "Run an episode from script to delivered video as six gated steps — detailed script, anchor frames, panel breakdown, continuity audit, chunking, video generation — persisting progress and locking each step before the next."
-version: 0.1.0
+description: "Run an episode from script to delivered video as gated steps — detailed script, anchor frames, reference audit, panel breakdown, continuity audit, shot planning, video generation — persisting progress and locking each step before the next."
+version: 0.2.0
 invoke: /mixio:pipeline
 ---
 
@@ -9,7 +9,7 @@ invoke: /mixio:pipeline
 
 The orchestrator. The other Mixio skills are tool surfaces (`mixio-episode`, `mixio-generate`, …); this one is the **order and the gates**. Generation is billable and non-deterministic, so the whole point is to burn tokens on text passes until the plan is airtight, then spend credits once.
 
-Read `references/shot-grammar.md` before authoring or auditing any breakdown — it is the shared vocabulary that `mixio-sheets`, `mixio-continuity`, and `mixio-chunking` all assume.
+Read `references/shot-grammar.md` before authoring or auditing any breakdown — it is the shared vocabulary that `mixio-sheets`, `mixio-continuity`, and `mixio-shot-planning` all assume.
 
 ## Prerequisites
 
@@ -23,15 +23,17 @@ Read `references/shot-grammar.md` before authoring or auditing any breakdown —
   asking. See `mixio-project`.
 - A project (`mixio-project`) and an episode (`mixio-episode`)
 
-## The six steps
+## The steps
 
 | # | Step | Owned by | Output locked into |
 |---|------|----------|--------------------|
+| 00 | **Lock frame contract** | this skill | `studio_update_episode({ metadata.pipeline })` |
 | 01 | **Detailed Script** | this skill | `studio_update_episode({ updates: { script, summary } })` |
 | 02 | **Anchor Frames** | `mixio-sheets` | CHARACTER/LOCATION refs + one anchor KEYFRAME per scene |
+| 02.5 | **Reference Audit** | `mixio-reference-audit` | episode `metadata.pipeline.reference_audit` |
 | 03 | **Panel Breakdown** | `mixio-script-breakdown` | `studio_upsert_scene_packages` |
 | 04 | **Continuity Audit** | `mixio-continuity` | `studio_revise_shot_specs` + `studio_update_shot_state` |
-| 05 | **Chunking** | `mixio-chunking` | shot `metadata.chunk_index` |
+| 05 | **Shot Planning** | `mixio-shot-planning` | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | 06 | **Video Generation** | `mixio-generate` | VIDEO elements + workspace uploads |
 
 **Gate rule: never start step N+1 until step N is confirmed by the user.** Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete. Corrected breakdown locked. Moving to Step 05.` A step that silently rolls into the next one is how a 40-shot episode gets generated against a stale breakdown.
@@ -67,6 +69,18 @@ Then write/normalize to standard screenplay form: sluglines (`INT./EXT. — LOCA
 
 → `mixio-sheets`. Extract the location list and cast from the script, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** at `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in script text alone — flag them, don't silently invent geography.
 
+## Step 02.5 — Reference Audit
+
+→ `mixio-reference-audit`. Runs after sheets so references *should* have images, and catches what was missed:
+
+- **Completeness** — every CAPS entity in the script has a reference; high-usage ones have images
+- **Consistency** — name/description vs attached image (gender, age, build mismatches)
+- **Duplicates** — fuzzy name matching, alias candidates, variants confused as separate refs
+- **Metadata quality** — missing `visualAnchor`, `lighting`, `setting` that downstream prompts need
+- **Policy compliance** — `createPolicy`, `variantVocabulary` adherence
+
+Blocking findings must be resolved before Step 03. Advisory findings are presented for acknowledgment. This is the cheapest place to catch a reference problem — later detection costs re-renders.
+
 ## Step 03 — Panel Breakdown
 
 → `mixio-script-breakdown`, which owns the canonical schemas, the two closed enums, and the mapping from shot-grammar prose onto persistable keys. One scene at a time. Emit a `STAGING` block for the scene, then numbered shots using the field schema in `references/shot-grammar.md`. Non-negotiables:
@@ -82,9 +96,15 @@ Persist with `studio_upsert_scene_packages` (see `mixio-episode`), putting the s
 
 → `mixio-continuity`. Four passes: blocking map → checks → report → corrections. Text-only, before any pixels. Emits corrected shots and a per-shot clean/dirty verdict.
 
-## Step 05 — Chunking
+## Step 05 — Shot Planning
 
-→ `mixio-chunking`. Group shots into generation chunks under the duration and count caps, then emit a `PRODUCTION SUMMARY` so the user sees total runtime and cost surface before approving spend.
+→ `mixio-shot-planning`. Three decisions per shot, then batching:
+
+1. **Method** — classify each shot as SINGLE (one keyframe → video), DUAL_FRAME (start+end), MULTI_KF (3–12 keyframes), GRID (multi-panel), or T2V (prompt-only)
+2. **Model** — match to best available model based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.)
+3. **Feasibility** — validate duration vs model max, action density vs duration, dialogue timing, reference readiness
+
+Then group into generation batches using `mixio-chunking`'s algorithm per model-group (different models have different ceilings). Emit a `PRODUCTION SUMMARY` with per-model costs, method distribution, keyframe/video job counts, and high-risk cross-model boundaries.
 
 ## Step 06 — Video Generation
 
@@ -105,9 +125,11 @@ Mixio has no dedicated shared-memory store, so pipeline state lives in existing 
 ```
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   aspect_ratio, anchor_aspect_ratio,
-  step_01: "complete", step_02: "complete", step_03: "in_progress",
-  step_04: "not_started", step_05: "not_started", step_06: "not_started",
-  anchors: { "1": "<keyframe-element-id>" }
+  step_01: "complete", step_02: "complete", step_02_5: "complete",
+  step_03: "in_progress", step_04: "not_started",
+  step_05: "not_started", step_06: "not_started",
+  anchors: { "1": "<keyframe-element-id>" },
+  reference_audit: { checked: 12, blocking: 0, advisory: 1 }
 }}}})
 ```
 
@@ -115,9 +137,10 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 |---|---|
 | Source (script, synopsis, aspect ratios) | episode `script`, `summary`, `metadata.pipeline` |
 | Locations | LOCATION references + `locationDetails` (`mixio-references`) |
+| Reference audit results | episode `metadata.pipeline.reference_audit` |
 | Scenes and direction | scene elements via `studio_upsert_scene_packages` |
 | Step progress | episode `metadata.pipeline` |
-| Chunk assignments | shot `metadata.chunk_index` |
+| Shot plan (method/model/batch) | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | Rendered assets and video | KEYFRAME / VIDEO elements + `upload_file` URLs |
 
 On resume, read `studio_get_episode` (cheap) rather than `studio_get_production_context` (100K+ chars on a real production) to find where you left off.
@@ -128,14 +151,16 @@ On resume, read `studio_get_episode` (cheap) rather than `studio_get_production_
 00. studio_update_episode(metadata.pipeline)      → lock aspect_ratio + anchor_aspect_ratio
 01. script → studio_update_episode({ script })    → GATE: user confirms
 02. /mixio:sheets                                  → character + location sheets, anchor per scene → GATE
+02.5 /mixio:reference-audit                        → completeness, consistency, duplicates, metadata → GATE
 03. /mixio:script-breakdown → studio_upsert_scene_packages    → GATE
 04. /mixio:continuity                              → 4 passes, corrected shots → GATE
-05. /mixio:chunking                                → chunks + PRODUCTION SUMMARY → GATE (cost approval)
-06. /mixio:generate per chunk → studio_update_shot_state → /mixio:eval before delivery
+05. /mixio:shot-planning                           → method + model + feasibility + batches + PRODUCTION SUMMARY → GATE (cost approval)
+06. /mixio:generate per batch → studio_update_shot_state → /mixio:eval before delivery
 ```
 
 ## Notes
 
-- Steps 01, 03, 04, 05 cost nothing but tokens. Do not shortcut them to reach generation faster; a continuity break found in Step 04 costs a paragraph, the same break found in Step 06 costs a re-render.
+- Steps 01, 02.5, 03, 04, 05 cost nothing but tokens. Do not shortcut them to reach generation faster; a continuity break found in Step 04 costs a paragraph, the same break found in Step 06 costs a re-render.
 - If the user jumps straight to "generate this script", still run 01→05 — just run them fast and present each gate as a short confirm rather than a discussion.
-- Re-entering an earlier step invalidates the later ones. Editing Step 03 after Step 05 means re-chunking; say so instead of patching one chunk.
+- Re-entering an earlier step invalidates the later ones. Editing Step 03 after Step 05 means re-planning; say so instead of patching one batch.
+- Step 02.5 catches reference problems that Step 02 should have resolved. If sheets were skipped or rushed, 02.5 surfaces the gaps. It's a safety net, not a replacement for doing sheets properly.
