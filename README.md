@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](./VERSION)
-[![Skills](https://img.shields.io/badge/skills-11-blueviolet.svg)](#skills)
+[![Skills](https://img.shields.io/badge/skills-13-blueviolet.svg)](#skills)
 
 AI agent skills for media generation, workspace management, and creative workflows via [Mixio Studio](https://mixio.pro). Works with Claude Code, Cursor, Codex, and other AI coding agents that load Markdown-based skills.
 
@@ -84,11 +84,13 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 
 | Skill | Invoke | Description |
 |-------|--------|-------------|
-| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — script → anchors → breakdown → audit → chunking → video as six gated steps, with resumable progress state. Owns the shared [shot grammar](./skills/mixio-pipeline/references/shot-grammar.md). |
+| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — script → anchors → reference audit → breakdown → continuity → shot planning → video as gated steps, with resumable progress state. Owns the shared [shot grammar](./skills/mixio-pipeline/references/shot-grammar.md). |
 | [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Character turnaround sheets, six-field location sheets, prop sheets, and one wide anchor frame per scene — the reference layer every shot is generated against. |
+| [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit Cast & World for completeness, name/image consistency, duplicates, metadata quality, and policy compliance — catch reference problems before they cost re-renders. |
 | [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Script → canonical references, scenes, and shot specs. Mirrors Studio's own breakdown workflow: same schemas, the two closed camera enums, verbatim-preservation rules, and the mapping from shot grammar onto persistable keys. |
 | [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Four-pass text continuity audit before anything renders — blocking map, checks, report, corrected shots. |
-| [`mixio-chunking`](./skills/mixio-chunking) | `/mixio:chunking` | Deterministic grouping of shots into generation chunks under duration/count caps, plus the production summary for cost approval. Includes a runnable [`chunk.py`](./skills/mixio-chunking/chunk.py). |
+| [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot's generation method (single-frame, multi-keyframe, grid, t2v), match to best model, validate feasibility, and group into generation batches with a full production summary. |
+| [`mixio-chunking`](./skills/mixio-chunking) | `/mixio:chunking` | Deterministic batching algorithm under duration/count caps — one batch profile within shot-planning. Includes a runnable [`chunk.py`](./skills/mixio-chunking/chunk.py). |
 
 Tool skills are reference docs for the MCP surface and are safe to use standalone. Production skills encode the craft and the gating — start at `/mixio:pipeline` for a full episode.
 
@@ -100,13 +102,14 @@ Running a full episode — `/mixio:pipeline` drives this, gating on user confirm
 Step 00  lock aspect_ratio (delivery) + anchor_aspect_ratio (wider, for anchors)
 Step 01  Detailed Script     → /mixio:episode persists it as the source of truth
 Step 02  Anchor Frames       → /mixio:sheets — character + location sheets, one anchor per scene
+Step 02.5 Reference Audit    → /mixio:reference-audit — completeness, consistency, duplicates, metadata
 Step 03  Panel Breakdown     → /mixio:script-breakdown — shot specs, canonical schemas, enums
 Step 04  Continuity Audit    → /mixio:continuity — 4 text passes, corrected shots locked
-Step 05  Chunking            → /mixio:chunking — chunks + PRODUCTION SUMMARY for cost approval
-Step 06  Video Generation    → /mixio:generate per chunk, then /mixio:eval before delivery
+Step 05  Shot Planning       → /mixio:shot-planning — method + model + feasibility + batches + PRODUCTION SUMMARY
+Step 06  Video Generation    → /mixio:generate per batch, then /mixio:eval before delivery
 ```
 
-Steps 01, 03, 04 and 05 cost nothing but tokens. That is the point: a continuity break caught in Step 04 costs a paragraph, the same break caught in Step 06 costs a re-render.
+Steps 01, 02.5, 03, 04 and 05 cost nothing but tokens. That is the point: a continuity break caught in Step 04 costs a paragraph, a missing reference caught in Step 02.5 costs one upload — the same problems caught in Step 06 cost re-renders.
 
 For one-off work, skip the pipeline:
 

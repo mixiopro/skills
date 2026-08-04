@@ -23,13 +23,6 @@ Vocabulary and the issue taxonomy: `mixio-pipeline/references/shot-grammar.md`.
 
 ## Prerequisites
 
-- **Resolved scope — required.** You must be working against a project and an episode that the user has
-  explicitly confirmed. If it is not established in this session, **fetch the list and show
-  it, numbered, in the same message as the question** (`studio_list_projects` /
-  `studio_list_episodes`) so the answer is one character. Asking "which episode?" without
-  the list is a failure — it hands the lookup back to the user. Resolve this *before* any
-  expensive read; never guess an id, infer one from a title, or create something to avoid
-  asking. See `mixio-project`.
 - A persisted breakdown (Step 03) with `duration`, camera, action, and staging fields on every shot
 - Ideally an anchor frame per scene (`mixio-sheets`) — determines the mode below
 
@@ -107,6 +100,7 @@ Run all of these, every time:
 8. **Anchor consistency** (GROUNDED only) — does the described staging match what the anchor image actually shows?
 9. **Field completeness** — `GAP` for a missing field, `VAGUE` for a present-but-underspecified one (`seated`, `nearby`, `some light`).
 10. **Marker integrity** — every `[Mn]` referenced by another shot exists, and the referencing shot comes after it.
+11. **Reference readiness** — for each `character_links` / `location_links` / `prop_links` entry, confirm the reference element exists and (for characters/locations appearing in ≥2 shots) has at least one attached image. This is a cross-check against Step 02.5's audit — a reference that passed the audit but was later deleted or corrupted is caught here. Findings use code `REF_MISSING` (no element) or `REF_NO_IMAGE` (element exists, no media attached).
 
 ## Pass 3 — Report
 
@@ -173,7 +167,7 @@ studio_update_shot_state({ shots: [
 
 Prefer the relation write for facts about a *character in a shot* (they carry the tablet now) and `update_shot_state.continuity` for the *verdict* on the shot. Putting a per-character fact in the shot verdict loses which character it was about.
 
-Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, so corrections must use canonical keys (`camera_movement`, not `Camera:`) — and once Studio PR #503 lands a casing variant or cross-spec key is **rejected** rather than silently ignored (today it is still ignored, which is the quieter failure). See `mixio-script-breakdown` for the full mapping. Then close the step:
+Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, so corrections must use canonical keys (`camera_movement`, not `Camera:`) — and since Studio PR #502 a casing variant or a cross-spec key is **rejected** rather than silently ignored. See `mixio-script-breakdown` for the full mapping. Then close the step:
 
 ```
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: { step_04: "complete" } } } })

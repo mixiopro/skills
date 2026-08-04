@@ -24,13 +24,6 @@ Vocabulary: `mixio-pipeline/references/shot-grammar.md`.
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- **Resolved scope — required.** You must be working against a project (and an episode for anchors) that the user has
-  explicitly confirmed. If it is not established in this session, **fetch the list and show
-  it, numbered, in the same message as the question** (`studio_list_projects` /
-  `studio_list_episodes`) so the answer is one character. Asking "which episode?" without
-  the list is a failure — it hands the lookup back to the user. Resolve this *before* any
-  expensive read; never guess an id, infer one from a title, or create something to avoid
-  asking. See `mixio-project`.
 - A locked script (Step 01) — the cast and location lists come from its sluglines and CAPS tokens
 - `aspect_ratio` and `anchor_aspect_ratio` locked on the episode
 
@@ -281,7 +274,7 @@ studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
 
 Since Studio PR #502 `anchorRef` (plus `anchorRefs` for extras, max 50) is a canonical scene key, and generation merges it into every job prepared for a shot in that scene. That replaces attaching the anchor by hand per shot. Anchors dedupe by slot reference id so an explicit per-shot choice still wins, and an anchor whose media can't be read is skipped rather than guessed at.
 
-Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref` — the canonical key is `anchorRef`. A separator variant is silently ignored today and will be rejected outright once Studio PR #503 lands.
+Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref`: since PR #502 a separator variant of a canonical key is rejected with a validation error rather than silently passed through.
 
 ## Workflow
 

@@ -1,13 +1,15 @@
 ---
 name: mixio-chunking
-description: "Group an audited shot breakdown into deterministic generation chunks under duration and count caps, flag over-length shots and rapid-pacing runs, and emit a production summary for cost approval before video generation."
-version: 0.1.0
+description: "Deterministic batching of shots into generation chunks under duration and count caps — one batch profile within the broader mixio-shot-planning step."
+version: 0.2.0
 invoke: /mixio:chunking
 ---
 
 # Mixio Chunking
 
-Step 05 of `mixio-pipeline`. Video models produce a few seconds per job, so an episode is generated as **chunks** of consecutive shots. Chunking is the last free step: it converts the breakdown into a work plan with a runtime and a cost surface the user can approve before any credits are spent.
+The **deterministic grouping algorithm** used by `mixio-shot-planning` (Step 05 of `mixio-pipeline`). Video models produce a few seconds per job, so an episode is generated as batches of consecutive shots. This skill implements **one batch profile** — the fixed-ceiling algorithm used when all shots target the same model and method.
+
+For multi-model projects or shots requiring different generation methods (SINGLE, DUAL_FRAME, MULTI_KF, etc.), `mixio-shot-planning` classifies and assigns first, then calls this algorithm per model-group with that model's specific ceilings. On a single-model project, shot planning degrades to this skill directly.
 
 The rules are deterministic. Do not improvise them — a "reasonable-looking" grouping that isn't reproducible means a re-run produces different chunks and the shot→chunk mapping in metadata goes stale.
 
@@ -22,15 +24,25 @@ The rules are deterministic. Do not improvise them — a "reasonable-looking" gr
   asking. See `mixio-project`.
 - An audited breakdown (Step 04) — chunk the **corrected** durations, never the pre-audit ones
 - Every shot has a numeric `duration`
+- For multi-model projects: method and model assignments from `mixio-shot-planning` — this skill receives a filtered shot list (one model-group at a time) with the model's ceiling values
 
 ## The rules
 
-Defaults: **max 15.0s per chunk, max 5 shots per chunk.** Confirm both with the user if the target model's limits differ.
+Defaults: **max 15.0s per chunk, max 5 shots per chunk.** These are the Seedance profile values. When called by `mixio-shot-planning`, the ceilings come from the model's capabilities:
+
+| Model family | Duration ceiling | Shot ceiling |
+|-------------|-----------------|--------------|
+| Seedance v2 / Pro | 10–15s | 5 |
+| Veo 3.1 | 8s | 3 |
+| Sora 2 | 20s | 4 |
+| Kling 2.6 Pro | 10s | 5 |
+
+Query the live catalog for current values. The algorithm is the same regardless of ceiling.
 
 1. Start a chunk with the first shot.
 2. Keep adding the next **consecutive** shot as long as, after adding it, (a) the running total stays **at or under 15.0s** and (b) the chunk has **fewer than 5** shots.
 3. The moment either limit would be exceeded, close the current chunk and start a new chunk **beginning with that shot** — do not skip it.
-4. A shot whose own duration exceeds 15.0s becomes its own single-shot chunk **and must be flagged** — it cannot be generated in one pass and needs either a split into sub-shots or a shorter hold.
+4. A shot whose own duration exceeds the ceiling becomes its own single-shot chunk **and must be flagged** — it cannot be generated in one pass and needs either a split into sub-shots or a shorter hold.
 5. Never reorder. Chunks are contiguous ranges of the shot sequence.
 
 Worked example — durations `4.5, 3.0, 9.0, 3.5, 3.0`:
@@ -55,18 +67,18 @@ Chunk 2 closes at shots 3–4 (12.5s). Shot 5 opens chunk 3.
 
 ## Production summary
 
-Emit this before asking for generation approval. It is the whole reason the step exists.
+Emit this before asking for generation approval (single-model projects) or as a sub-report within `mixio-shot-planning`'s full production summary (multi-model projects).
 
 ```
-PRODUCTION SUMMARY
+BATCH SUMMARY (seedance_image_to_video_v2)
 Total shots:                    13
 Total chunks:                    4
 Total runtime:               48.5s
-Shots flagged over 15s:      Shot 9 (18.0s)
+Shots flagged over ceiling:  Shot 9 (18.0s > 10.0s max)
 Rapid pacing sections:       chunks 2, 3
 ```
 
-- **Shots flagged over 15s** — must be resolved before Step 06, not generated and hoped for.
+- **Shots flagged over ceiling** — must be resolved before Step 06, not generated and hoped for. The ceiling is model-specific (10s for Seedance v2, 8s for Veo, 20s for Sora, etc.).
 - **Rapid pacing sections** — any chunk containing 3+ consecutive shots marked `RAPID` or `PUNCHY` (see the `Pacing` field in `mixio-pipeline/references/shot-grammar.md`). Not an error; a note. Three rapid cuts in a row read as intentional urgency, but a whole episode of them reads as noise. Surface it so the user can decide.
 - Add a cost line when the model's per-job cost is known — chunks × cost is the number the user is actually approving.
 
@@ -106,4 +118,5 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: { step_05: "
 - **Chunk the durations that were actually persisted.** Since Studio PR #502 duration is a continuous float 1–60 on both the managed and composed paths, so short-form panels at 2.5–4.5s survive and give 4–5 shots per chunk. On a pre-#502 Studio the managed breakdown snapped to `5/8/10/12/15`, which with a 15s cap means at most 3 shots per chunk and a lone 15s shot filling one by itself. Read the stored value rather than the authored one.
 - Re-chunk after **any** duration change. Chunk boundaries cascade: one shot getting 0.5s longer can shift every chunk after it.
 - Chunk boundaries are generation boundaries, so they're where continuity is most fragile. Feed the last frame of chunk N as `input.media.endFrame`/`primary` continuity into chunk N+1 where the model supports it (see `mixio-generate`).
-- Prefer closing a chunk at a scripted cut over filling it to exactly 15.0s. A chunk that ends mid-gesture is harder to join than one that ends on a cut, and the caps are ceilings, not targets.
+- Prefer closing a chunk at a scripted cut over filling it to exactly the ceiling. A chunk that ends mid-gesture is harder to join than one that ends on a cut, and the caps are ceilings, not targets.
+- **This skill is called by `mixio-shot-planning`, not directly by the pipeline.** On a single-model project, shot-planning invokes this once with the default model's ceilings. On a multi-model project, it's invoked once per model-group. The pipeline step is still "Step 05" but the orchestrator is `mixio-shot-planning`.
