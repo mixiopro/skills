@@ -26,7 +26,7 @@ Model and use-case IDs change as Studio adds providers — always confirm with `
 
 | Media | Model IDs |
 |-------|-----------|
-| Image | `gpt_image_2`, `gemini_image`, `seedream_5_pro` |
+| Image | `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite` |
 | Video | `seedance_image_to_video_pro`, `seedance_text_to_video_pro`, `seedance_image_to_video_v2`, `veo_3_1`, `sora_2`, `kling_text_to_video_2_6_pro` |
 
 Common `useCaseId` values: `image-hub` (general image gen with references), `production-generate-shot-keyframe-sequence` (production keyframes — see table below), `image-edit` (requires a source image), `refine-character-image`, `production-generate-video`, `keyframe-sequence` (Generate-page multi-frame workflow — does **not** land under a shot), `script-preproduction`.
@@ -37,7 +37,7 @@ This is the single easiest thing to get wrong, and it costs a paid job. Passing 
 
 | Use case | Scope | Output appears |
 |---|---|---|
-| **`production-generate-shot-keyframe-sequence`** | **one shot, multi-frame sequence (4–12 frames)** | **under that shot — default for pipeline Step 06 keyframes** |
+| **`production-generate-shot-keyframe-sequence`** | **one shot, planner-driven multi-frame sequence (`4/6/8/10/12` frames)** | **under that shot** |
 | `production-generate-keyframes` | production, current scope | under the scene/shot in the production view |
 | `production-generate-shot-keyframes` | one shot, single or counted keyframes | under that shot |
 | `production-generate-scene-keyframes` | one scene, single or counted keyframes | under that scene |
@@ -110,22 +110,41 @@ Confirm the current ids from that call rather than trusting the list above.
 
 ### Link every job to everything it knows about
 
-Four separate context mechanisms, and they do different jobs. Pass all of them you can.
+Six separate context mechanisms, and they do different jobs. Pass all of them you can.
 
 | Field | Shape | Why |
 |---|---|---|
 | `context` | `{ projectId (required), episodeId?, sceneId?, shotId? }` | Where the job belongs. **Always pass the deepest scope you know** — a shot-level job should carry all four |
 | `selectedElements` | `[{ id, type, identityKey?, mentionCode? }]` | Which characters/locations/props the prompt refers to. Helps the backend resolve references and hold consistency |
 | `slotReferences` | `{ <slot>: { url, elementId?, mediaId?, referenceType?, displayLabel? } }` | Images **with provenance**. Unlike raw `input.media`, `elementId` records which element an image came from |
+| `slotTags` | `{ <assetKey>: "@tag" }` | Binds a reference image to a mention tag. `assetKey` is `elementId \|\| mediaId \|\| url` |
+| `mentionMap` | `{ "@tag": "Human Label" }` | Binds that tag to a subject name. **Both maps are required** for a tag to bind |
 | `input.media` | `{ <slot>: { url } }` | Raw URLs with no provenance |
 
 Prefer `slotReferences` over bare `input.media` when the image came from a Studio element — the `elementId` is what lets scene anchors dedupe against an explicit per-shot choice instead of attaching twice. `type` in `selectedElements` is one of `CHARACTER`, `LOCATION`, `PROP`, `SHOT`, `SCENE`.
 
 A job that passes only `projectId` and raw URLs will still render, but nothing downstream can tell what it was *for*.
-- `input.parameters`: `aspect_ratio` (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9`), `quality`, `duration` (video, seconds), `style`, `output_format`, `keyframe_count` (4-12, for `production-generate-shot-keyframe-sequence` or `keyframe-sequence`), `orchestrate_frames` (true for >12 frames — dispatches one child job per frame).
+
+- `input.parameters`: `aspect_ratio` (`auto`, `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9`), `quality`, `duration` (video, seconds), `style`, `output_format`, `watermark` (Seedream models only), `keyframe_count`, `sequence_notes`, `orchestrate_frames`.
+- `keyframe_count` is a **closed set, not a range**: `4 | 6 | 8 | 10 | 12` for `production-generate-shot-keyframe-sequence` (default `6`), and `1 | 2 | 3 | 4 | 6 | 8 | 9` for `production-generate-shot-keyframes`. Odd values in between are rejected. The 12 ceiling comes from a 16-slot output reservation shared with up to 4 background plates — `orchestrate_frames` does **not** raise it. For more than 12 frames, submit more than one job.
+- `orchestrate_frames` is already `true` by default on the production sequence path. It makes the job return a *plan* and dispatch one child job per frame rather than rendering inline. Side effect worth knowing: the server's own evaluation pass is **skipped** whenever it is true, so run `mixio-eval` yourself before delivery.
+- `sequence_notes` is the one lossless way to add direction to a sequence job. It is appended verbatim to the planner's prompt, whereas a caller-supplied `prompt` **replaces** Studio's auto-assembled shot-spec prompt (camera enums, dialogue, scene heading, scaling constraints) instead of adding to it. Leave `prompt` unset and use `sequence_notes` unless you intend to author the whole prompt.
 - `studio_get_job_status` requires **both** `jobId` and `projectId` — it's not a bare job lookup.
 - There's no MCP cancel tool. Cancellation is HTTP-only (`POST /api/studio-jobs/{id}/cancel`), outside this tool set.
 - Job status values: `PENDING`, `RUNNING`, `IN_QUEUE`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `CANCELLED`.
+
+### Mentions — how a reference image gets bound to a subject
+
+Sending two character images does **not** tell the model which is which. That binding is done by `@tag` tokens in the prompt, rewritten at dispatch into whatever reference syntax the provider speaks (`@Image1`/`@Element1` for Kling, `image1` indexed, `@Image1`/`@Video1` for Seedance, `Image 1` for Hailuo). Substitution happens **in place**, so the tag binds wherever you put it in the sentence.
+
+- **For `production-*` use cases the maps are derived for you** from the shot's related elements, and anything you pass overrides the derived value. You mostly get binding for free.
+- **For every other use case there is no derivation.** Send `slotTags` + `mentionMap` yourself or multi-reference binding silently does not happen: the images are uploaded, no token exists to rewrite, and the model guesses which subject is which.
+- **Write the tag as the element's name, slugified with dots** — `Tony` → `@tony`, a look variant → `@tony.casual`. `mentionCode`, `title`, `displayLabel` and `name` are all resolved as aliases, so a tag matching any of them binds.
+- **Literal `slotTags` values only survive in generic form** — `@char1`, `@loc1`, `@asset2`, `@style1`, `@scene1`, `@shot1`, `@pose1`, `@Image1`. Anything else is reassigned. Use the human form in the *prompt* and let aliases resolve it; use the generic form only when you need to pin a specific slot.
+- **An unresolved tag degrades to its plain label** rather than leaking `@garbage` into the prompt. Safe, but the binding is lost with no error — so verify the reference actually carries the name you tagged.
+- Tags prefixed `@scene`, `@shot`, `@style` or `@pose` are treated as narrative bookkeeping, not bindable subjects, and are skipped when subject bindings are built.
+
+Put per-character staging inline next to the mention rather than in a separate field — `@tony (MC, three-quarter-left, seated cross-legged, on BED)`. Structured staging fields get flattened or dropped on the way to the model; the mention token is the one thing guaranteed to survive with its position intact.
 
 ## Workflow
 
