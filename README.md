@@ -10,17 +10,25 @@ AI agent skills for media generation, workspace management, and creative workflo
 
 Pick one. Each method configures the Mixio MCP server and loads skills into your agent.
 
+**Want your agent to do it?** Paste [INSTALL_FOR_AGENTS.md](./INSTALL_FOR_AGENTS.md) into any AI coding agent — it covers both steps, installing the skills and configuring the MCP server. Longer reference in [INSTALL.md](./INSTALL.md).
+
 ### `npx skills` — recommended, works with 70+ agents
 
 Installs the skill docs (this repo) into whichever agents you have installed — Claude Code, Cursor, Codex, OpenCode, Antigravity, Kiro, and more:
 
 ```bash
-npx skills add mixiopro/skills
+npx skills add mixiopro/skills          # prompts for scope
+npx skills add mixiopro/skills -y       # project-level if you're in a project, else global
+npx skills add mixiopro/skills -g -y    # force global (user-level)
 ```
+
+Useful flags: `-y` skips the scope prompt, `-g` forces a global install, `-a <agents>` targets specific agents (`*` for all), `-s <skills>` installs only named skills (`*` for all). Project-level installs land in `.agents/skills/` and are symlinked into each detected agent's own skills directory.
+
+**To update, re-run `add`** — it overwrites in place and picks up skills added since your last install.
 
 This copies **skill directories only** — each folder under `skills/` that contains a `SKILL.md`, along with its `references/` and any scripts. Repo-root files are not copied, so [`AGENTS.md`](./AGENTS.md) and the MCP config below do not come with it. Clone the repo (see [Manual](#manual-any-agent)) if you want the repo-level guidance too.
 
-Then configure the MCP server (see [Manual](#manual-any-agent) below).
+Then configure the MCP server (see [Manual](#manual-any-agent) below) — the skills are documentation and cannot call anything without it.
 
 ### Claude Code marketplace
 
