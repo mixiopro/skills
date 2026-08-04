@@ -15,10 +15,14 @@ Two ways to run it:
 |---|---|---|
 | Call | `studio_submit_studio_job` | `studio_register_reference_entities` → `studio_upsert_scene_packages` |
 | Analysis by | Studio's workflow (Gemini + structured output) | you |
-| Detail ceiling | the canonical spec, nothing more | canonical spec **plus** freeform craft keys |
-| Use when | you want a fast, schema-safe first pass | you need shot-grammar-level camera/lighting detail |
+| Granularity | whole script, one call | scene at a time, gated |
+| Gates | none, runs to completion | user sign-off between scenes |
+| Verbatim safety | regex pass wins over the LLM | you must replicate it (below) |
+| Use when | you want a fast, schema-safe first pass | you need shot-grammar depth and per-scene approval |
 
-Use **managed** to get a legitimate breakdown in one call. Use **composed** when the shot grammar matters — the managed path cannot express a lens, and it collapses camera angle into `shot_type` (see the mapping table below).
+Both paths reach the same contract, so the choice is about **process, not capability** — since PR #502 removed duration quantization there is no longer a field the managed path can't express. Take the managed path for a cheap reproducible draft; take the composed path when you want sheets built first, gates between scenes, and per-shot `appearanceState`.
+
+Best of both: run the **composed** path but keep Studio's two safety properties — derive `scriptBody` / `transitionFromPrevious` / `isContinuation` from the text deterministically rather than authoring them, and self-check against the repair criteria before persisting.
 
 ## Prerequisites
 
@@ -61,13 +65,18 @@ Seven required fields. Persisting a shot without them throws `Shot metadata miss
 
 | Key | Required | Notes |
 |-----|----------|-------|
-| `shot_type` | ✅ | closed enum below — **size and angle conflated** |
+| `shot_type` | ✅ | closed enum below — **framing only** since PR #502 |
 | `camera_movement` | ✅ | closed enum below |
+| `camera_angle` | — | enum below; alias `angle` / `cameraAngle`. Omit when the script gives no angle evidence |
+| `lens` | — | enum below. Omit when the script gives no lens evidence |
 | `subject` | ✅ | primary subject; ≤1000 chars |
 | `action` | ✅ | what happens in the shot; ≤2000 |
 | `context` | ✅ | environment/surroundings; ≤2000 |
-| `style_ambiance` | ✅ | visual style, lighting, palette; ≤2000 |
-| `duration` | ✅ | seconds — read the duration section, it is not what you expect |
+| `style_ambiance` | ✅ | visual style and palette; ≤2000 |
+| `lighting` | — | key lighting setup and quality; ≤2000 |
+| `mood` | — | emotional tone and atmosphere; ≤2000 |
+| `blocking` | — | subject positioning and movement in frame; ≤2000. Alias `subjectPosition` |
+| `duration` | ✅ | seconds, **continuous float 1–60** (typical 3–15) |
 | `temporal_effect` | — | defaults `"normal"`; ≤256 |
 | `audio` | — | `{ dialogue?, sfx?, ambient? }`. A bare string is coerced to `{ sfx }` |
 | `character_links` | — | canonical **names**, not ids |
@@ -77,14 +86,16 @@ Seven required fields. Persisting a shot without them throws `Shot metadata miss
 | `linked_location_ids` | — | ” |
 | `linked_prop_ids` | — | ” |
 
-Every entity present in a shot must be linked — that's what builds the relation graph `mixio-generate` later reads to pull reference images.
+Every entity present in a shot must be linked — that's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
 
-### `shot_type` — one of exactly these
+### `shot_type` — framing only
 
 ```
-wide  establishing  medium  close_up  extreme_close_up  pov
-two_shot  over_shoulder  low_angle  high_angle  montage  abstract
+wide  establishing  medium  close_up  extreme_close_up
+pov  two_shot  over_shoulder  montage  abstract
 ```
+
+`low_angle` and `high_angle` were in this list before PR #502 and moved to `camera_angle`. Existing shots still hold them, and reads still resolve them, but new breakdowns should not emit them here.
 
 Pick by story need, not formula:
 
@@ -95,10 +106,24 @@ Pick by story need, not formula:
 - `two_shot` — relationship dynamics, power balance, confrontation
 - `over_shoulder` — subjective perspective, dialogue intimacy
 - `pov` — immersion, vulnerability, discovery
-- `low_angle` — power, threat, heroism, scale
-- `high_angle` — vulnerability, surveillance, overview
 - `montage` — time passage, parallel action, accumulation
 - `abstract` — mood, theme, non-literal storytelling
+
+### `camera_angle` — optional, own axis
+
+```
+eye_level  low_angle  high_angle  dutch_angle  birds_eye  worms_eye  overhead
+```
+
+`low_angle` for power, threat, heroism, scale · `high_angle` for vulnerability, surveillance, overview · `dutch_angle` for unease · `birds_eye`/`overhead` for geometry and detachment. Omit rather than guess — an unevidenced angle is worse than none.
+
+### `lens` — optional
+
+```
+wide_angle  telephoto  macro  fisheye  anamorphic  tilt_shift  standard
+```
+
+`wide_angle` exaggerates depth and space, `telephoto` compresses and isolates, `macro` for insert detail. Same rule: omit without evidence.
 
 ### `camera_movement` — one of exactly these
 
@@ -109,43 +134,73 @@ tilt_down  tracking  crane  handheld  arc  rack_focus
 
 Match the move to emotional intent: `static` for tension, contemplation, dialogue weight, formality · `tracking`/`dolly_*` for following action, revealing space, momentum · `crane` for geography, power shifts, emotional distance · `handheld` for urgency, chaos, documentary · `arc` for reveals and circling tension · `rack_focus` for shifting attention between dual subjects · `pan` for surveying and following gaze · `tilt` for scale and vertical discovery.
 
-## Where the fine-grained camera detail actually goes
+## Where the fine-grained camera detail goes
 
-This is the mapping from shot-grammar prose (`mixio-pipeline/references/shot-grammar.md`) onto what persists. Three of these have **no contracted home** — they survive as freeform passthrough keys, which the write boundary preserves verbatim but does not validate.
+Since Studio PR #502 the shot-grammar fields map **1:1 onto canonical keys** — camera detail no longer degrades into prose. (On a pre-#502 Studio, `camera_angle`, `lens`, `lighting`, `mood` and `blocking` are rejected by the strict write boundary; check before relying on them.)
 
-| Grammar field | Canonical key | Status |
+| Grammar field | Canonical key | Notes |
 |---|---|---|
-| shot size (`EWS`, `MCU`, `OTS`) | `shot_type` | closed enum |
-| camera angle (low/high/eye) | `shot_type`, **or** `angle` | conflated in the enum; `angle` is passthrough but *is* read by prompt builders |
+| shot size (`EWS`, `MCU`, `OTS`) | `shot_type` | framing **only** — the enum no longer carries angles |
+| camera angle (low/high/eye) | `camera_angle` | own axis; alias `angle` / `cameraAngle` |
 | camera motion | `camera_movement` | closed enum |
-| **lens (wide/normal/tele)** | **nothing** | no field exists — put it in `style_ambiance` prose |
-| `Lighting: as Anchor N` | `lighting` (passthrough) + `style_ambiance` | read by prompt builders, uncontracted |
-| in-frame `FG`/`MG`/`BG` layering | `blocking` or `subjectPosition` (passthrough) | read by prompt builders, uncontracted |
-| mood/atmosphere | `mood` or `atmosphere` (passthrough) | read by prompt builders, uncontracted |
-| `Dialogue` / `Audio` | `audio.dialogue` / `audio.sfx` / `audio.ambient` | contracted |
+| lens (wide/normal/tele) | `lens` | first-class field |
+| `Lighting: as Anchor N` | `lighting` | canonical |
+| mood/atmosphere | `mood` | canonical |
+| in-frame `FG`/`MG`/`BG` layering | `blocking` | canonical; alias `subjectPosition` |
+| `Dialogue` / `Audio` | `audio.dialogue` / `.sfx` / `.ambient` | |
+| per-character wardrobe/hair/condition/held props | `appearanceState` on the `appears_in` relation | see below |
+| scene anchor | scene `anchorRef` / `anchorRefs` | auto-attached to every shot in the scene |
 | `Cut:` hold + outgoing cut | `action` prose, or `temporal_effect` | no dedicated field |
-| `Pacing` (RAPID/PUNCHY) | passthrough `pacing` | skill-local only |
-| `[M1]`/`[M2]` markers | inline in `action` text | skill-local only |
-| `Camera:` placement sentence | `context`, or passthrough `description` | — |
+| `Pacing` (RAPID/PUNCHY) | passthrough `pacing` | skill-local |
+| `[M1]`/`[M2]` markers | inline in `action` | skill-local |
 
-**Set `lighting`, `blocking`, and `mood` even though they're uncontracted** — six call sites across `production-prompting.ts` and `production-job-submission.ts` read them into every generated prompt. Omitting them silently loses lighting and staging direction at generation time. `angle` likewise: `resolveShotSpec` reads `angle` / `cameraAngle` / `camera_angle` and emits it as `Camera angle`.
+### Passthrough is now visible — and now checked
 
-Anything not in the canonical key list lands in an unvalidated passthrough partition and persists as-is, so `chunk_index`, `pacing`, and `anchor_ref` are all safe to write — just don't expect a Studio surface to read them.
+Non-spec keys still persist verbatim, and since PR #505 they **reach the generation prompt** under `- Additional direction:` (a denylist, not an allowlist). So a passthrough key is prompt text now, not an inert note — write it deliberately or not at all.
 
-## Duration — the sharp edge
+Two classes of key are now **rejected with a `ShotSpecValidationError`** instead of silently passing through:
 
-Two layers disagree, and which one you use decides what you can express.
+1. a casing or separator variant of a key in the *same* spec — `styleambiance`, `Style_Ambiance`
+2. a canonical key belonging to the *other* spec — `timeOfDay` on a shot, `shot_type` on a scene
 
-- **Persistence (`upsert_scene_packages`, `revise_shot_specs`)** accepts any positive finite number. `2.5` persists as `2.5`.
-- **The managed workflow** pins duration to `Literal[5, 8, 10, 12, 15]` and *snaps* anything else:
+`location`, `duration`, and `audio` are exempt, being in genuine dual use. Practical consequence: **do not write `anchor_ref` on a shot or scene** — it normalizes to the same token as the canonical scene key `anchorRef` and will throw. Use `anchorRef` on the scene. `chunk_index` and `pacing` remain safe.
 
-  ```
-  ≤6 → 5    ≤9 → 8    ≤11 → 10    ≤13 → 12    else → 15
-  ```
+## Duration
 
-So a 2.5s panel submitted through the managed path comes back as 5s, and the authored value is gone — it was never persisted. **For short-form vertical drama with 2.5–4.5s panels, use the composed path**, or every shot collapses onto the 5s floor and the cutting rhythm is unrecoverable.
+A **continuous float, 1–60 seconds**, typical range 3–15. Authored values are preserved exactly: `2.5` persists as `2.5`.
 
-Duration guidance when you are on the 5/8/10/12/15 grid: `5` for reaction cutaways, inserts, beat transitions, quick reveals · `8`–`10` for dialogue exchanges, character action, reveals · `12`–`15` for complex blocking with camera movement, continuous action, emotional beats that need room, oners. Vary it within a scene; monotonous equal-length shots read flat.
+Before Studio PR #502 this was `Literal[5, 8, 10, 12, 15]` with quantization at *two* normalization sites, so a 2.5s panel silently became 5s and short-form work had to bypass the managed workflow and write through `upsert_scene_packages` directly. **That workaround is retired** — both paths now preserve fractional durations. If you are on a pre-#502 Studio, the old snapping still applies (`≤6 → 5`, `≤9 → 8`, `≤11 → 10`, `≤13 → 12`, else `15`).
+
+Duration guidance: short holds (2.5–5s) for reaction cutaways, inserts, beat transitions, quick reveals and punctuation; 8–10s for dialogue exchanges, character action and reveals; 12–15s for complex blocking with camera movement, continuous action, emotional beats that need room, and oners. Vary it within a scene — monotonous equal-length shots read flat. Short-form vertical drama typically runs 2.5–4.5s per panel throughout, and that is now expressible on either path.
+
+## Per-shot appearance state
+
+A character reference says who someone *is*. What is true of them in **one shot** — soaked hair, a fresh cut over the left eye, the briefcase they didn't have two shots ago — belongs to the appearance, and a production has many appearances per character. Putting it on the character gives one global value that is only correct somewhere.
+
+Since PR #504 it lives on the `appears_in` relation's `metadata`, validated by `appearanceStateSchema`. Every field is optional; an appearance with no state means "as described by the reference".
+
+| Key | Notes |
+|-----|-------|
+| `wardrobe` | what they wear in this shot; overrides the character default without editing the reference |
+| `hairState` | soaked, cut short, tied back, wind-blown |
+| `condition` | injuries, dirt, blood, sweat, exhaustion — cumulative across a sequence |
+| `carriedProps` | array of canonical prop names, max 50 |
+| `emotionalState` | performance direction. Distinct from the shot's `mood`, which is the mood of the *frame* |
+| `lookRef` | point at an existing approved variant by id/name instead of re-describing it |
+| `continuityNotes` | anything continuity-relevant the fields above don't cover |
+
+Aliases are mapped, so `costume`/`outfit` → `wardrobe`, `hair`/`hair_state` → `hairState`, `injuries`/`physicalCondition` → `condition`, `props`/`heldProps`/`carried_props` → `carriedProps`, `emotion` → `emotionalState`, `look`/`variant` → `lookRef`, `notes` → `continuityNotes`.
+
+```
+studio_link_graph({ projectId, relations: [{
+  fromId: characterId, toId: shotId, relationType: "appears_in",
+  metadata: { wardrobe: "red tee, dark jeans, bare feet",
+              hairState: "loose curls, slightly mussed",
+              carriedProps: ["PHONE"], emotionalState: "amused, unguarded" }
+}]})
+```
+
+**Still not covered:** zone, facing, posture, and relative-to. `appearanceState` is deliberately appearance, not staging, and the shot's `blocking` is one string for the whole frame. So the continuity blocking map's pose columns remain session-local — see `mixio-continuity`.
 
 ## Canonical scene metadata
 
@@ -162,6 +217,10 @@ Duration guidance when you are on the 5/8/10/12/15 grid: `5` for reaction cutawa
 | `directorNotes` | verbatim director/intent lines |
 | `transitionFromPrevious` | e.g. `CUT TO` |
 | `isContinuation` | true when the scene continues the previous beat without a hard cut |
+| `anchorRef` | primary continuity anchor for the scene — element id or media URL |
+| `anchorRefs` | additional anchors, max 50 |
+
+`anchorRef` is the payoff of the sheets step: generation auto-attaches it to **every** shot in the scene, so the caller never restates it per shot. Anchors dedupe by slot reference id, an explicit per-shot selection still wins, and an anchor whose media can't be read is skipped rather than guessed at — a stale id cannot inject a broken reference into a paid job.
 
 Scene keys are **camelCase**; shot keys are **snake_case**. Not a typo in this doc — that's the actual contract, and mixing them up sends your field to the passthrough partition where nothing reads it.
 
@@ -184,6 +243,33 @@ Match Studio's own recognizers so your scene boundaries agree with the server's:
 
 `sceneNumber` and `shotNumber` start at 1 and must be ordered. `tags.sceneNumber` and `tags.shotNumber` are set automatically on persist; `tags.episodeId` is what scopes later queries.
 
+### The deterministic pass wins
+
+Studio does not trust the LLM with the source text. A non-LLM pass walks the script line by line, derives scene chunks from the heading regex — heading, `location`, `timeOfDay`, transition cue, `isContinuation`, sequential number, and verbatim body — then matches each LLM scene to a chunk (exact heading, then substring, then location/time, then position). On the three fields that record what the script *says*, the chunk wins:
+
+```python
+resolved_script_body = _pick_first_non_empty(
+    chunk_map.get("scriptBody"),   # ← parser
+    metadata.get("scriptBody"),    # ← LLM
+    ...)
+```
+
+Same precedence for `transitionFromPrevious` and `isContinuation`. Below that sit two fallbacks: no LLM scenes → synthesize scenes from the chunks alone; no chunks either → one scene holding the whole script with annotation lines derived by pattern.
+
+Consequence for the composed path: **derive those three fields from the text, don't author them.** If the same script ever goes through the managed path, the parser's version is what survives, so authoring them differently just creates a discrepancy. The LLM's job is shot design; the parser's job is the record.
+
+### What the breakdown does and does not produce
+
+The depth is asymmetric, and assuming otherwise is how the sheets step gets skipped:
+
+| | Depth |
+|---|---|
+| **Scenes** | deep — full verbatim capture |
+| **Shots** | deep — the whole canonical spec |
+| **References** | **shallow** — `{ name, description, attributes? }` and nothing else |
+
+The breakdown writes no `characterDetails` or `locationDetails`: no build, skin, hair, `visualAnchor`, no `spatialLayout`, `depthAxes`, `accessPoints`. References come out as *stubs*. Enriching them is `mixio-sheets`' job, which is why the pipeline runs sheets at Step 02 and the breakdown at Step 03 — build the sheets first and the breakdown's context-loading stage finds those canonical names, aliases and variants and reuses them instead of minting near-duplicate stubs.
+
 ## Reference extraction
 
 Emit three lists, each entry `{ name, description, attributes? }`, then upsert:
@@ -200,7 +286,7 @@ Matching is by normalized `project + type + name`, so it is idempotent — run i
 
 ## Quality gates
 
-**Missing required fields do not fail loudly — they persist as `"TBD"`.** The workflow fills absent required fields with `"TBD"` (and `duration` with `10`), the materialization gate only rejects null, and the read side filters `""`, `tbd`, `unknown`, `n/a`, `na`, `none`, `null` as placeholders. A thin shot therefore passes validation and renders blank everywhere. Never emit a placeholder to satisfy the gate — either write a real value or don't create the shot.
+**Missing required fields do not fail loudly.** Since PR #502 absence persists as `""` rather than the literal `"TBD"`; before it, `"TBD"` was written and `duration` defaulted to `10`. Either way the materialization gate only rejects null, and the read side filters `""`, `tbd`, `unknown`, `n/a`, `na`, `none`, `null` as placeholders — so a thin shot passes validation and renders blank everywhere. Reads still filter `"TBD"` because existing rows contain it. Never emit a placeholder to satisfy the gate: write a real value or don't create the shot.
 
 A scene needs a repair pass when any of these hold; check your own output the same way:
 
@@ -225,18 +311,22 @@ studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
     name: "Tony takes the tablet",
     metadata: {
       shot_type: "over_shoulder", camera_movement: "dolly_in",
+      camera_angle: "eye_level", lens: "standard",
       subject: "TONY on the BED, seated cross-legged",
       action: "TONY drops her phone onto the bedding beside her, then reaches with her right hand to take the tablet from POPPY [M2].",
       context: "TONY & POPPY'S BROOKLYN APARTMENT, day, warm sunlight through the two WINDOWS",
-      style_ambiance: "warm lived-in Italian-American Brooklyn; normal lens; long diagonal light shafts",
+      style_ambiance: "warm lived-in Italian-American Brooklyn; long diagonal light shafts",
+      lighting: "as Anchor 1 — hard midday sun from frame left, long shadows right",
+      mood: "unguarded, domestic, about to tip",
+      blocking: "FG → TONY's right shoulder; MG → tablet screen; BG → POPPY's face, soft focus",
       duration: 4.5,
       audio: { dialogue: "—", ambient: "a truck downshifting outside" },
       character_links: ["TONY", "POPPY"],
       location_links: ["TONY & POPPY'S BROOKLYN APARTMENT"],
       prop_links: ["TABLET", "PHONE"],
-      // freeform craft keys — read by prompt builders, not schema-validated
-      angle: "eye level", lighting: "as Anchor 1",
-      blocking: "FG → TONY's right shoulder; MG → tablet screen; BG → POPPY's face, soft focus"
+      // non-spec keys persist verbatim and now reach the prompt as
+      // "Additional direction" — deliberate, not inert
+      pacing: "NORMAL"
     }
   }]
 }]})

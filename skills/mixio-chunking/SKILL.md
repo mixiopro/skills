@@ -96,7 +96,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: { step_05: "
 
 ## Notes
 
-- **Which duration regime you're in changes everything.** Studio's managed breakdown snaps durations to `5 / 8 / 10 / 12 / 15` (see `mixio-script-breakdown`), so with a 15s cap a chunk holds at most 3 shots and a single 15s shot fills a chunk alone. Short-form panels authored at 2.5–4.5s through the composed path give 4–5 shots per chunk. Chunk the durations that were actually persisted, not the ones you authored.
+- **Chunk the durations that were actually persisted.** Since Studio PR #502 duration is a continuous float 1–60 on both the managed and composed paths, so short-form panels at 2.5–4.5s survive and give 4–5 shots per chunk. On a pre-#502 Studio the managed breakdown snapped to `5/8/10/12/15`, which with a 15s cap means at most 3 shots per chunk and a lone 15s shot filling one by itself. Read the stored value rather than the authored one.
 - Re-chunk after **any** duration change. Chunk boundaries cascade: one shot getting 0.5s longer can shift every chunk after it.
 - Chunk boundaries are generation boundaries, so they're where continuity is most fragile. Feed the last frame of chunk N as `input.media.endFrame`/`primary` continuity into chunk N+1 where the model supports it (see `mixio-generate`).
 - Prefer closing a chunk at a scripted cut over filling it to exactly 15.0s. A chunk that ends mid-gesture is harder to join than one that ends on a cut, and the caps are ceilings, not targets.

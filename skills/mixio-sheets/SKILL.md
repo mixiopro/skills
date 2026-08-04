@@ -86,25 +86,32 @@ Render spec:
 - **Wardrobe**: the character's default costume. One sheet per costume — see variants below.
 - **Aspect ratio**: `16:9` or `4:3` regardless of delivery ratio; a turnaround needs horizontal room.
 
-Then persist the structured identity alongside it. These fields are what a shot prompt pulls from when the image alone is ambiguous:
+Then persist the structured identity alongside it. Since Studio PR #502/#504 one schema owns these fields for all surfaces, so what you write here is what the Cast & World UI and generation both read:
 
 ```
 studio_update_reference({
   referenceId,
   attachments: [{ url: sheetUrl, label: "Turnaround", isPrimary: true }],
   characterDetails: {
-    role: "lead", age: "24", build: "petite, 5'2\"",
-    skin: "olive", hair: "dark brown, shoulder-length, loose curls",
+    role: "protagonist",              // enum: protagonist|antagonist|supporting|background
+    age: "24", build: "petite, 5'2\"", height: "5'2\"",
+    skin: "olive", eyes: "dark brown",
+    hair: "dark brown, shoulder-length, loose curls",
     distinctiveFeatures: "small scar left eyebrow; always wears the gold saint pendant",
     visualAnchor: "the gold saint pendant — visible in every shot she is in",
     wardrobeNotes: "default: red tee, dark jeans, bare feet indoors",
-    personality: "deadpan, fast", speechStyle: "Brooklyn, dry, clipped"
+    personality: "deadpan, fast", speechStyle: "Brooklyn, dry, clipped",
+    customAttributes: [{ key: "handedness", value: "right" }]
   },
   workflow: { status: "in_review" }
 })
 ```
 
+Full field set: `role` (enum), `age`, `personality`, `build`, `skin`, `hair`, `eyes`, `height`, `distinctiveFeatures`, `visualAnchor`, `bio`, `backstory`, `motivations`, `speechStyle`, `wardrobeNotes`, `relationshipsSummary`, `castingNotes`, `voiceProfile`, `voiceReference`, `voiceRegistrations`, `looks`, `customAttributes`. Legacy spellings are mapped on read (`dialogueStyle` → `speechStyle`, `visual_anchor` → `visualAnchor`, `age_range` → `age`, and similar), so old data keeps working — but write the canonical name.
+
 `visualAnchor` is the single feature that makes the character recognizable across models — name it explicitly, and repeat it in shot prompts.
+
+**Do not put per-shot state here.** Hair state, condition/damage, and carried props are properties of an *appearance*, not of the character, and belong on the `appears_in` relation's `appearanceState` — see `mixio-script-breakdown`. A soaked-hair value on the character is one global truth that is only correct in a few shots.
 
 ### Wardrobe variants
 
@@ -160,6 +167,45 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
 - Every element named here in CAPS becomes a prop-continuity token for Step 04.
 - No reference image → header gets `(TEXT-ONLY)`, unknown fields get `UNKNOWN`. Do not fill `Layout: UNKNOWN` with a plausible invention; the audit needs to know it is unverified.
 
+### Persisting the sheet
+
+Since Studio PR #502/#504 the sheet has real fields instead of prose blobs. Map it like this:
+
+| Sheet field | `locationDetails` key | Shape |
+|---|---|---|
+| Layout | `spatialLayout` | text, ≤4000 |
+| Entries & exits | `accessPoints` | array of strings, max 50 |
+| Key elements | `keyLandmarks` | array of strings, max 50 |
+| Depth & axes | `depthAxes` | **object**: `{ foreground?, midground?, background? }` |
+| — | `sightlines` | text — what sees what, ≤2000 |
+| — | `dimensions` | text, e.g. `"about 6m × 4m, 3m ceiling"` |
+| Light sources | `lighting` | text, ≤2000 |
+| Surfaces & palette | `palette` + `architecturalStyle` | text |
+| (header) | `setting` | enum: `interior` \| `exterior` \| `both` |
+| — | `timePeriod`, `mood` | text |
+
+```
+studio_update_reference({ referenceId, locationDetails: {
+  setting: "interior", timePeriod: "present day",
+  spatialLayout: "Open studio room. BED against the left wall (window side), COUCH centered facing the staircase wall…",
+  accessPoints: ["BEDROOM DOOR — dark wood, left wall beside the BED",
+                 "STAIRCASE — ascends from center-back",
+                 "TWO WINDOWS — back wall; not entries, but the key light source"],
+  keyLandmarks: ["BED — white bedding, green and rust pillows", "COFFEE TABLE — rustic wood",
+                 "DESK STATION — dual monitors", "PERSIAN RUG", "RING LIGHT on tripod"],
+  depthAxes: { foreground: "COFFEE TABLE and OLIVE ARMCHAIR",
+               midground: "COUCH, PERSIAN RUG, BED along the left wall",
+               background: "STAIRCASE at back-right, TWO WINDOWS at back-left" },
+  sightlines: "From the BED you see the staircase and the front door; the DESK faces away from both",
+  dimensions: "long axis WINDOWS (back-left) → COUCH → STAIRCASE (back-right)",
+  lighting: "NATURAL DAYLIGHT through the two windows, warm gold, long afternoon shadows; CEILING FIXTURE above the landing; TABLE LAMP on the BEDSIDE TABLE",
+  palette: "dark hardwood, deep reds/navy/cream rug, pressed tin ceiling, off-white walls",
+  architecturalStyle: "Brooklyn brownstone, lived-in Italian-American"
+}})
+```
+
+Note `depthAxes` is an **object keyed by depth plane**, not the prose "long axis" sentence — put the axis statement in `dimensions` or `sightlines`. These fields exist precisely so a shot needing a viewpoint the reference image doesn't show can be directed without the model inventing geography.
+
 Persist to `locationDetails` (`setting`, `timePeriod`, `mood`, `lighting`, `palette`) plus the full sheet text in the reference description.
 
 ### Time-of-day and weather variants
@@ -176,15 +222,13 @@ referenceVariants: [
 
 Names must sit in `variantVocabulary.LOCATION` when the project is `closed`. Select the variant matching the scene's `timeOfDay` when you render its anchor — nothing does this automatically today, so it is on you to pass the right one. The alternative people reach for — registering `TONY'S APARTMENT (NIGHT)` as a second LOCATION — splits the space and the two halves drift apart exactly like a split character does.
 
-## Limitation: per-scene character state has nowhere to live
+## Per-scene character state: appearance yes, staging not yet
 
-A character's *identity* is project-scoped and persists fine. A character's **state** — zone, facing, posture, what they're holding, whether they're bruised — is per scene and per shot, and Studio has no field for it. `linked_character_ids` persists *presence* ("TONY is in shot 7") via `appears_in` relations, but not pose.
+A character's *identity* is project-scoped and belongs here. A character's **state** is per shot and belongs elsewhere — and since Studio PR #504 it has a real home.
 
-Consequences to plan around:
+**Covered** by `appearanceState` on the `appears_in` relation (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`) — validated, and readable back through the relation. Write it from the breakdown or the audit; see `mixio-script-breakdown`.
 
-- The `STAGING` block and the continuity blocking map are **session-local**. Re-deriving them after a break means re-reading the shots.
-- Generation cannot read staging, so posture and facing must be restated in each shot's own `action` / `blocking` text rather than inherited.
-- You *can* park state on the `appears_in` relation's `metadata` today (`studio_link_graph` accepts per-relation `role` and `metadata`), and it will persist — but it is unvalidated and nothing reads it, so treat it as a note to your future self, not as a contract.
+**Not covered**: zone, facing, posture, relative-to. The shot's canonical `blocking` is a single string describing the whole frame, not per character. So the `STAGING` block and the continuity blocking map remain session-local for those columns, and posture/facing must be restated in each shot's own `action` / `blocking` text rather than inherited.
 
 ## Prop sheet
 
@@ -202,13 +246,22 @@ An anchor is a **wide master of the scene at its opening moment**: the set as de
 - Feed the location reference into `location_ref` and each character sheet into `character_ref` on the same job so the anchor is consistent with the sheets.
 - A scene with a big lighting or staging shift mid-way (day→night, everyone relocates) needs a second anchor. Note the switch shot in the staging block: `Coverage: Shots 1–10 → Anchor 1; Shots 11–18 → Anchor 2`.
 
-Persist as a KEYFRAME element and record the id in `metadata.pipeline.anchors` so Step 04 and Step 06 can find it:
+Persist the anchor as a KEYFRAME element, then **point the scene at it** so generation attaches it automatically:
 
 ```
 studio_create_element({ projectId, type: "KEYFRAME", name: "Anchor 1 — Scene 01",
   metadata: { sceneNumber: 1, kind: "anchor", aspect_ratio: "16:9" },
   tags: { episodeId }, previewUrl: anchorUrl })
+→ anchorElementId
+
+studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
+  sceneNumber: 1, name: "...", metadata: { anchorRef: anchorElementId }
+}]})
 ```
+
+Since Studio PR #502 `anchorRef` (plus `anchorRefs` for extras, max 50) is a canonical scene key, and generation merges it into every job prepared for a shot in that scene. That replaces attaching the anchor by hand per shot. Anchors dedupe by slot reference id so an explicit per-shot choice still wins, and an anchor whose media can't be read is skipped rather than guessed at.
+
+Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref`: since PR #502 a separator variant of a canonical key is rejected with a validation error rather than silently passed through.
 
 ## Workflow
 
