@@ -7,9 +7,9 @@ invoke: /mixio:shot-planning
 
 # Mixio Shot Planning
 
-Step 05 of `mixio-pipeline`. Sits between the continuity audit (Step 04) and video generation (Step 06). The old Step 05 was purely arithmetic chunking — split shots into groups under a fixed 15s/5-shot ceiling. That's still here (`mixio-chunking`), but it's now one profile within a broader planning step that answers: **how should each shot be generated, by which model, using what method, and is the shot's content actually feasible for that method?**
+Step 05 of `mixio-pipeline`. Sits between the continuity audit (Step 04) and video generation (Step 06). The old Step 05 was purely arithmetic batching — split shots into groups under a fixed 15s/5-shot ceiling. That arithmetic is still here, as one profile within a broader planning step that answers: **how should each shot be generated, by which model, using what method, and is the shot's content actually feasible for that method?**
 
-The shift: chunking assumed one model and one method. Shot planning acknowledges the catalog.
+The shift: fixed-ceiling batching assumed one model and one method. Shot planning acknowledges the catalog.
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ For every shot, determine:
 2. **Model** — which engine produces it (the execution)
 3. **Feasibility** — whether the shot's content fits the method+model constraints
 
-Then group into batches. The grouping (chunking) is method- and model-dependent, not universal.
+Then group into batches. The grouping is method- and model-dependent, not universal.
 
 ---
 
@@ -206,7 +206,7 @@ for each character_link / location_link / prop_link:
 ### Continuity handoff feasibility
 
 ```
-if shot is first in a new chunk AND previous chunk exists:
+if shot is first in a new batch AND previous batch exists:
     if method != SINGLE and method != DUAL_FRAME:
         FINDING: CONTINUITY_BREAK_RISK — T2V/GRID can't take previous frame as input
         → Override to SINGLE/DUAL_FRAME or accept visual discontinuity at this boundary
@@ -251,7 +251,7 @@ After method/model assignment and feasibility resolution, group shots into **bat
 
 | Model family | Max duration/batch | Max shots/batch | Notes |
 |-------------|-------------------|-----------------|-------|
-| Seedance v2 | 10s | 5 | Original chunking ceiling |
+| Seedance v2 | 10s | 5 | Default profile |
 | Seedance Pro | 15s | 5 | Higher quality, same limits |
 | Veo 3.1 | 8s | 3 | Shorter but higher fidelity |
 | Sora 2 | 20s | 4 | Longer output, fewer per batch |
@@ -261,13 +261,16 @@ After method/model assignment and feasibility resolution, group shots into **bat
 
 ### Batch formation algorithm
 
-Same as `mixio-chunking` but with model-specific ceilings:
+Deterministic — do not improvise it. A "reasonable-looking" grouping that isn't reproducible means a re-run produces different batches and the shot→batch mapping in metadata goes stale.
 
-1. Group consecutive shots with the **same model assignment**
-2. Within each model-group, apply that model's duration/count ceiling
-3. Prefer closing a batch at a scripted cut over filling to ceiling
-4. A shot whose duration exceeds the model's max becomes a multi-segment batch (MULTI_KF method forced)
-5. Never reorder shots
+1. Group consecutive shots with the **same model assignment**.
+2. Within each model-group, start a batch with the first shot and keep adding the next **consecutive** shot as long as, after adding it, the running total stays at or under that model's duration ceiling **and** the batch holds fewer shots than its count ceiling.
+3. The moment either limit would be exceeded, close the batch and open a new one **beginning with that shot** — do not skip it.
+4. A shot whose own duration exceeds the model's max becomes its own multi-segment batch (MULTI_KF forced) **and must be flagged** — it cannot be generated in one pass.
+5. Prefer closing a batch at a scripted cut over filling it to the ceiling. The caps are ceilings, not targets; a batch that ends mid-gesture is harder to join than one that ends on a cut.
+6. Never reorder. Batches are contiguous ranges of the shot sequence.
+
+Worked example, one model with a 15s / 5-shot ceiling, durations `4.5, 3.0, 9.0, 3.5, 3.0`: shot 3 would take batch 1 to 16.5s, so batch 1 closes at shots 1–2 (7.5s) and shot 3 opens batch 2; shot 5 would take batch 2 to 15.5s, so batch 2 closes at shots 3–4 (12.5s) and shot 5 opens batch 3.
 
 When adjacent shots have **different** model assignments, they're always in different batches (you can't submit a Seedance shot and a Veo shot in the same job).
 
@@ -286,7 +289,7 @@ Mark where cross-model boundaries exist — these are the highest-risk continuit
 
 ## Production summary
 
-The expanded version of what `mixio-chunking` used to emit:
+Emit this before asking for generation approval:
 
 ```
 PRODUCTION SUMMARY
@@ -322,15 +325,20 @@ High-risk boundaries:
 
 Shots flagged for resolution:
   Shot 9: 18s exceeds model max → must split before generation
+
+Rapid pacing sections:
+  Batches 2, 3 — 3+ consecutive RAPID/PUNCHY shots
 ```
 
 Include real costs when `studio_list_generation_models` provides pricing data. Otherwise mark `~$?.??` and note the user should check Studio pricing.
+
+Rapid pacing is a note, not an error (see the `Pacing` field in `mixio-pipeline/references/shot-grammar.md`). Three rapid cuts in a row read as intentional urgency; a whole episode of them reads as noise. Surface it so the user can decide.
 
 ---
 
 ## Persisting the plan
 
-Write per-shot planning metadata alongside the chunk assignment:
+Write per-shot planning metadata alongside the batch assignment:
 
 ```
 studio_revise_shot_specs({ shots: [
@@ -389,22 +397,12 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 9. GATE — user approves plan and spend → Step 06 Video Generation
 ```
 
-## Relationship to `mixio-chunking`
-
-`mixio-chunking` still exists and implements the deterministic grouping algorithm. It is now **one batch profile** (the Seedance 15s/5-shot profile) within this broader planning step. If the project uses a single model and doesn't need method classification, the shot-planning step degrades gracefully to `mixio-chunking` — same algorithm, same output.
-
-The relationship:
-- **Shot planning** decides *what* to generate and *how* (method + model + feasibility)
-- **Chunking** decides *grouping* once the method/model are known (batching under constraints)
-
-On a simple project (one model, all shots SINGLE method), shot planning = chunking + a production summary. On a multi-model project, shot planning is the outer layer that calls chunking per model-group.
-
 ## Notes
 
 - **Always query the live catalog.** Model capabilities change. A hardcoded "Veo max is 8s" may be wrong next month. Use the catalog values as the source of truth, falling back to the known table only when the catalog doesn't expose a field.
 - Method classification is a recommendation. The user may override any assignment — record the override in shot metadata so it persists.
 - Cross-model batch boundaries are where `mixio-eval` should focus its post-generation checks. Note them in the plan so Step 06 knows to run eval at those points.
-- Duration changes during feasibility resolution cascade batching. Re-batch after any duration fix (same rule as `mixio-chunking`).
+- Duration changes during feasibility resolution cascade batching — one shot getting 0.5s longer can shift every batch after it. Re-batch after any duration fix, and batch the durations that were actually **persisted**, not the authored ones (Studio stores a continuous float 1–60; a pre-#502 Studio snapped to `5/8/10/12/15`).
 - **MULTI_KF has two routes, and the default one re-plans your shot.** `production-generate-shot-keyframe-sequence` (never bare `keyframe-sequence` — that lands in Image Hub, not under the shot) runs an LLM planner that *regenerates* every frame description from the prompt into its own 11-field schema: `shot_type`, `camera_angle`, `description`, `focus_elements`, `composition_notes`, `background_id`, `action_beat`, `pose_change`, `blocking_notes`, `camera_change`. No lens, no per-entity FG/MG/BG, no axis, no per-character blocking, no off-screen state. Nothing is "stitched" — the job plans and renders the frames itself. Budget 1 job per shot (or 1 per frame when `orchestrate_frames` dispatches children), plus 1 video job per shot.
 
   For a shot whose specs Step 04 has already locked, prefer **`production-generate-shot-keyframes` with `keyframe_count: 1`, one job per beat**: our prompt is used verbatim, nothing re-plans it, and the plan-diversity gate can't reject it. That gate fails a job when ≥4 fields repeat between adjacent frames — which is exactly what a deliberate sustained hold looks like. Pass the previous beat's keyframe as a reference to chain continuity forward; the sequence use case only ever anchors later frames to frame 1. Cost: N jobs instead of 1, and no shared background plate.

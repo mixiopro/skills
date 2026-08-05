@@ -1,6 +1,6 @@
 # Shot Grammar
 
-The shared vocabulary for `mixio-pipeline`, `mixio-sheets`, `mixio-continuity`, and `mixio-chunking`. Its only job is to make a breakdown **auditable**: fixed field names and a closed value set mean a continuity pass can diff shot N against shot N+1 mechanically instead of interpreting prose.
+The shared vocabulary for `mixio-pipeline`, `mixio-sheets`, `mixio-continuity`, and `mixio-shot-planning`. Its only job is to make a breakdown **auditable**: fixed field names and a closed value set mean a continuity pass can diff shot N against shot N+1 mechanically instead of interpreting prose.
 
 ## Naming
 
@@ -62,7 +62,7 @@ Shot 7 — 4.5s [M2]
 
 - `Camera` must state **size / angle / movement / lens**, then **placement** (where the lens physically is, relative to CAPS set elements), then **In frame** as explicit `FG` / `MG` / `BG` layers. "Close-up on Tony" is not a camera field — it doesn't say where the lens is, so two shots can't be checked against each other.
 - `Lighting: as Anchor N` is the normal value. Any deviation must be stated and justified, because deviating from the anchor is exactly what makes a cut look like a different room.
-- `duration` in seconds, one decimal place. Chunking and cost are arithmetic on it. Studio persists a continuous float 1–60 (pre-#502 it snapped to `5/8/10/12/15`) — see `mixio-script-breakdown`.
+- `duration` in seconds, one decimal place. Batching and cost are arithmetic on it. Studio persists a continuous float 1–60 (pre-#502 it snapped to `5/8/10/12/15`) — see `mixio-script-breakdown`.
 - `Pacing` drives the rapid-pacing warning in the production summary.
 
 This is the **authoring** format, and since Studio PR #502 it maps essentially 1:1 onto canonical keys: `Camera` splits across `shot_type` / `camera_angle` / `camera_movement` / `lens`, `In frame` becomes `blocking`, and `Lighting` is its own field. `mixio-script-breakdown` owns the field-by-field mapping — read it before writing a breakdown to Studio.

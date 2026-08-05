@@ -85,7 +85,7 @@ Blocking findings must be resolved before Step 03. Advisory findings are present
 
 → `mixio-script-breakdown`, which owns the canonical schemas, the two closed enums, and the mapping from shot-grammar prose onto persistable keys. One scene at a time. Emit a `STAGING` block for the scene, then numbered shots using the field schema in `references/shot-grammar.md`. Non-negotiables:
 
-- Every shot carries a `duration` in seconds. Chunking (Step 05) and cost estimates are both arithmetic on this field.
+- Every shot carries a `duration` in seconds. Batching (Step 05) and cost estimates are both arithmetic on this field.
 - Every shot names its anchor (`Lighting: as Anchor 1`) or is marked `TEXT-ONLY`.
 - Intra-shot beats other shots depend on get a marker — `[M1]`, `[M2]` — so a later shot can say "tablet already with Tony after `[M2]`" instead of re-describing it.
 - The seven required canonical fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`) must all carry real values. A missing one persists as `"TBD"` and renders blank rather than failing — see `mixio-script-breakdown`.
@@ -104,11 +104,11 @@ Persist with `studio_upsert_scene_packages` (see `mixio-episode`), putting the s
 2. **Model** — match to best available model based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.)
 3. **Feasibility** — validate duration vs model max, action density vs duration, dialogue timing, reference readiness
 
-Then group into generation batches using `mixio-chunking`'s algorithm per model-group (different models have different ceilings). Emit a `PRODUCTION SUMMARY` with per-model costs, method distribution, keyframe/video job counts, and high-risk cross-model boundaries.
+Then group into generation batches per model-group (different models have different ceilings). Emit a `PRODUCTION SUMMARY` with per-model costs, method distribution, keyframe/video job counts, and high-risk cross-model boundaries.
 
 ## Step 06 — Video Generation
 
-→ `mixio-generate`, chunk by chunk, keyframes first then video. Ask before spending unless the user has said otherwise. Offer the three permission levels once, at the top of Step 06, and record the answer:
+→ `mixio-generate`, batch by batch, keyframes first then video. Ask before spending unless the user has said otherwise. Offer the three permission levels once, at the top of Step 06, and record the answer:
 
 - **Always allow** — generate without asking.
 - **Ask before video** — images are cheap, video is not; this is the sensible default.
@@ -121,11 +121,11 @@ Then group into generation batches using `mixio-chunking`'s algorithm per model-
 
 Do **not** use `keyframe-sequence` — that is the Generate-page version (`outputType: IMAGE`, `surfaces: ["generate"]`) and output will not land under the shot even with correct `context`.
 
-**Run eval yourself.** The server's own evaluation pass is skipped whenever `orchestrate_frames` is true, which is the default on the production sequence path — so nothing checks the rendered frames unless you do. Run `mixio-eval` per chunk against the claims the text layer actually made: `identity_consistency`, `location_consistency`, `lighting_consistency`, `composition_consistency`, `prop_consistency`. Cross-model batch boundaries from Step 05 are where to look first.
+**Run eval yourself.** The server's own evaluation pass is skipped whenever `orchestrate_frames` is true, which is the default on the production sequence path — so nothing checks the rendered frames unless you do. Run `mixio-eval` per batch against the claims the text layer actually made: `identity_consistency`, `location_consistency`, `lighting_consistency`, `composition_consistency`, `prop_consistency`. Cross-model batch boundaries from Step 05 are where to look first.
 
-After each chunk, set shot state (`approved` / `needs_revision`) with `studio_update_shot_state` so the canvas reflects reality.
+After each batch, set shot state (`approved` / `needs_revision`) with `studio_update_shot_state` so the canvas reflects reality.
 
-**Final assembly is out of scope for this tool surface.** None of the 39 MCP tools stitch, concatenate, export, or render a timeline — the pipeline delivers approved per-chunk video, not a finished cut. Say so rather than implying a single deliverable file is reachable. Audio *is* reachable (`text-to-speech`, `voiceover` and friends through `studio_submit_studio_job` — see `mixio-generate`), so a narration or dialogue track can be generated per shot even though mixing cannot.
+**Final assembly is out of scope for this tool surface.** None of the 39 MCP tools stitch, concatenate, export, or render a timeline — the pipeline delivers approved per-batch video, not a finished cut. Say so rather than implying a single deliverable file is reachable. Audio *is* reachable (`text-to-speech`, `voiceover` and friends through `studio_submit_studio_job` — see `mixio-generate`), so a narration or dialogue track can be generated per shot even though mixing cannot.
 
 ## Progress state — how to resume
 

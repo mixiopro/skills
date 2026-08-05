@@ -45,7 +45,7 @@ A **project** holds episodes and a Cast & World roster. An **episode** owns scri
 | `mixio-sheets` | `/mixio:sheets` | Character turnarounds, location sheets, prop sheets, per-scene anchors |
 | `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → references, scenes, shot specs against the canonical schemas |
 | `mixio-continuity` | `/mixio:continuity` | Four-pass text continuity audit, before anything renders |
-| `mixio-chunking` | `/mixio:chunking` | Group shots into generation chunks, production summary for cost approval |
+| `mixio-shot-planning` | `/mixio:shot-planning` | Generation method + model per shot, feasibility, batches, production summary for cost approval |
 
 For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a production skill directly when you only need that one step.
 
@@ -57,8 +57,8 @@ For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a pro
 02  Sheets + anchors  → /mixio:sheets      — references must exist before shots reference them
 03  Shot breakdown    → /mixio:script-breakdown
 04  Continuity audit  → /mixio:continuity  — text only, free, catches logic
-05  Chunking          → /mixio:chunking    — then get cost approval
-06  Generation        → /mixio:generate per chunk, then /mixio:eval before delivery
+05  Shot planning     → /mixio:shot-planning — then get cost approval
+06  Generation        → /mixio:generate per batch, then /mixio:eval before delivery
 ```
 
 Steps 01, 03, 04 and 05 cost only tokens. That is the point: a continuity break caught in step 04 costs a paragraph; the same break caught in step 06 costs a re-render.
@@ -92,4 +92,4 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 
 ## Scope
 
-Final assembly — stitching, mixing, export, timeline rendering — is not part of the MCP surface. The pipeline delivers approved per-chunk video, not a finished cut.
+Final assembly — stitching, mixing, export, timeline rendering — is not part of the MCP surface. The pipeline delivers approved per-batch video, not a finished cut.

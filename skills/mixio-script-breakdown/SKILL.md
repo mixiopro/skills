@@ -346,7 +346,7 @@ For refinement after the initial persist use `studio_revise_shot_specs` (content
 4. design shots per scene — purpose, then size/angle/movement/lens, then duration
 5. self-check against the repair criteria; fix rather than emitting "TBD"
 6. studio_upsert_scene_packages({ scenes })                  → counts.scenes / counts.shots
-7. → /mixio:continuity for the audit, then /mixio:chunking
+7. → /mixio:continuity for the audit, then /mixio:shot-planning
 ```
 
 ## Notes
