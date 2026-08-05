@@ -140,7 +140,7 @@ Shot 7 — 4.5s [M2] (CORRECTED)
 
 Rules:
 - **Fix the cause, not the symptom.** A prop that vanishes gets a put-down *action* added in the shot where it leaves her hand — not a note bolted onto the shot where its absence was noticed. Then check the sibling shots that carried the same wrong state; one fix at the source beats three patches downstream.
-- Preserve duration unless the fix genuinely needs more screen time — a changed duration re-chunks the episode (Step 05).
+- Preserve duration unless the fix genuinely needs more screen time — a changed duration re-batches the episode (Step 05).
 - Mark every corrected shot `(CORRECTED)`.
 
 ## Persisting the result
@@ -183,7 +183,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: { step_04: "
 3. Pass 2 — the 10 checks, each traced, each closing FINDING or ✅
 4. Pass 3 — counts + one line per issue + clean shot list
 5. Pass 4 — change log + full corrected shots
-6. studio_revise_shot_specs → studio_update_shot_state → GATE → Step 05 Chunking
+6. studio_revise_shot_specs → studio_update_shot_state → GATE → Step 05 Shot Planning
 ```
 
 ## Notes

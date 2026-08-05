@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](./VERSION)
-[![Skills](https://img.shields.io/badge/skills-13-blueviolet.svg)](#skills)
+[![Skills](https://img.shields.io/badge/skills-12-blueviolet.svg)](#skills)
 
 AI agent skills for media generation, workspace management, and creative workflows via [Mixio Studio](https://mixio.pro). Works with Claude Code, Cursor, Codex, and other AI coding agents that load Markdown-based skills.
 
@@ -90,7 +90,6 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 | [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Script → canonical references, scenes, and shot specs. Mirrors Studio's own breakdown workflow: same schemas, the two closed camera enums, verbatim-preservation rules, and the mapping from shot grammar onto persistable keys. |
 | [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Four-pass text continuity audit before anything renders — blocking map, checks, report, corrected shots. |
 | [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot's generation method (single-frame, multi-keyframe, grid, t2v), match to best model, validate feasibility, and group into generation batches with a full production summary. |
-| [`mixio-chunking`](./skills/mixio-chunking) | `/mixio:chunking` | Deterministic batching algorithm under duration/count caps — one batch profile within shot-planning. Includes a runnable [`chunk.py`](./skills/mixio-chunking/chunk.py). |
 
 Tool skills are reference docs for the MCP surface and are safe to use standalone. Production skills encode the craft and the gating — start at `/mixio:pipeline` for a full episode.
 
