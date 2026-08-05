@@ -15,7 +15,7 @@ The shift: fixed-ceiling batching assumed one model and one method. Shot plannin
 
 - An audited breakdown (Step 04) — plan the **corrected** shots
 - Every shot has `duration`, `camera_movement`, `action`, `audio` fields populated
-- `studio_list_generation_models` / `studio_list_use_cases` reachable (live catalog)
+- `studio_list_use_cases({ outputType: "all" })` + `studio_get_use_case_input_schema({ useCaseId, modelId })` reachable (live catalog)
 
 ## The three decisions per shot
 
@@ -96,19 +96,20 @@ Match each shot to the best available model based on what it needs. This is a re
 
 ### Model capability profiles
 
-Query the live catalog (`studio_list_generation_models`) for current values. Known characteristics to match against:
+Read the real per-model contract with `studio_get_use_case_input_schema({ useCaseId, modelId })` — that is the only authoritative source, and it gives the model's actual `duration` and `aspect_ratio` options. Do **not** call `studio_list_generation_models` for this: it returns `{ id, label }` and nothing else (see `mixio-generate`). Capability facts that live only in the catalog JSON — input roles, credits, `autoSelection` ranking — are tabulated in `mixio-generate/references/model-comparison.md`. Characteristics to match against:
 
-| Capability | What to check |
+| What you need to know | Where it actually comes from |
 |------------|---------------|
-| `maxDuration` | Model's maximum single-pass output (e.g., Seedance: ~10s, Veo: ~8s, Sora: ~20s, Kling: ~10s) |
-| `inputMethods` | What the model accepts: `t2v`, `i2v`, `i2v_dual`, `multi_kf` |
-| `strengthAreas` | What the model handles well (see below) |
-| `aspectRatios` | Supported output ratios |
-| `referenceSupport` | Whether the model uses `character_ref`/`location_ref` slots |
+| Max single-pass duration | the `duration` enum in `get_use_case_input_schema` for that (useCase, model). There is no `maxDuration` field in the catalog |
+| What input shapes the model accepts | the `media` slots in the same schema, and `supportedInputRoles` / `unsupportedInputRoles` in `video-direction.json` (`mixio-generate/references/model-comparison.md`) |
+| Supported aspect ratios | the `aspect_ratio` enum in the same schema — per model, not global (`veo_3_1` is `16:9`/`9:16` only) |
+| Whether references are used at all | presence of `character_ref` / `location_ref` / `references` slots in the schema; `promptMode: none` models ignore prompt text entirely |
+| Cost | `pricing` in `models.json`, credits — not exposed over MCP |
+| Ranking | `autoSelection.rules` in `models.json` — ordered preference per use case, video-only |
 
 ### Strength-area matching
 
-This is the craft layer — which model tends to produce better results for which kind of shot:
+This is the craft layer — which model tends to produce better results for which kind of shot. **None of it is a catalog fact**: the catalog ranks nothing and has no quality, fps or resolution-ceiling field. Present it as judgment, and prefer the catalog's own ordered preference (`autoSelection.rules`, in `mixio-generate/references/model-comparison.md`) when the user wants a defensible default.
 
 | Shot characteristic | Better model candidates | Why |
 |--------------------|------------------------|-----|
@@ -257,7 +258,7 @@ After method/model assignment and feasibility resolution, group shots into **bat
 | Sora 2 | 20s | 4 | Longer output, fewer per batch |
 | Kling 2.6 Pro | 10s | 5 | Similar to Seedance |
 
-**Query the live catalog** for current limits rather than relying on this table. `studio_list_generation_models` may expose `maxDuration` per model.
+**Confirm per-shot limits from `studio_get_use_case_input_schema({ useCaseId, modelId })`** rather than relying on this table — the `duration` enum it returns is the model's real ceiling (e.g. `veo_3_1` on `production-generate-video` allows only `4/6/8`). There is no `maxDuration` field anywhere in the catalog, and `studio_list_generation_models` exposes nothing beyond `{ id, label }`.
 
 ### Batch formation algorithm
 
@@ -330,7 +331,7 @@ Rapid pacing sections:
   Batches 2, 3 — 3+ consecutive RAPID/PUNCHY shots
 ```
 
-Include real costs when `studio_list_generation_models` provides pricing data. Otherwise mark `~$?.??` and note the user should check Studio pricing.
+Costs are in **credits**, and no MCP tool returns them — take them from `mixio-generate/references/model-comparison.md` (`models.json` → `pricing`), where the spread runs from 5 credits to `veo_3_1`'s base 360. Quote credits, not currency, and say which model each line assumes.
 
 Rapid pacing is a note, not an error (see the `Pacing` field in `mixio-pipeline/references/shot-grammar.md`). Three rapid cuts in a row read as intentional urgency; a whole episode of them reads as noise. Surface it so the user can decide.
 

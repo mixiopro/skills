@@ -76,7 +76,7 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 | [`mixio-project`](./skills/mixio-project) | `/mixio:project` | Project CRUD and whole-graph reads (`get_production_context`). |
 | [`mixio-references`](./skills/mixio-references) | `/mixio:references` | Cast & World — characters, locations, props, reference images and structured details for generation consistency. |
 | [`mixio-episode`](./skills/mixio-episode) | `/mixio:episode` | Episode CRUD, script content, scene/shot breakdown, shot revision/approval, relations. |
-| [`mixio-generate`](./skills/mixio-generate) | `/mixio:generate` | Image and video generation through Studio jobs — script breakdown, keyframe sequences, and image/video models with reference-image consistency. |
+| [`mixio-generate`](./skills/mixio-generate) | `/mixio:generate` | Image, video and audio generation through Studio jobs — which use cases and models exist, what each accepts, what it costs, and when a Studio production use case beats a Generate one. |
 | [`mixio-workspace`](./skills/mixio-workspace) | `/mixio:workspace` | Upload local files to Mixio Studio, get permanent public URLs, manage cached assets. SHA-256 deduplication. |
 | [`mixio-eval`](./skills/mixio-eval) | `/mixio:eval` | Run visual continuity / consistency evaluation jobs on generated or uploaded media before delivery. |
 
@@ -125,14 +125,14 @@ User prompt: "Set up episode 3 and generate its opening shot"
 
 ## Models
 
-Model IDs change as Studio adds providers — call `studio_list_generation_models` / `studio_list_use_cases` for the current catalog rather than relying on a static table. Known IDs as of writing:
+Model IDs change as Studio adds providers — call `studio_list_use_cases({ outputType: "all" })` for the current set and read each use case's `supportedModels`, then `studio_get_use_case_input_schema({ useCaseId, modelId })` for that pair's real contract. Do **not** use `studio_list_generation_models` for discovery: its `mediaType` filter returns an empty list and its descriptive fields are always `undefined` (see [`mixio-generate`](./skills/mixio-generate) for why). Known IDs as of writing:
 
 | Media | Model IDs |
 |-------|-----------|
 | Image | `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite` |
 | Video | `seedance_image_to_video_pro`, `seedance_text_to_video_pro`, `seedance_image_to_video_v2`, `veo_3_1`, `sora_2`, `kling_text_to_video_2_6_pro` |
 
-There is no *dedicated* audio tool, but audio generation is reachable through the normal job path — the engine exposes `text-to-speech`, `voiceover`, `voice-change` and `audio-driven-performance` use cases. Note that both discovery filters omit audio (`list_use_cases`' `outputType` is `IMAGE | VIDEO | all`), so call `studio_list_use_cases()` unfiltered to see them. Final assembly — stitching, mixing, export — is not part of the MCP surface at all.
+There is no *dedicated* audio tool, but audio generation is reachable through the normal job path — the catalog exposes `text-to-speech` and `voice-change` as `outputType: AUDIO`. Note the discovery filter cannot express audio (`list_use_cases`' `outputType` is `IMAGE | VIDEO | all`), so call `studio_list_use_cases({ outputType: "all" })` to see them. Final assembly — stitching, mixing, export — is not part of the MCP surface at all.
 
 ## Contributing
 
