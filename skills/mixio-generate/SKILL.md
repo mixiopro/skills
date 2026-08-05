@@ -1,174 +1,192 @@
 ---
 name: mixio-generate
-description: "Generate images and video through Mixio Studio jobs — script breakdown, keyframe sequences, image and video generation with character/location reference consistency."
-version: 0.1.0
+description: "Generate images, video and audio through Mixio Studio jobs — which use cases exist, which models each supports, what each accepts as input, what it costs, and when a Studio production use case beats a Generate one."
+version: 0.2.0
 invoke: /mixio:generate
 ---
 
 # Mixio Generate
 
-Submit and track Studio generation jobs (image, video, script breakdown, keyframe sequences) through the proxied `studio_*` MCP tools. Jobs are billable and run async by default.
+Submit and track Studio generation jobs through the proxied `studio_*` MCP tools. Jobs are billable and async by default.
+
+Every claim below is grounded in the `mixiopro/studio` repo and cited inline so it can be re-verified. The catalog is the source of truth; this skill is a snapshot.
+
+**Catalog snapshot — verified 2026-08-05** against a live MCP server and `mixiopro/studio@8999961f`:
+
+| | Count | Source |
+|---|---|---|
+| Use cases | **38** — 16 `STUDIO`, 13 `IMAGE`, 7 `VIDEO`, 2 `AUDIO` | `api/agent-api/shared_schemas/use-cases.json` |
+| Model entries | **61** (includes 7 workflow pseudo-models such as `video-preproduction`) | `api/agent-api/shared_schemas/models.json` |
+| Capability profiles / model bindings | 12 / 37 | `api/agent-api/shared_schemas/video-direction.json` |
+| Presets | attached to 9 use cases via `presetSlots` | `api/agent-api/shared_schemas/presets.json` |
+
+Re-derive before spending: `studio_get_use_case_input_schema({ useCaseId, modelId })` is generated from the same resolution path the Studio UI renders from (spec `specs/022-mcp-use-case-input-schema/spec.md`), so it cannot drift from reality the way this file can.
 
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- **Resolved scope — required.** You must be working against a project, plus the deepest scope you know (episode / scene / shot) that the user has
-  explicitly confirmed. If it is not established in this session, **fetch the list and show
-  it, numbered, in the same message as the question** (`studio_list_projects` /
-  `studio_list_episodes`) so the answer is one character. Asking "which episode?" without
-  the list is a failure — it hands the lookup back to the user. Resolve this *before* any
-  expensive read; never guess an id, infer one from a title, or create something to avoid
-  asking. See `mixio-project`.
+- **Resolved scope — required.** You must be working against a project, plus the deepest scope you know (episode / scene / shot) that the user has explicitly confirmed. If it is not established in this session, **fetch the list and show it, numbered, in the same message as the question** (`studio_list_projects` / `studio_list_episodes`) so the answer is one character. Asking "which episode?" without the list is a failure — it hands the lookup back to the user. Resolve this *before* any expensive read; never guess an id, infer one from a title, or create something to avoid asking. See `mixio-project`.
 
-## Models & Use Cases
+## 1. Discovery tools — what each one actually returns
 
-Model and use-case IDs change as Studio adds providers — always confirm with `studio_list_generation_models` / `studio_list_use_cases` before hardcoding an ID. As a starting point:
+Registrations: `apps/app-kalaasetu/src/app/api/mcp/server.ts`.
 
-| Media | Model IDs |
-|-------|-----------|
-| Image | `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite` |
-| Video | `seedance_image_to_video_pro`, `seedance_text_to_video_pro`, `seedance_image_to_video_v2`, `veo_3_1`, `sora_2`, `kling_text_to_video_2_6_pro` |
+| Tool | Returns | Omits / breaks |
+|---|---|---|
+| `studio_list_use_cases` | `id`, `label`, `outputType`, `description`, `supportedModels`, `count` | **Always pass `outputType: "all"`.** The enum is `IMAGE \| VIDEO \| all` but the catalog also has `STUDIO` and `AUDIO`, so 18 of 38 use cases — every `production-*`, every screenplay/preproduction workflow, both audio ones — are unreachable through any narrower filter (`IMAGE` returns 13, `VIDEO` returns 7). Does **not** return `surfaces`, `media`, `parameters`, `presetSlots`, `intent`, or `studio`. `workflowId` is mapped but is always `undefined` — the field does not exist on `UseCaseDef` (server.ts:2938; tracked as mixiopro/studio#518) |
+| `studio_list_generation_models` | with `useCaseId`: `{ id, label }` per model. Unfiltered: `{ id, label }` × 61 | **Broken — do not rely on it** (tracked as mixiopro/studio#517). `mediaType: "image"` returns `{models:[],count:0}`, verified. It filters on `m.mediaType \|\| m.outputType`, and `ModelDef` has neither field (`packages/shared/src/schemas/generation/schema.ts:771` — only `label`, `providers`, `pricing`, `prompting`, `roleSlotPolicy`, `videoReferenceBudget`, `organizationNameIncludes`), so `provider`, `mediaType`, `outputType` and `supportedUseCases` serialize away as `undefined` and the filter matches nothing (server.ts:2887). Use `supportedModels` from `list_use_cases`, or `model.options` from `studio_generation_catalog_get`, instead |
+| `studio_get_use_case_input_schema({ useCaseId, modelId })` | **The authoritative per-model contract.** JSON Schema 2020-12 for `{ prompt?, media, parameters }`, plus `supportedModels` and resolved `presets` | **Always pass `modelId`.** Omitting it resolves a different model and therefore a different schema: `image-hub` with no `modelId` yields `gpt_image_2` (auto is unsupported for `IMAGE`, so it falls back to `models[0]`), `cinematic-video` yields `ltx_2_3_quality_image_to_video` (auto rule). Throws `No model could be resolved for <id>` on the three model-less Studio use cases: `studio-lock-references`, `studio-storyboard-keyframes`, `studio-batch-image-generation`. Responses for the 9 preset-bearing use cases are large — they inline the full preset catalog |
+| `studio_generation_catalog_get({ useCaseId, modelId, surface, projectId })` | Same contract flat (`media[]`, `parameters[]` with `options`), plus `supportedActions` and `configDigest` | Needs `projectId`. Use it when you need the action ids. Note `supportedActions` is not media-typed — `production-generate-video` returns `{single: "generation.image", batch: "generation.image.batch"}` |
+| `studio_cancel_studio_job({ jobId, projectId })` | `{ job: { id, status, previouslyTerminal }, message }` | **Exists** (server.ts:1951). Already-terminal jobs return their status without error. Earlier guidance in this skill that cancellation was HTTP-only was wrong |
 
-Common `useCaseId` values: `image-hub` (general image gen with references), `production-generate-shot-keyframe-sequence` (production keyframes — see table below), `image-edit` (requires a source image), `refine-character-image`, `production-generate-video`, `keyframe-sequence` (Generate-page multi-frame workflow — does **not** land under a shot), `script-preproduction`.
+## 2. Facts you cannot discover over MCP
 
-## The use case decides where output lands — not `context`
+This is the gap that makes agents guess. None of the following is reachable through any MCP tool. Read the repo file, or ask the user.
 
-This is the single easiest thing to get wrong, and it costs a paid job. Passing a correct `context: { projectId, episodeId, sceneId, shotId }` is **not sufficient** to make output appear under a shot. The use case has to be a production-scoped one.
+| Fact | Where it lives | What to do instead |
+|---|---|---|
+| **Credits / cost** | `models.json` → `pricing.base.credits`, `pricing.modifiers`, `pricing.minCredits`; fallback `defaults.pricing` (15 credits) | Read `references/model-comparison.md`, or the file. Spread is ~70×: `veo_3_1` base **360** / floor 180 against `nano_banana_2` and `seedream_5_lite` at **5**, `gemini_image` 10, `gpt_image_2` 20. **A model swap is a cost decision, not a quality one** — say the number before you spend it |
+| **Model ranking / "when to use what"** | `models.json` → `autoSelection.rules`: ordered `preferredModels` per use case, output type and media signal | The 8 rules are reproduced in `references/model-comparison.md`. `auto` resolves through them; there is **no** rule for `IMAGE`, and `supportsAutoModelSelection` returns false for `STUDIO`, so `auto` is video-only (`schema.ts:1603`, `:1752`) |
+| **Per-model input capability** | `video-direction.json` → `capabilityProfiles` + `modelBindings`: `profileId`, `supportedInputRoles`, `unsupportedInputRoles`, `promptMode`, `aspectHandling`, `lifecycle`, `routeId` | This is the real strengths/limits layer. A `prompted-frame-anchored-video` model (Seedance I2V, Kling 2.6 Pro, LTX, Grok) takes `primary` + `endFrame` and **rejects 7 other roles**; `prompted-text-video` models reject all 9. Table in `references/model-comparison.md`. Bindings inherit their profile's roles unless they override them (`packages/shared/src/schemas/generation/index.ts:resolveGenerationDirectionInputPolicy`) |
+| **Reference budgets** | `models.json` → `defaults.stillImageReferencePolicy.maxProviderImages` (**10**) with `coverageOrder`/`fillOrder`/`slotByRole`; `defaults.videoReferenceBudget.maxProviderImages` (**9**) with `coverageOrder`/`reserve`, overridden per model — `kling_multi_image_to_video`, `kling_o3_standard_reference_to_video`, `kling_o3_pro_reference_to_video` cap at **4** | Over-budget references are **truncated by policy order, not rejected**: `api/agent-api/src/workflows/generation/reference_budget.py` and `apps/app-kalaasetu/src/lib/studio/video-reference-budget.ts` (`droppedIds`). Attach 20 refs and most are silently dropped, with coverage roles winning over fill order. Send the ones that matter, in role order |
+| **Prompt length ceiling** | `models.json` → `prompting.promptMaxCharacters`, present on **13** of 61 models (Kling family 2500, Hailuo H3 2000, Grok 4096, Svara and LTX Quality 5000) | Models without the field have no declared ceiling. Studio's own production path truncates against it (`getPromptMaxCharacters` in `production-job-preparation.ts`); you cannot read it over MCP |
+| **Speed / quality tradeoff** | `models.json` → `providers[].requirements`: `balanced \| speed \| cost \| quality` | The **only** such signal in the catalog. There is no fps field, no max-resolution field, no benchmark or quality ranking anywhere in it. If asked which model is "best", say the catalog does not rank models and offer `autoSelection` order plus credits instead of inventing a comparison |
+| **`surfaces` (studio vs generate)** | `use-cases.json` → `surfaces` | See §3. **`outputType` is not a proxy for it**: `image-edit`, `character-locking`, `refine-character-image`, `character-multi-angle` are `outputType: IMAGE` but `surfaces: ["studio"]`; the two `avgc-*` use cases are on both; `kling-multi-shot-video` has `surfaces: []` and appears in neither UI while still being submittable |
+
+## 3. Generate use case vs Studio production use case
+
+**Default: if the project has scenes and shots and the output must attach to the graph, use a `production-*` use case and pass `context.sceneId` / `context.shotId`.** Everything else is the exception.
+
+That default is not about `context`. Passing a perfectly correct `context` to a Generate use case does **not** bind the output to a shot — the use case decides. A `keyframe-sequence` job submitted with a full `context` including `shotId` lands in the Image Hub list and never appears under the shot; the fix is resubmitting as `production-generate-shot-keyframe-sequence`.
+
+**Studio production** (`outputType: STUDIO`, `surfaces: ["studio"]`) — `production-generate-keyframes`, `-shot-keyframes`, `-scene-keyframes`, `-shot-keyframe-grid`, `-scene-keyframe-grid`, `-shot-keyframe-sequence`, `-video`. The Studio submission path resolves the shot, seeds linked cast/world references, resolves the scene's `anchorRef`/`anchorRefs` into reference slots, and applies a default parameter table (§4) — `apps/app-kalaasetu/src/services/production-job-preparation.ts`.
+
+**Generate** (`surfaces: ["generate"]`) — `image-hub`, `cinematic-video`, `keyframe-grid`, `keyframe-sequence`, `camera-motion`, `motion-transfer`, `multi-shot-video`, `lip-sync`, `video-edit`, `face-swap`, `camera-angle`, `camera-grid`, `text-to-speech`, `voice-change`, `arcane-lora-v3`. Standalone exploration with `context.projectId` only; no graph binding, no reference seeding.
+
+Model sets differ, so a use case swap can change what is even available:
+
+- `image-hub` supports 7 image models including `flux-klein-arcane` and `z-image-turbo-arcane`.
+- Every `production-*` keyframe use case supports exactly 5: `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite`.
+- `production-generate-video` supports 22 video models; `cinematic-video` supports 12, overlapping but not identical.
+
+**One job path bypasses the catalog entirely.** `submit_studio_job` accepts any `useCaseId` string, so absence from the catalog is not a rejection. `script-preproduction` is a backend workflow id (`EVENT_DRIVEN_AGNO_WORKFLOWS` in `apps/app-kalaasetu/src/services/job-runner.ts:80`) that the MCP tool's own description advertises, but it is **absent from `use-cases.json`** — so `list_use_cases` will never list it and `get_use_case_input_schema` throws `Unknown use case`. Submit it by id and do not try to discover or schema-check it. For script breakdown from this skill set, prefer `mixio-script-breakdown`, which persists through the breakdown primitives instead. The catalog's own screenplay use cases (`source-screenplay-analysis`, `localized-screenplay-adaptation`, `video-preproduction`) *are* listed and each has a single same-named pseudo-model. The same goes for parameter names: an invented `useCaseId` also means no schema, so nothing filters or warns about what you send with it.
+
+### Where output lands
 
 | Use case | Scope | Output appears |
 |---|---|---|
-| **`production-generate-shot-keyframe-sequence`** | **one shot, planner-driven multi-frame sequence (`4/6/8/10/12` frames)** | **under that shot** |
-| `production-generate-keyframes` | production, current scope | under the scene/shot in the production view |
-| `production-generate-shot-keyframes` | one shot, single or counted keyframes | under that shot |
-| `production-generate-scene-keyframes` | one scene, single or counted keyframes | under that scene |
+| `production-generate-shot-keyframes` | one shot, `keyframe_count` frames | under that shot |
+| `production-generate-shot-keyframe-sequence` | one shot, planner-driven sequence (`4/6/8/10/12`) | under that shot |
 | `production-generate-shot-keyframe-grid` | one shot, storyboard grid | under that shot |
-| `production-generate-scene-keyframe-grid` | one scene, storyboard grid | under that scene |
-| `production-generate-video` | production, current scope | under the scene/shot |
-| `keyframe-sequence` | **not production-scoped** (`outputType: IMAGE`, `surfaces: ["generate"]`) | general / Image Hub list, *not* under the shot |
-| `keyframe-grid` | not production-scoped (`outputType: IMAGE`, `surfaces: ["generate"]`) | general / Image Hub list |
-| `image-hub`, `image-edit`, `refine-character-image` | general | Image Hub list |
+| `production-generate-scene-keyframes` / `-scene-keyframe-grid` | one scene | under that scene |
+| `production-generate-keyframes` / `production-generate-video` | current production scope | under the scene/shot |
+| `keyframe-sequence`, `keyframe-grid`, `image-hub` | not production-scoped | Image Hub list, *not* under the shot |
 
-All `production-*` use cases share `outputType: "STUDIO"` and `surfaces: ["studio"]`.
+You cannot verify this from the job read: `studio_get_job_status` returns status and tracking only, and never echoes `projectId`/`episodeId`/`sceneId`/`shotId`. Get it right on submit, then confirm by querying the shot's elements or relations. Job status values: `PENDING`, `RUNNING`, `IN_QUEUE`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `CANCELLED`.
 
-⚠️ **Discovery pitfall:** Because their `outputType` is `"STUDIO"`, production use cases are **invisible** when calling `studio_list_use_cases({ outputType: "IMAGE" })`. Call with no filter or `outputType: "all"` to see them. When operating inside a production pipeline, use the IDs directly — do not try to discover them via an `IMAGE` or `VIDEO` filter.
+## 4. Parameters
 
-Observed in real use: a `keyframe-sequence` job submitted with a fully correct `context` including `shotId` still landed in the general Image Hub list and never appeared under the shot. The fix was resubmitting as `production-generate-shot-keyframe-sequence`. The Generate-page `keyframe-sequence` runs the same multi-pass Agno workflow but lacks production scope binding.
+**`aspect_ratio` has no global option list.** Options are per (use case × model), narrowed by the model's route policy (`models.json` → `providers[].routeCompiler.parameterPolicy.allowedValues`). Verified examples:
 
-**Rule: if the user expects to see the result under a scene or shot in Studio, use a `production-*` use case.** Call `studio_list_use_cases()` to confirm the current set, and `studio_get_use_case_input_schema({ useCaseId })` for its exact contract, before submitting.
+| Use case | Model | `aspect_ratio` enum |
+|---|---|---|
+| `production-generate-video` | `veo_3_1` | `16:9`, `9:16` — only |
+| `production-generate-shot-keyframes` | `gemini_image` | `auto`, `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9` |
+| `image-hub` | `gpt_image_2` | `auto`, `1:1`, `16:9`, `9:16`, `21:9` |
+| `cinematic-video` | `ltx_2_3_quality_image_to_video` | `auto`, `16:9`, `4:3`, `3:2`, `1:1`, `2:3`, `3:4`, `9:16` |
 
-### You cannot verify context from the job read
+Read the enum from `get_use_case_input_schema` for the exact pair before submitting. `auto` is a legal value on many use cases but not all — it is absent from `production-generate-video`. The same is true of `duration` (`veo_3_1`: `4/6/8`, default `6`; the use case's own list is `4/5/6/8/10/12`, default `5`) and `resolution`. Numeric selects accept both string and number spellings (`generation-json-schema.ts`).
 
-`studio_get_job_status` returns `{ job: { id, status, jobType, createdAt, updatedAt, providerStatus, queuePosition }, tracking: {...} }`. It does **not** echo `projectId`, `episodeId`, `sceneId` or `shotId`, so there is no way to confirm from the response that your scope persisted. Get it right on submit; you will not get a second chance to check cheaply. On completion, confirm the link by querying relations or elements for the shot rather than by reading the job.
+### Production defaults you inherit
 
-### No cancel tool
+`PRODUCTION_DEFAULT_PARAMETERS`, `apps/app-kalaasetu/src/services/production-job-preparation.ts:83`. Merge order is defaults → derived video overrides → **your** parameters, so anything you pass wins.
 
-There is no MCP cancel. Cancellation is HTTP-only (`POST /api/studio-jobs/{id}/cancel`), which means shell access and handling the API key outside the MCP boundary — and that endpoint has been observed returning HTTP 500. **Do not design a flow that depends on cancelling.** Confirm cost before submitting instead; a misrouted job cannot be reliably recalled.
+| Use case | Defaults |
+|---|---|
+| `production-generate-keyframes` | `aspect_ratio: '16:9'` |
+| `production-generate-shot-keyframes` | `aspect_ratio: '16:9'`, `keyframe_count: '1'` |
+| `production-generate-scene-keyframes` | `aspect_ratio: '16:9'`, `keyframe_count: '4'` |
+| `production-generate-shot-keyframe-grid` | `aspect_ratio: '16:9'`, **`grid_layout: '3x2'`** |
+| `production-generate-scene-keyframe-grid` | `aspect_ratio: '16:9'`, **`grid_layout: '3x2'`** |
+| `production-generate-shot-keyframe-sequence` | `aspect_ratio: '16:9'`, `keyframe_count: '6'`, `orchestrate_frames: true`, `reference_concurrency: 4`, `background_concurrency: 2`, `frame_concurrency: 3` |
+| `production-generate-video` | `duration: '5'`, `generate_audio: false` |
 
-## MCP Tools
+Default **model** when you pass none: `gemini_image` for the two grid use cases, otherwise the use case's first model (`gpt_image_2` for keyframes). For `production-generate-video` it depends on state — a keyframe-array model when the shot is a multi-keyframe sequence, else the first `image_to_video` model when a start frame exists, else the first `text_to_video` one. A start/end model given a multi-keyframe shot pushes every middle frame into prompt-only context (`apps/app-kalaasetu/src/lib/studio/sequence-video-models.ts`), so name the model rather than inheriting it.
 
-| Tool | Purpose |
-|------|---------|
-| `studio_submit_studio_job` | Submit one image/video/script-breakdown/keyframe-sequence job |
-| `studio_batch_submit_studio_jobs` | Submit up to 50 jobs in one call (same job shape, wrapped in a `jobs` array) |
-| `studio_get_job_status` | Poll a job by `jobId` **and** `projectId` — returns status + output URL when complete |
-| `studio_list_generation_models` | List model IDs, optionally filtered by `useCaseId` or `mediaType` |
-| `studio_list_use_cases` | List use-case IDs, optionally filtered by `outputType` |
-| `studio_list_references` | List a project's CHARACTER/LOCATION/PROP elements — use to get reference image URLs |
-| `studio_get_use_case_input_schema` | **Returns the exact input contract (media slots + parameters) for a use case.** Call this before submitting an unfamiliar use case instead of guessing at `input.media` / `input.parameters` |
-| `studio_generation_catalog_get` | Bounded catalog read (newer discovery adapter, smaller result set than `list_generation_models`) |
-| `studio_get_studio_job_api_schema` | Returns the underlying HTTP contract for `/api/studio-jobs/*` — rarely needed since the tools above cover submit/status directly |
+`keyframe_count` is a **closed set, not a range**: `1/2/3/4/6/8/9` for `production-generate-shot-keyframes` (default `1`), `4/6/8/10/12` for `-shot-keyframe-sequence` (default `6`). The 12 ceiling is 16 reserved output slots shared with background plates; `orchestrate_frames` does not raise it. For more frames, submit more jobs.
 
-Call `studio_tools_describe` on any of these for the exact current input schema.
+`orchestrate_frames: true` (already the default on the sequence path) makes the job return a plan and dispatch one child job per frame. Side effect: the server's own evaluation pass is skipped whenever it is true, so run `mixio-eval` yourself.
 
-### Audio — reachable, but not discoverable
+`sequence_notes` is appended verbatim to the planner's prompt; a caller-supplied `prompt` **replaces** Studio's auto-assembled shot-spec prompt. Leave `prompt` unset and use `sequence_notes` unless you mean to author the whole prompt.
 
-There is no dedicated audio MCP tool, and both discovery filters omit audio:
-`studio_list_use_cases`'s `outputType` enum is `IMAGE | VIDEO | all`, and
-`studio_list_generation_models`'s `mediaType` is `image | video | all`.
+### Read `schemaWarnings` on every submit — it is not optional
 
-Audio generation nevertheless **works through the normal job path** — the engine
-has an `AUDIO` output type and use cases including `text-to-speech`,
-`voiceover`, `voice-change`, and `audio-driven-performance`, and
-`studio_submit_studio_job` accepts any `useCaseId` string:
+Per spec 022, `input.parameters` is `.loose()` (so catalog parameters reach the backend) but is then **filtered to the derived schema's keys plus six workflow extensions** — `background_concurrency`, `frame_concurrency`, `multi_prompt`, `orchestrate_frames`, `reference_concurrency`, `shot_type` (`apps/app-kalaasetu/src/lib/generation-parameters.ts:18`). Dropped keys are reported **warn-only** in `schemaWarnings`; enum and type mismatches likewise warn and never block.
+
+A job that "succeeded" with warnings ran **with your parameters removed**. Check `schemaWarnings` before polling, and treat any entry as a failed submission to redo — not as noise. Filtering falls open when the schema cannot be derived, so an unresolvable model never strips a valid submission.
+
+## 5. Workflow
 
 ```
-studio_list_use_cases()                       // no filter — audio use cases appear here
-studio_get_use_case_input_schema({ useCaseId: "text-to-speech" })   // exact contract
-studio_submit_studio_job({ jobType: "audio", useCaseId: "text-to-speech",
-                           prompt, input: { parameters }, context: { projectId } })
+1. studio_list_use_cases({ outputType: "all" })           → pick useCaseId (never a narrower filter)
+2. studio_get_project(projectId)                          → honor the user's pinned defaults (below)
+3. studio_get_use_case_input_schema({ useCaseId, modelId })→ exact media slots + parameter enums
+4. studio_list_references(projectId) → studio_get_element  → reference image URLs (§6)
+5. studio_submit_studio_job({ jobType, model, useCaseId, prompt,
+     input: { media, parameters }, context: { projectId, episodeId, sceneId, shotId } })
+                                                          → job id + tracking + schemaWarnings
+6. read schemaWarnings; if non-empty, fix and resubmit before polling
+7. studio_get_job_status({ jobId, projectId })             → poll to COMPLETED
+8. mixio-eval before delivery; upload_file for local renders
 ```
 
-Call `studio_list_use_cases()` **without** `outputType` to see them — passing
-`"IMAGE"` or `"VIDEO"` filters them out, and there is no `"AUDIO"` value to pass.
-Confirm the current ids from that call rather than trusting the list above.
+### Step 2 — honor project defaults before you choose anything
 
-### Key gotchas (from the tool's own docs)
+`studio_get_project(projectId)` returns the user's own pinned choices. Confirmed present on live projects; treat them as overriding this skill's suggestions, and only differ when you say so.
 
-- **Reference images and aspect ratio must go through `input.media` / `input.parameters`.** Omitting them silently generates without reference consistency at a default `1:1` aspect ratio.
-- **`input.media` slots take real URLs, not Payload media IDs.** The server rejects UUID-looking values. `studio_list_references` only returns a summary (`hasAttachments` boolean, no URLs) — get the actual attachment URLs from `studio_get_element`/`studio_get_production_context` (`referenceVariants[].attachments[].media.url`), or upload fresh with `upload_file`/`get_public_url`. See `mixio-references` for the full Cast & World reference workflow.
-- Media slots: `primary`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `endFrame` — each accepts `{ url }` or an array of them.
+`settings.generation`: `defaultModelByUseCase`, `defaultParametersByUseCase`, `defaultDurationByUseCase`, `defaultAspectRatioByOutputType`, `defaultResolutionByOutputType`, `recommendedStylePresetIds`, `inferenceMode`.
+`settings.studio`: `preferredVideoModel`, `videoDurationSeconds`, `defaultStylePrompt`, `defaultVideoShotMode`, `visualStyle`, `toneAndMood`, `cinematographyDirection`.
+
+A real project reads `{ "production-generate-video": "gemini_omni_multishot" }` with `VIDEO` aspect `9:16` — submitting `veo_3_1` at `16:9` there is both wrong and far more expensive (base 360 credits against a 14-credit floor). Also read `settings.references` before creating references (`mixio-references`).
+
+## 6. Getting reference image URLs
+
+Media slots take **real URLs, not Payload media IDs** — the server rejects UUID-shaped values outright (server.ts, M-024/M-008). Resolve in this order:
+
+1. `studio_list_references({ projectId })` — names, types, and a `hasAttachments` boolean. **No URLs.** This is a directory, not a source of images.
+2. `studio_get_element({ elementId })` → `referenceVariants[].attachments[].media.url`, or `studio_get_production_context({ projectId, episodeId })` for the whole graph at once (100K+ characters — prefer the element read when you know the id).
+3. Anything local: `upload_file(path)` or `get_public_url(path)` for a permanent URL first. `/api/media/file/{id}` form is also accepted.
+
+Slot ids come from the schema, not from memory. Common ones: `primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`. Each takes `{ url }` or an array of them.
 
 ### Link every job to everything it knows about
 
-Six separate context mechanisms, and they do different jobs. Pass all of them you can.
-
 | Field | Shape | Why |
 |---|---|---|
-| `context` | `{ projectId (required), episodeId?, sceneId?, shotId? }` | Where the job belongs. **Always pass the deepest scope you know** — a shot-level job should carry all four |
-| `selectedElements` | `[{ id, type, identityKey?, mentionCode? }]` | Which characters/locations/props the prompt refers to. Helps the backend resolve references and hold consistency |
-| `slotReferences` | `{ <slot>: { url, elementId?, mediaId?, referenceType?, displayLabel? } }` | Images **with provenance**. Unlike raw `input.media`, `elementId` records which element an image came from |
-| `slotTags` | `{ <assetKey>: "@tag" }` | Binds a reference image to a mention tag. `assetKey` is `elementId \|\| mediaId \|\| url` |
-| `mentionMap` | `{ "@tag": "Human Label" }` | Binds that tag to a subject name. **Both maps are required** for a tag to bind |
-| `input.media` | `{ <slot>: { url } }` | Raw URLs with no provenance |
+| `context` | `{ projectId (required), episodeId?, sceneId?, shotId? }` | Where the job belongs. Always the deepest scope you know |
+| `selectedElements` | `[{ id, type, identityKey?, mentionCode? }]` | Which characters/locations/props the prompt refers to. `type` ∈ `CHARACTER`, `LOCATION`, `PROP`, `SHOT`, `SCENE` |
+| `slotReferences` | `{ <slot>: { url, elementId?, mediaId?, referenceType?, displayLabel? } }` | Images **with provenance**; `elementId` is what lets scene anchors dedupe against an explicit per-shot choice instead of attaching twice |
+| `slotTags` | `{ <assetKey>: "@tag" }` | Binds an image to a mention tag; `assetKey` is `elementId \|\| mediaId \|\| url` |
+| `mentionMap` | `{ "@tag": "Human Label" }` | Binds that tag to a subject. **Both maps are required** for a tag to bind |
+| `input.media` | `{ <slot>: { url } }` | Raw URLs, no provenance. The server derives slot references and mention tags from it automatically |
 
-Prefer `slotReferences` over bare `input.media` when the image came from a Studio element — the `elementId` is what lets scene anchors dedupe against an explicit per-shot choice instead of attaching twice. `type` in `selectedElements` is one of `CHARACTER`, `LOCATION`, `PROP`, `SHOT`, `SCENE`.
+### Mentions — binding an image to a subject
 
-A job that passes only `projectId` and raw URLs will still render, but nothing downstream can tell what it was *for*.
+Sending two character images does not say which is which. `@tag` tokens in the prompt do, rewritten at dispatch into each provider's own syntax (`@Image1`/`@Element1` Kling, indexed `image1`, `Image 1` Hailuo). Substitution is in place, so the tag binds wherever it sits in the sentence.
 
-- `input.parameters`: `aspect_ratio` (`auto`, `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9`), `quality`, `duration` (video, seconds), `style`, `output_format`, `watermark` (Seedream models only), `keyframe_count`, `sequence_notes`, `orchestrate_frames`.
-- `keyframe_count` is a **closed set, not a range**: `4 | 6 | 8 | 10 | 12` for `production-generate-shot-keyframe-sequence` (default `6`), and `1 | 2 | 3 | 4 | 6 | 8 | 9` for `production-generate-shot-keyframes`. Odd values in between are rejected. The 12 ceiling comes from a 16-slot output reservation shared with up to 4 background plates — `orchestrate_frames` does **not** raise it. For more than 12 frames, submit more than one job.
-- `orchestrate_frames` is already `true` by default on the production sequence path. It makes the job return a *plan* and dispatch one child job per frame rather than rendering inline. Side effect worth knowing: the server's own evaluation pass is **skipped** whenever it is true, so run `mixio-eval` yourself before delivery.
-- `sequence_notes` is the one lossless way to add direction to a sequence job. It is appended verbatim to the planner's prompt, whereas a caller-supplied `prompt` **replaces** Studio's auto-assembled shot-spec prompt (camera enums, dialogue, scene heading, scaling constraints) instead of adding to it. Leave `prompt` unset and use `sequence_notes` unless you intend to author the whole prompt.
-- `studio_get_job_status` requires **both** `jobId` and `projectId` — it's not a bare job lookup.
-- There's no MCP cancel tool. Cancellation is HTTP-only (`POST /api/studio-jobs/{id}/cancel`), outside this tool set.
-- Job status values: `PENDING`, `RUNNING`, `IN_QUEUE`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `CANCELLED`.
+- **`production-*` use cases derive the maps for you** from the shot's related elements; anything you pass overrides the derived value.
+- **No other use case derives anything.** Send `slotTags` + `mentionMap` yourself or multi-reference binding silently does not happen.
+- Write the tag as the element's name, slugified with dots — `Tony` → `@tony`, a look variant → `@tony.casual`. `mentionCode`, `title`, `displayLabel` and `name` all resolve as aliases.
+- Literal `slotTags` values only survive in generic form (`@char1`, `@loc1`, `@asset2`, `@style1`, `@Image1`); anything else is reassigned.
+- An unresolved tag degrades to its plain label — safe, but the binding is lost with no error.
+- `@scene`, `@shot`, `@style`, `@pose` prefixes are bookkeeping, not bindable subjects.
 
-### Mentions — how a reference image gets bound to a subject
+Put per-character staging inline next to the mention — `@tony (MC, three-quarter-left, seated cross-legged, on BED)`. Structured staging fields get flattened on the way to the model; the mention token survives with its position intact.
 
-Sending two character images does **not** tell the model which is which. That binding is done by `@tag` tokens in the prompt, rewritten at dispatch into whatever reference syntax the provider speaks (`@Image1`/`@Element1` for Kling, `image1` indexed, `@Image1`/`@Video1` for Seedance, `Image 1` for Hailuo). Substitution happens **in place**, so the tag binds wherever you put it in the sentence.
+## Audio
 
-- **For `production-*` use cases the maps are derived for you** from the shot's related elements, and anything you pass overrides the derived value. You mostly get binding for free.
-- **For every other use case there is no derivation.** Send `slotTags` + `mentionMap` yourself or multi-reference binding silently does not happen: the images are uploaded, no token exists to rewrite, and the model guesses which subject is which.
-- **Write the tag as the element's name, slugified with dots** — `Tony` → `@tony`, a look variant → `@tony.casual`. `mentionCode`, `title`, `displayLabel` and `name` are all resolved as aliases, so a tag matching any of them binds.
-- **Literal `slotTags` values only survive in generic form** — `@char1`, `@loc1`, `@asset2`, `@style1`, `@scene1`, `@shot1`, `@pose1`, `@Image1`. Anything else is reassigned. Use the human form in the *prompt* and let aliases resolve it; use the generic form only when you need to pin a specific slot.
-- **An unresolved tag degrades to its plain label** rather than leaking `@garbage` into the prompt. Safe, but the binding is lost with no error — so verify the reference actually carries the name you tagged.
-- Tags prefixed `@scene`, `@shot`, `@style` or `@pose` are treated as narrative bookkeeping, not bindable subjects, and are skipped when subject bindings are built.
-
-Put per-character staging inline next to the mention rather than in a separate field — `@tony (MC, three-quarter-left, seated cross-legged, on BED)`. Structured staging fields get flattened or dropped on the way to the model; the mention token is the one thing guaranteed to survive with its position intact.
-
-## Workflow
-
-```
-1. studio_list_use_cases() / studio_list_generation_models()   → confirm useCaseId / model
-2. studio_list_references(projectId) → studio_get_element(referenceId)   → get character/location reference image URLs, if needed
-3. studio_submit_studio_job({ jobType, model, useCaseId, prompt, input: { media, parameters }, context: { projectId } })
-                                                                  → job id + tracking
-4. studio_get_job_status({ jobId, projectId })                  → poll until COMPLETED, read output.output_url
-5. (optional) upload_file(local_path)                            → persist a local render to workspace
-```
-
-## Prompt Tips
-
-### Images
-- Be specific about composition: "wide shot", "close-up", "overhead"
-- Specify lighting: "golden hour", "neon-lit", "soft diffused"
-- Include medium: "photograph", "digital painting", "3D render"
-
-### Video
-- Describe motion: "slow pan left", "tracking shot", "zoom in"
-- Keep prompts shorter than image prompts (models handle less complexity)
-- Specify duration and a start frame (`input.media.primary`) when possible
+Reachable, undiscoverable by filter. `text-to-speech` and `voice-change` are `outputType: AUDIO`, which `list_use_cases`' enum cannot express — call it with `outputType: "all"`. Then the normal path: `get_use_case_input_schema({ useCaseId: "text-to-speech", modelId: "elevenlabs_tts_multilingual_v2" })` → `submit_studio_job`. Models: `elevenlabs_tts_multilingual_v2`, `gemini_3_1_flash_tts_preview` (8 credits each), `elevenlabs_speech_to_speech` (10). Lip-sync is `outputType: VIDEO`, not audio. Mixing and final assembly are not on the MCP surface at all.
 
 ## References
 
-See `references/model-comparison.md` for how to pick a model/use case from the live catalog.
+`references/model-comparison.md` — `autoSelection` ranking, credits per model, and per-model input-role capability. All three are catalog facts no MCP tool exposes.
