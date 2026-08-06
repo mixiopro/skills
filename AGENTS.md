@@ -31,7 +31,7 @@ from its own local-only tools, which are never prefixed: `upload_file`,
 On a different transport — a client talking to the hosted MCP endpoint directly, or
 [mixio-cli](https://github.com/mixiopro/mixio-cli) — there is no `studio_` prefix:
 `studio_list_projects` is `list_projects`. Same tool, same schema, same server, only
-the name differs. When in doubt, `tools_search`/`tools_describe` (or
+the name differs. When in doubt, `search_tools`/`describe_tools` (or
 `mixio list-tools`/`mixio call <tool> --help`) always reflect what your current
 transport actually exposes.
 
