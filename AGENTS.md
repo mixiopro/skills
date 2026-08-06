@@ -67,7 +67,7 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 
 ## Conventions
 
-- Call `studio_tools_describe` before using an unfamiliar tool, and `studio_get_use_case_input_schema` before submitting an unfamiliar generation use case. Don't guess parameters.
+- Call `studio_describe_tools` before using an unfamiliar tool, and `studio_get_use_case_input_schema` before submitting an unfamiliar generation use case. Don't guess parameters.
 - Read `settings.references` on the project before creating references — `createPolicy` and `variantPolicy` can forbid writes this repo otherwise describes.
 - Shot metadata keys are `snake_case`; scene metadata keys are `camelCase`. Mixing them up is rejected, not silently ignored.
 - Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
@@ -88,7 +88,7 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 }
 ```
 
-`studio_*` tools are proxied from the Studio server. `upload_file`, `get_public_url`, `register_asset`, `run_evaluation` and `get_evaluation_result` are local to `@mixio-pro/mcp` and are **not** covered by `studio_tools_describe` — see `mixio-workspace` and `mixio-eval` for their parameters.
+`studio_*` tools are proxied from the Studio server. `upload_file`, `get_public_url`, `register_asset`, `run_evaluation` and `get_evaluation_result` are local to `@mixio-pro/mcp` and are **not** covered by `studio_describe_tools` — see `mixio-workspace` and `mixio-eval` for their parameters.
 
 ## Scope
 
