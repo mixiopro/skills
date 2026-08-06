@@ -1,7 +1,7 @@
 ---
 name: mixio-shot-planning
 description: "Classify each shot's generation method, match to the best model, validate duration and action density against model capabilities, and group into generation batches — the model-aware layer between continuity and video generation."
-version: 0.1.0
+version: 0.2.0
 invoke: /mixio:shot-planning
 ---
 
@@ -204,6 +204,18 @@ for each character_link / location_link / prop_link:
         → Block until /mixio:reference-audit fixes are applied
 ```
 
+### Look-binding readiness
+
+```
+for each character_link / location_link / prop_link with a bound lookRef (shot or scene, via appears_in/presence relation — see mixio-script-breakdown):
+    resolve it against the reference's referenceVariants
+    if it doesn't resolve:
+        FINDING: LOOK_REF_UNRESOLVED — binding is stale, will silently render the default look
+        → fix in /mixio:reference-audit (STALE_LOOK_REF) before Step 06
+```
+
+Pull bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. A resolved binding is worth carrying forward: record its `variantId`/`variantName` in the persisted plan (below) so Step 06 declares it directly on the media reference instead of re-resolving it (see `mixio-generate` §7; check `get_production_context` for a `lookBindings` key to confirm your Studio resolves it).
+
 ### Continuity handoff feasibility
 
 ```
@@ -365,6 +377,8 @@ studio_revise_shot_specs({ shots: [
 ```
 
 Keep `chunk_index` as an alias for `batch_index` so existing Step 06 code that reads `chunk_index` still works.
+
+When a shot resolves a non-default look, persist `look_variant_id` / `look_variant_name` alongside the method/model assignment, so Step 06 passes it straight through as `variantId`/`variantName` on the media reference (`mixio-generate` §7) instead of re-resolving the cascade.
 
 Then close the step:
 

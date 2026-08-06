@@ -1,7 +1,7 @@
 ---
 name: mixio-script-breakdown
 description: "Break a script into canonical references, scenes, and shot specs the way Studio's own breakdown workflow does — same schemas, same closed enums, same verbatim rules — then persist through the breakdown primitives."
-version: 0.1.0
+version: 0.2.0
 invoke: /mixio:script-breakdown
 ---
 
@@ -20,7 +20,7 @@ Two ways to run it:
 | Verbatim safety | regex pass wins over the LLM | you must replicate it (below) |
 | Use when | you want a fast, schema-safe first pass | you need shot-grammar depth and per-scene approval |
 
-Both paths reach the same contract, so the choice is about **process, not capability** — since PR #502 removed duration quantization there is no longer a field the managed path can't express. Take the managed path for a cheap reproducible draft; take the composed path when you want sheets built first, gates between scenes, and per-shot `appearanceState`.
+Both paths reach the same contract, so the choice is about **process, not capability** — duration quantization is gone, so there is no longer a field the managed path can't express. Take the managed path for a cheap reproducible draft; take the composed path when you want sheets built first, gates between scenes, and per-shot `appearanceState`.
 
 Best of both: run the **composed** path but keep Studio's two safety properties — derive `scriptBody` / `transitionFromPrevious` / `isContinuation` from the text deterministically rather than authoring them, and self-check against the repair criteria before persisting.
 
@@ -65,7 +65,7 @@ Seven required fields. Persisting a shot without them throws `Shot metadata miss
 
 | Key | Required | Notes |
 |-----|----------|-------|
-| `shot_type` | ✅ | closed enum below — **framing only** since PR #502 |
+| `shot_type` | ✅ | closed enum below — **framing only**, angles live on `camera_angle` |
 | `camera_movement` | ✅ | closed enum below |
 | `camera_angle` | — | enum below; alias `angle` / `cameraAngle`. Omit when the script gives no angle evidence |
 | `lens` | — | enum below. Omit when the script gives no lens evidence |
@@ -95,7 +95,7 @@ wide  establishing  medium  close_up  extreme_close_up
 pov  two_shot  over_shoulder  montage  abstract
 ```
 
-`low_angle` and `high_angle` were in this list before PR #502 and moved to `camera_angle`. Existing shots still hold them, and reads still resolve them, but new breakdowns should not emit them here.
+`low_angle` and `high_angle` used to be in this list and have moved to `camera_angle`. Existing shots still hold them, and reads still resolve them, but new breakdowns should not emit them here.
 
 Pick by story need, not formula:
 
@@ -136,7 +136,7 @@ Match the move to emotional intent: `static` for tension, contemplation, dialogu
 
 ## Where the fine-grained camera detail goes
 
-Since Studio PR #502 the shot-grammar fields map **1:1 onto canonical keys** — camera detail no longer degrades into prose. (On a pre-#502 Studio, `camera_angle`, `lens`, `lighting`, `mood` and `blocking` are rejected by the strict write boundary; check before relying on them.)
+The shot-grammar fields map **1:1 onto canonical keys** — camera detail no longer degrades into prose. (On an older Studio, `camera_angle`, `lens`, `lighting`, `mood` and `blocking` are rejected by the strict write boundary — try a write and read it back before relying on them.)
 
 | Grammar field | Canonical key | Notes |
 |---|---|---|
@@ -156,7 +156,7 @@ Since Studio PR #502 the shot-grammar fields map **1:1 onto canonical keys** —
 
 ### Passthrough is now visible — and now checked
 
-Non-spec keys still persist verbatim, and since PR #505 they **reach the generation prompt** under `- Additional direction:` (a denylist, not an allowlist). So a passthrough key is prompt text now, not an inert note — write it deliberately or not at all.
+Non-spec keys still persist verbatim, and they **reach the generation prompt** under `- Additional direction:` (a denylist, not an allowlist). So a passthrough key is prompt text now, not an inert note — write it deliberately or not at all.
 
 Two classes of key are now **rejected with a `ShotSpecValidationError`** instead of silently passing through:
 
@@ -169,7 +169,7 @@ Two classes of key are now **rejected with a `ShotSpecValidationError`** instead
 
 A **continuous float, 1–60 seconds**, typical range 3–15. Authored values are preserved exactly: `2.5` persists as `2.5`.
 
-Before Studio PR #502 this was `Literal[5, 8, 10, 12, 15]` with quantization at *two* normalization sites, so a 2.5s panel silently became 5s and short-form work had to bypass the managed workflow and write through `upsert_scene_packages` directly. **That workaround is retired** — both paths now preserve fractional durations. If you are on a pre-#502 Studio, the old snapping still applies (`≤6 → 5`, `≤9 → 8`, `≤11 → 10`, `≤13 → 12`, else `15`).
+Duration is a continuous float; older Studios quantized it to `Literal[5, 8, 10, 12, 15]` at two normalization sites, so a 2.5s panel silently became 5s and short-form work had to bypass the managed workflow and write through `upsert_scene_packages` directly. **That workaround is retired** — both paths now preserve fractional durations. If a submitted `2.5` reads back as `5`, you're on a Studio that still quantizes — the old snapping applies (`≤6 → 5`, `≤9 → 8`, `≤11 → 10`, `≤13 → 12`, else `15`).
 
 Duration guidance: short holds (2.5–5s) for reaction cutaways, inserts, beat transitions, quick reveals and punctuation; 8–10s for dialogue exchanges, character action and reveals; 12–15s for complex blocking with camera movement, continuous action, emotional beats that need room, and oners. Vary it within a scene — monotonous equal-length shots read flat. Short-form vertical drama typically runs 2.5–4.5s per panel throughout, and that is now expressible on either path.
 
@@ -177,7 +177,7 @@ Duration guidance: short holds (2.5–5s) for reaction cutaways, inserts, beat t
 
 A character reference says who someone *is*. What is true of them in **one shot** — soaked hair, a fresh cut over the left eye, the briefcase they didn't have two shots ago — belongs to the appearance, and a production has many appearances per character. Putting it on the character gives one global value that is only correct somewhere.
 
-Since PR #504 it lives on the `appears_in` relation's `metadata`, validated by `appearanceStateSchema`. Every field is optional; an appearance with no state means "as described by the reference".
+It lives on the `appears_in` relation's `metadata`, validated by `appearanceStateSchema`. Every field is optional; an appearance with no state means "as described by the reference".
 
 | Key | Notes |
 |-----|-------|
@@ -199,6 +199,8 @@ studio_link_graph({ projectId, relations: [{
               carriedProps: ["PHONE"], emotionalState: "amused, unguarded" }
 }]})
 ```
+
+`lookRef` resolves shot → scene → reference default at generation time, and a stale value (pointing at a renamed/deleted variant) degrades silently to the default rather than erroring, where the cascade is live — check by looking for a `lookBindings` key in `get_production_context`'s response. Re-running this breakdown never wipes an existing binding: presence relations are created only when missing, so an already-bound relation's metadata is untouched by a re-run.
 
 **Still not covered:** zone, facing, posture, and relative-to. `appearanceState` is deliberately appearance, not staging, and the shot's `blocking` is one string for the whole frame. So the continuity blocking map's pose columns remain session-local — see `mixio-continuity`.
 
@@ -286,7 +288,7 @@ Matching is by normalized `project + type + name`, so it is idempotent — run i
 
 ## Quality gates
 
-**Missing required fields do not fail loudly.** Since PR #502 absence persists as `""` rather than the literal `"TBD"`; before it, `"TBD"` was written and `duration` defaulted to `10`. Either way the materialization gate only rejects null, and the read side filters `""`, `tbd`, `unknown`, `n/a`, `na`, `none`, `null` as placeholders — so a thin shot passes validation and renders blank everywhere. Reads still filter `"TBD"` because existing rows contain it. Never emit a placeholder to satisfy the gate: write a real value or don't create the shot.
+**Missing required fields do not fail loudly.** Absence persists as `""` rather than the literal `"TBD"` — older Studios wrote `"TBD"` and defaulted `duration` to `10`; check which you're on by reading a thin shot back. Either way the materialization gate only rejects null, and the read side filters `""`, `tbd`, `unknown`, `n/a`, `na`, `none`, `null` as placeholders — so a thin shot passes validation and renders blank everywhere. Reads still filter `"TBD"` because existing rows contain it. Never emit a placeholder to satisfy the gate: write a real value or don't create the shot.
 
 A scene needs a repair pass when any of these hold; check your own output the same way:
 

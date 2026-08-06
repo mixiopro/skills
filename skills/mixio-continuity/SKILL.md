@@ -1,7 +1,7 @@
 ---
 name: mixio-continuity
 description: "Audit a shot breakdown for continuity before anything is rendered — build a blocking map, run the checks, report findings against a fixed issue taxonomy, then emit corrected shots and lock them."
-version: 0.1.0
+version: 0.2.0
 invoke: /mixio:continuity
 ---
 
@@ -59,7 +59,7 @@ Rules:
 
 Build the map before looking for problems. Most breaks are invisible in prose and obvious in a table.
 
-**Half of this map is now persistable.** Since Studio PR #504, `appearanceState` on each `appears_in` relation carries `wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef` and `continuityNotes` per character per shot — validated, and readable back. Write the map's wardrobe/condition/held-props columns there as you build it and the next session inherits them instead of re-deriving.
+**Half of this map is persistable.** `appearanceState` on each `appears_in` relation carries `wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef` and `continuityNotes` per character per shot — validated, and readable back. Write the map's wardrobe/condition/held-props columns there as you build it and the next session inherits them instead of re-deriving. `lookRef` is not just readable back: where the shot-scoped look cascade is live it *selects the variant generation actually renders* (shot → scene → reference default), so binding it here becomes the one column in this map that changes the output, not just the record — a wrong or missing `lookRef` degrades silently to the default look rather than erroring. Check whether your Studio has it: `get_production_context` returns a `lookBindings` key once it does.
 
 **Zone, facing, posture and relative-to are still session-local.** `appearanceState` is appearance, not staging, and the shot's canonical `blocking` is one string for the whole frame. So restate posture and facing in each shot's own `action` / `blocking` text rather than relying on inheritance, and expect to rebuild those four columns on re-entry.
 
@@ -167,7 +167,7 @@ studio_update_shot_state({ shots: [
 
 Prefer the relation write for facts about a *character in a shot* (they carry the tablet now) and `update_shot_state.continuity` for the *verdict* on the shot. Putting a per-character fact in the shot verdict loses which character it was about.
 
-Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, so corrections must use canonical keys (`camera_movement`, not `Camera:`) — and since Studio PR #502 a casing variant or a cross-spec key is **rejected** rather than silently ignored. See `mixio-script-breakdown` for the full mapping. Then close the step:
+Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, so corrections must use canonical keys (`camera_movement`, not `Camera:`) — a casing variant or a cross-spec key is **rejected** rather than silently ignored. See `mixio-script-breakdown` for the full mapping. Then close the step:
 
 ```
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: { step_04: "complete" } } } })
