@@ -1,6 +1,6 @@
 ---
 name: mixio-continuity
-description: "Audit a shot breakdown for continuity before anything is rendered — build a blocking map, run the checks, report findings against a fixed issue taxonomy, then emit corrected shots and lock them."
+description: "Audit a shot breakdown for continuity before anything is rendered — build a blocking map, run the checks, report findings against a fixed issue taxonomy, then emit corrected shots and lock them. Text and blocking logic only — Cast & World completeness is mixio-reference-audit. Unclear which step you need → mixio-pipeline."
 version: 0.2.0
 invoke: /mixio:continuity
 ---

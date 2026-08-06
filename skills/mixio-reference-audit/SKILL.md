@@ -1,6 +1,6 @@
 ---
 name: mixio-reference-audit
-description: "Audit a project's Cast & World roster for completeness, consistency, duplicates, and metadata quality before generation — catch reference problems that cost re-renders when found late."
+description: "Audit a project's Cast & World roster for completeness, consistency, duplicates, and metadata quality before generation — catch reference problems that cost re-renders when found late. Audits what already exists — building the sheets is mixio-sheets, creating/editing entries is mixio-references. Unclear which step you need → mixio-pipeline."
 version: 0.2.0
 invoke: /mixio:reference-audit
 ---

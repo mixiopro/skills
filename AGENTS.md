@@ -41,13 +41,14 @@ A **project** holds episodes and a Cast & World roster. An **episode** owns scri
 
 | Skill | Invoke | Use for |
 |-------|--------|---------|
-| `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode.** Six gated steps + resumable state |
+| `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode, and whenever it's unclear which production skill applies.** Six gated steps + resumable state |
 | `mixio-sheets` | `/mixio:sheets` | Character turnarounds, location sheets, prop sheets, per-scene anchors |
+| `mixio-reference-audit` | `/mixio:reference-audit` | Audit Cast & World for completeness, consistency, duplicates, metadata quality |
 | `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → references, scenes, shot specs against the canonical schemas |
 | `mixio-continuity` | `/mixio:continuity` | Four-pass text continuity audit, before anything renders |
 | `mixio-shot-planning` | `/mixio:shot-planning` | Generation method + model per shot, feasibility, batches, production summary for cost approval |
 
-For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a production skill directly when you only need that one step.
+For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a production skill directly when you only need that one step — each one's description says which of its siblings it isn't, and falls back to `mixio-pipeline` when that's still unclear.
 
 ## Order matters
 
@@ -55,13 +56,14 @@ For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a pro
 00  lock aspect_ratio (delivery) + anchor_aspect_ratio (wider, for anchors)
 01  Script            → persisted on the episode as the source of truth
 02  Sheets + anchors  → /mixio:sheets      — references must exist before shots reference them
+02.5 Reference audit  → /mixio:reference-audit — completeness, consistency, duplicates, metadata
 03  Shot breakdown    → /mixio:script-breakdown
 04  Continuity audit  → /mixio:continuity  — text only, free, catches logic
 05  Shot planning     → /mixio:shot-planning — then get cost approval
 06  Generation        → /mixio:generate per batch, then /mixio:eval before delivery
 ```
 
-Steps 01, 03, 04 and 05 cost only tokens. That is the point: a continuity break caught in step 04 costs a paragraph; the same break caught in step 06 costs a re-render.
+Steps 01, 02.5, 03, 04 and 05 cost only tokens. That is the point: a continuity break caught in step 04 costs a paragraph; the same break caught in step 06 costs a re-render.
 
 Sheets come **before** the breakdown because the breakdown emits references as shallow stubs (`name`, `description`, `attributes`) and writes no `characterDetails` or `locationDetails`. Build the sheets first and the breakdown reuses their canonical names instead of minting near-duplicates.
 
