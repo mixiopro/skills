@@ -22,7 +22,7 @@ Run visual continuity / consistency evaluation jobs on generated or uploaded med
 
 ## MCP Tools
 
-These are local tools implemented directly in `@mixio-pro/mcp` (no `studio_` prefix — they are not proxied from the Studio server, so `studio_tools_describe` won't find them).
+These are local tools implemented directly in `@mixio-pro/mcp` (no `studio_` prefix — they are not proxied from the Studio server, so `studio_describe_tools` won't find them).
 
 ### `register_asset`
 

@@ -22,7 +22,7 @@ An episode lives inside a project (see `mixio-project`) and owns everything down
 
 ## MCP Tools
 
-All proxied `studio_*` tools. Call `studio_tools_describe` for exact current schemas.
+All proxied `studio_*` tools. Call `studio_describe_tools` for exact current schemas.
 
 ### Episode CRUD
 

@@ -73,7 +73,7 @@ Only `mixio-workspace`'s `upload_file` family is genuinely project-free. Everyth
 
 ## MCP Tools
 
-All proxied `studio_*` tools. Call `studio_tools_describe` for exact current schemas.
+All proxied `studio_*` tools. Call `studio_describe_tools` for exact current schemas.
 
 | Tool | Purpose |
 |------|---------|
