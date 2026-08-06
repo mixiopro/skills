@@ -65,6 +65,8 @@ Then add the MCP server to your agent's config:
 
 Get your API key from [Mixio Studio](https://studio.mixio.pro) → Settings → API Keys.
 
+No MCP client available (agents, scripts)? Use [mixio-cli](https://github.com/mixiopro/mixio-cli) instead — see [AGENTS.md](./AGENTS.md#tool-names-across-transports) for how tool names differ across transports.
+
 ## Skills
 
 Mixio's data model: a **project** contains episodes and a Cast & World roster. An **episode** owns script/breakdown/scenes/shots. Cast & World (characters/locations/props) is **project**-scoped and feeds generation for consistency.

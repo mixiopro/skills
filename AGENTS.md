@@ -20,6 +20,21 @@ Never guess an id, infer one from a title, or create a project or episode to avo
 
 Note that `Shot 2.2` means scene 2, shot 2 *of some episode* — numbering restarts per scene and per episode, so that label exists in every episode and is under-specified until the episode is known. Only `mixio-workspace`'s upload tools are genuinely project-free.
 
+## Tool names across transports
+
+These skills are written for the officially documented setup — `@mixio-pro/mcp` as
+your MCP server. That proxy prefixes every tool it forwards from Studio with
+`studio_` (`studio_list_projects`, `studio_get_element`, ...) to keep them apart
+from its own local-only tools, which are never prefixed: `upload_file`,
+`get_public_url`, `register_asset`, `run_evaluation`, `get_evaluation_result`.
+
+On a different transport — a client talking to the hosted MCP endpoint directly, or
+[mixio-cli](https://github.com/mixiopro/mixio-cli) — there is no `studio_` prefix:
+`studio_list_projects` is `list_projects`. Same tool, same schema, same server, only
+the name differs. When in doubt, `search_tools`/`describe_tools` (or
+`mixio list-tools`/`mixio call <tool> --help`) always reflect what your current
+transport actually exposes.
+
 ## Data model
 
 A **project** holds episodes and a Cast & World roster. An **episode** owns script, scenes and shots. Cast & World (characters, locations, props) is **project**-scoped and feeds generation for consistency, so it outlives any one episode.
