@@ -1,7 +1,7 @@
 ---
 name: mixio-references
 description: "Manage a Mixio Studio project's Cast & World roster — characters, locations, and props, including reference images (Looks) and structured details used for generation consistency."
-version: 0.1.0
+version: 0.2.0
 invoke: /mixio:references
 ---
 
@@ -98,6 +98,12 @@ studio_update_reference({
   referenceVariants: [{ name: "Default Look", isDefault: true, images: [{ url, isPrimary: true }] }]
 })
 ```
+
+### Binding a look — how a shot or scene selects one
+
+Defining looks here is half the contract; a shot or scene has to *select* one for generation to render it instead of the default. That's a relation write, not a reference write: set `lookRef` (aliases `look`, `look_ref`, `variant`) in the `metadata` of the shot's or scene's `appears_in`/`presence` relation, pointing at a `referenceVariants[].id` or `.name` on this reference. See `mixio-script-breakdown` for the appearance-state contract and `mixio-generate` for how a job declares or inherits the binding.
+
+Resolution order at generation time is shot → scene → this reference's default variant, where the cascade is live — check for a `lookBindings` key in `get_production_context`'s response to confirm it is. A `lookRef` that no longer matches any variant — renamed, deleted — degrades silently to the default rather than erroring, so a rename here is a breaking change for anything that bound the old name.
 
 Structured detail params (type-gated — sent fields are ignored if the element isn't that type, and are deep-merged, not replaced):
 - `characterDetails` (CHARACTER only): `role`, `age`, `personality`, `build`, `skin`, `hair`, `distinctiveFeatures`, `visualAnchor`, `wardrobeNotes`, `bio`, `backstory`, `motivations`, `speechStyle`, `relationshipsSummary`, `castingNotes`, `voiceProfile`, `voiceReference`, `voiceRegistrations`

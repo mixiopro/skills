@@ -65,7 +65,7 @@ Shot 7 — 4.5s [M2]
 - `duration` in seconds, one decimal place. Batching and cost are arithmetic on it. Studio persists a continuous float 1–60 (pre-#502 it snapped to `5/8/10/12/15`) — see `mixio-script-breakdown`.
 - `Pacing` drives the rapid-pacing warning in the production summary.
 
-This is the **authoring** format, and since Studio PR #502 it maps essentially 1:1 onto canonical keys: `Camera` splits across `shot_type` / `camera_angle` / `camera_movement` / `lens`, `In frame` becomes `blocking`, and `Lighting` is its own field. `mixio-script-breakdown` owns the field-by-field mapping — read it before writing a breakdown to Studio.
+This is the **authoring** format, and it maps essentially 1:1 onto canonical keys: `Camera` splits across `shot_type` / `camera_angle` / `camera_movement` / `lens`, `In frame` becomes `blocking`, and `Lighting` is its own field. `mixio-script-breakdown` owns the field-by-field mapping — read it before writing a breakdown to Studio.
 
 ## Scene staging block
 

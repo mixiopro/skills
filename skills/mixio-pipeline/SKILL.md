@@ -1,7 +1,7 @@
 ---
 name: mixio-pipeline
 description: "Run an episode from script to delivered video as gated steps — detailed script, anchor frames, reference audit, panel breakdown, continuity audit, shot planning, video generation — persisting progress and locking each step before the next."
-version: 0.2.0
+version: 0.3.0
 invoke: /mixio:pipeline
 ---
 
@@ -78,6 +78,7 @@ Then write/normalize to standard screenplay form: sluglines (`INT./EXT. — LOCA
 - **Duplicates** — fuzzy name matching, alias candidates, variants confused as separate refs
 - **Metadata quality** — missing `visualAnchor`, `lighting`, `setting` that downstream prompts need
 - **Policy compliance** — `createPolicy`, `variantVocabulary` adherence
+- **Look-binding integrity** — a bound `lookRef` that no longer resolves to a real variant, which otherwise renders the default look silently
 
 Blocking findings must be resolved before Step 03. Advisory findings are presented for acknowledgment. This is the cheapest place to catch a reference problem — later detection costs re-renders.
 
@@ -104,7 +105,7 @@ Persist with `studio_upsert_scene_packages` (see `mixio-episode`), putting the s
 2. **Model** — match to best available model based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.)
 3. **Feasibility** — validate duration vs model max, action density vs duration, dialogue timing, reference readiness
 
-Then group into generation batches per model-group (different models have different ceilings). Emit a `PRODUCTION SUMMARY` with per-model costs, method distribution, keyframe/video job counts, and high-risk cross-model boundaries.
+Then group into generation batches per model-group (different models have different ceilings). Emit a `PRODUCTION SUMMARY` with per-model costs, method distribution, keyframe/video job counts, and high-risk cross-model boundaries. Where a shot or scene has a bound look, carry the resolved `variantId`/`variantName` into the plan so Step 06 declares it directly (see `mixio-generate`).
 
 ## Step 06 — Video Generation
 

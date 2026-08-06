@@ -1,7 +1,7 @@
 ---
 name: mixio-reference-audit
 description: "Audit a project's Cast & World roster for completeness, consistency, duplicates, and metadata quality before generation — catch reference problems that cost re-renders when found late."
-version: 0.1.0
+version: 0.2.0
 invoke: /mixio:reference-audit
 ---
 
@@ -19,7 +19,7 @@ A missing character image found here costs one upload. The same gap found in Ste
 
 ## What it checks
 
-Five categories, run in order. Each produces a finding list; the gate is at the end.
+Six categories, run in order. Each produces a finding list; the gate is at the end.
 
 ### 1. Completeness — script demand vs reference supply
 
@@ -122,6 +122,24 @@ Read `projects.settings.references` from `studio_get_project` and verify:
 
 This category is informational when the project has no policy set (the defaults are permissive).
 
+### 6. Look-binding integrity — bound looks resolve to a real variant
+
+A shot or scene can bind a reference's look via `lookRef` on its `appears_in`/`presence` relation (`mixio-script-breakdown`). That binding degrades silently to the reference's default variant when it doesn't resolve — no error, no visible sign in the UI — so this is the one check that catches a wrong render before it happens rather than after.
+
+Pull bindings from `studio_get_production_context`'s `lookBindings` (or `query_relations` per relation), and cross-reference each `lookRef` against the target reference's `referenceVariants[].id` / `.name`.
+
+| Finding | Meaning |
+|---------|---------|
+| `STALE_LOOK_REF` | `lookRef` names a variant id/name that no longer exists on the reference — renamed or deleted since the binding was made |
+
+```
+Look-binding integrity — 4 bindings checked
+  ✅ Shot 7  → TONY:formal
+  ❌ Scene 2 → TONY'S APARTMENT:night — STALE_LOOK_REF, no variant named "night" (renamed to "evening")
+```
+
+Resolution: rebind to the current variant name/id, or restore the variant under its old name.
+
 ## Report format
 
 ```
@@ -136,6 +154,7 @@ Consistency:           1 GENDER_MISMATCH (advisory)
 Duplicates:            1 LIKELY_DUPLICATE, 1 ALIAS_CANDIDATE
 Metadata quality:      2 HIGH-severity gaps
 Policy:                0 violations
+Look bindings:         1 STALE_LOOK_REF
 
 BLOCKING findings (must resolve before Step 03):
   ❌ HALLWAY DOORWAY — MISSING_REF — appears in 4 script lines, 0 references
@@ -162,6 +181,7 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 - Any `MISSING_IMAGE_HIGH_USAGE`
 - Any HIGH-severity metadata gap on a character appearing in ≥3 shots
 - Any `GENDER_MISMATCH` confirmed by both text and vision (not advisory-only)
+- Any `STALE_LOOK_REF` — it renders the wrong look silently, with nothing in the UI to catch it before delivery
 
 Everything else is advisory. The user may say "proceed anyway" — record that decision in metadata so a later session knows it was acknowledged, not missed.
 
@@ -211,7 +231,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 2. extract CAPS entities from script text             → demand list
 3. studio_list_references({ projectId })              → supply list
 4. studio_get_project({ projectId })                  → read reference policy
-5. run 5 check categories                            → findings
+5. run 6 check categories                            → findings
 6. emit REFERENCE AUDIT report
 7. if BLOCKING findings: present fixes, wait for resolution, re-check
 8. if ADVISORY only: present, get acknowledgment

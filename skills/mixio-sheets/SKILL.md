@@ -1,7 +1,7 @@
 ---
 name: mixio-sheets
 description: "Build the reference layer an episode is generated against — character turnaround sheets, location sheets, prop sheets, and one wide anchor frame per scene — and persist them as Cast & World references so every shot inherits the same look."
-version: 0.1.0
+version: 0.2.0
 invoke: /mixio:sheets
 ---
 
@@ -86,7 +86,7 @@ Render spec:
 - **Wardrobe**: the character's default costume. One sheet per costume — see variants below.
 - **Aspect ratio**: `16:9` or `4:3` regardless of delivery ratio; a turnaround needs horizontal room.
 
-Then persist the structured identity alongside it. Studio's reference-detail work (PRs #503–#505) makes one schema own these fields for every surface — but it is not on `dev` yet, so see the compatibility note under the location sheet before relying on the wider field set. Write it like this:
+Then persist the structured identity alongside it — one schema owns these fields for every surface. Write it like this:
 
 ```
 studio_update_reference({
@@ -139,6 +139,8 @@ referenceVariants: [
 
 Shots then reference the variant by name in `character_ref`. Registering `TONY (gala)` as a second CHARACTER splits the identity and both halves drift.
 
+That works, but binding the look once via `lookRef` on the shot's (or scene's) `appears_in` relation — see the appearance-state section below — is the durable path where the shot-scoped look cascade is live: generation then resolves it automatically instead of every shot needing the right `character_ref` passed by hand. Check whether your Studio has it: `get_production_context` returns a `lookBindings` key once it does.
+
 Hair state (up/down/wet) and condition (bruised, soaked, dusty) are *not* costume changes and should not consume a wardrobe variant name. There is currently no field for them — see the state limitation below.
 
 ### Scale sheets
@@ -180,7 +182,7 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
 
 ### Persisting the sheet
 
-Studio's reference-detail work (PRs #503–#505) gives the sheet real fields instead of prose blobs. That work is **not on `dev` yet** — see the compatibility note below before you rely on it. Map the sheet like this:
+The sheet has real fields, not prose blobs. Map the sheet like this:
 
 | Sheet field | `locationDetails` key | Shape |
 |---|---|---|
@@ -226,11 +228,11 @@ studio_update_reference({ referenceId, locationDetails: {
 
 Note `depthAxes` is an **object keyed by depth plane**, not the prose "long axis" sentence — put the axis statement in `dimensions` or `sightlines`. These fields exist precisely so a shot needing a viewpoint the reference image doesn't show can be directed without the model inventing geography.
 
-#### Check which half of this schema your Studio has
+#### The full schema is live — no metadata mirroring needed
 
-The rich field set above lands with the reference-detail-schema work (Studio PRs #503–#505). It is **not on `dev` yet** — as of `dev@b8a24c27` (2026-08-03) `locationDetails` accepts only `setting`, `timePeriod`, `mood`, `lightingNotes`, `architecturalStyle`, and `characterDetails` only `role`, `age`, `personality`, `backstory`, `dialogueStyle`, `wardrobeNotes`. Write the full bag anyway — extra keys are retained, and they light up the moment the schema ships — but do not assume a model has seen them.
+One schema owns the character/location/prop detail fields, and generation reads them directly: `production-prompting.ts` projects `locationDetails`/`characterDetails` into the prompt through the shared `referenceDetailPromptPairs` table, not a hand-picked three-key list. Write the fields from the table above straight into `locationDetails`/`characterDetails` — nothing needs mirroring to top-level `metadata`.
 
-**Mirror the load-bearing parts to top-level element metadata.** Generation reads a hand-listed set of keys off the *top level* of an element's `metadata` — for a LOCATION: `description`, `setting`, `locationType`, `timePeriod`, `lighting`, `palette`, `atmosphere`, `mood`. It does not open `locationDetails`. So a perfectly authored sheet is invisible to the renderer unless you also mirror it up:
+If you're on an older Studio that hasn't caught up, `locationDetails` will only retain a narrow field set (`setting`, `timePeriod`, `mood`, `lightingNotes`, `architecturalStyle`; `characterDetails` similarly narrow) and generation will only read a top-level `metadata` mirror — for a LOCATION: `description`, `setting`, `locationType`, `timePeriod`, `lighting`, `palette`, `atmosphere`, `mood` — not the nested bag. Check by reading the reference back after a write: if `spatialLayout`/`depthAxes`/`accessPoints` don't round-trip, write the full bag anyway — it's retained and lights up the moment the instance updates — but also mirror the load-bearing ones to top-level `metadata` as a fallback until it does:
 
 ```
 metadata: {
@@ -242,8 +244,6 @@ metadata: {
                + "TWO WINDOWS on the back wall are not entries but are the key light source."
 }
 ```
-
-`ponytail:` this is a workaround with a known ceiling — entries, exits and the axis have no dedicated key on this path, so they ride inside `description` as prose and are subject to prompt-budget truncation. The upgrade path is the detail-prompt projection in PRs #503–#505; drop the mirroring once it is on `dev` **and** the generation workflow you are targeting reads the nested bag.
 
 ### Time-of-day and weather variants
 
@@ -257,13 +257,13 @@ referenceVariants: [
 ]
 ```
 
-Names must sit in `variantVocabulary.LOCATION` when the project is `closed`. Select the variant matching the scene's `timeOfDay` when you render its anchor — nothing does this automatically today, so it is on you to pass the right one. The alternative people reach for — registering `TONY'S APARTMENT (NIGHT)` as a second LOCATION — splits the space and the two halves drift apart exactly like a split character does.
+Names must sit in `variantVocabulary.LOCATION` when the project is `closed`. Select the variant matching the scene's `timeOfDay` when you render its anchor. A scene-level `lookRef` binding — see the appearance-state section below and `mixio-script-breakdown` — can make generation resolve that variant automatically for every shot in the scene. Check it's live before relying on it: `get_production_context` returns a `lookBindings` key once it is. No key, or no binding made, and it's still on you to pass the right variant. The alternative people reach for — registering `TONY'S APARTMENT (NIGHT)` as a second LOCATION — splits the space and the two halves drift apart exactly like a split character does.
 
 ## Per-scene character state: appearance yes, staging not yet
 
 A character's *identity* is project-scoped and belongs here. A character's **state** is per shot and belongs elsewhere.
 
-**Covered — on the PR #503–#505 stack only, not on `dev`** — by `appearanceState` on the `appears_in` relation (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`): validated, and readable back through the relation. Write it from the breakdown or the audit; see `mixio-script-breakdown`. Until it ships, treat it the same as the staging columns below — session-local, and restated in each shot's own text.
+**Covered** — by `appearanceState` on the `appears_in` relation (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`): validated, and readable back through the relation. Write it from the breakdown or the audit; see `mixio-script-breakdown`. `lookRef` is more than record-keeping where the shot-scoped look cascade is live: generation then resolves it shot-then-scene-then-default and renders whatever it points at, so filling that one field becomes enforcement, not just a note for the next session. Check whether your Studio has it: `get_production_context` returns a `lookBindings` key once it does.
 
 **Not covered**: zone, facing, posture, relative-to. The shot's canonical `blocking` is a single string describing the whole frame, not per character. So the `STAGING` block and the continuity blocking map remain session-local for those columns, and posture/facing must be restated in each shot's own `action` / `blocking` text rather than inherited.
 
@@ -307,9 +307,9 @@ studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
 }]})
 ```
 
-Since Studio PR #502 `anchorRef` (plus `anchorRefs` for extras, max 50) is a canonical scene key, and generation merges it into every job prepared for a shot in that scene. That replaces attaching the anchor by hand per shot. Anchors dedupe by slot reference id so an explicit per-shot choice still wins, and an anchor whose media can't be read is skipped rather than guessed at.
+`anchorRef` (plus `anchorRefs` for extras, max 50) is a canonical scene key, and generation merges it into every job prepared for a shot in that scene. That replaces attaching the anchor by hand per shot. Anchors dedupe by slot reference id so an explicit per-shot choice still wins, and an anchor whose media can't be read is skipped rather than guessed at.
 
-Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref`: since PR #502 a separator variant of a canonical key is rejected with a validation error rather than silently passed through.
+Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref`: a separator variant of a canonical key is rejected with a validation error rather than silently passed through.
 
 ## Workflow
 
