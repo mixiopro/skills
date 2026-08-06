@@ -1,6 +1,6 @@
 ---
 name: mixio-pipeline
-description: "Run an episode from script to delivered video as gated steps — detailed script, anchor frames, reference audit, panel breakdown, continuity audit, shot planning, video generation — persisting progress and locking each step before the next."
+description: "Run an episode from script to delivered video as gated steps — detailed script, anchor frames, reference audit, panel breakdown, continuity audit, shot planning, video generation — persisting progress and locking each step before the next. The entry point for a full episode, and the fallback whenever it's unclear which production skill applies — the others (mixio-sheets, mixio-reference-audit, mixio-script-breakdown, mixio-continuity, mixio-shot-planning) each assume you already know that's the one step you need."
 version: 0.3.0
 invoke: /mixio:pipeline
 ---
