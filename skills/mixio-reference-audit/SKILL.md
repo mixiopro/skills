@@ -25,10 +25,12 @@ Six categories, run in order. Each produces a finding list; the gate is at the e
 
 Extract every CAPS entity from the persisted script (`studio_get_episode` → `script`). Cross-reference against `studio_list_references({ projectId })`.
 
+**Judge `MISSING_IMAGE` by `hasImage` — never by `thumbnailUrl`/`previewUrl`.** `list_references` returns `thumbnailUrl`/`previewUrl` alongside it, and it's easy to grab the wrong pair: those two are a card-preview column that nothing populates when a Look is attached, so a reference with real turnaround images routinely still shows both as `null`. Reading those as the presence signal produces a false `MISSING_IMAGE` on every reference in the project — a wrong blocking finding on the roster's healthiest data, not its worst. `hasImage` (see `mixio-references`) is the real signal.
+
 | Finding | Meaning |
 |---------|---------|
 | `MISSING_REF` | Entity mentioned in script has no matching reference element at all |
-| `MISSING_IMAGE` | Reference exists but has no attached image (no `referenceVariants` with media) |
+| `MISSING_IMAGE` | Reference exists but `hasImage` is false |
 | `MISSING_IMAGE_HIGH_USAGE` | Same, but the entity appears in ≥3 shots or ≥2 scenes — generation will be inconsistent without a visual anchor |
 | `NO_PRIMARY_LOOK` | Reference has variant images but none marked `isPrimary` or `isDefault` — prompt assembly picks arbitrarily |
 

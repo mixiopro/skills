@@ -206,7 +206,7 @@ A character's *identity* is project-scoped and belongs here. A character's **sta
 
 **Covered** — by `appearanceState` on the `appears_in` relation (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`): validated, and readable back through the relation. Write it from the breakdown or the audit; see `mixio-script-breakdown`. `lookRef` is more than record-keeping where the shot-scoped look cascade is live: generation then resolves it shot-then-scene-then-default and renders whatever it points at, so filling that one field becomes enforcement, not just a note for the next session. Check whether your Studio has it: `get_production_context` returns a `lookBindings` key once it does.
 
-**Not covered**: zone, facing, posture, relative-to. The shot's canonical `blocking` is a single string describing the whole frame, not per character. So the `STAGING` block and the continuity blocking map remain session-local for those columns, and posture/facing must be restated in each shot's own `action` / `blocking` text rather than inherited.
+**Not covered by a canonical field**: zone, facing, posture, relative-to. The shot's canonical `blocking` is a single string describing the whole frame, not per character. They're durable-but-unchecked, not session-local: written as passthrough (inline in `action`/`blocking`, or as their own keys) they persist, and on jobs where the prompt materializer runs (`promptEnhancementMode: "enhance"`, see `mixio-script-breakdown/references/canonical-schema.md`) they reach the generation prompt. Either way nothing downstream reads or enforces them, so the `STAGING` block and the continuity blocking map still need posture/facing restated in each shot rather than trusted from inheritance.
 
 When you restate them, **hang them off the mention** rather than writing one blended sentence:
 
@@ -250,7 +250,7 @@ studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
 
 `anchorRef` (plus `anchorRefs` for extras, max 50) is a canonical scene key, and generation merges it into every job prepared for a shot in that scene. That replaces attaching the anchor by hand per shot. Anchors dedupe by slot reference id so an explicit per-shot choice still wins, and an anchor whose media can't be read is skipped rather than guessed at.
 
-Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref`: a separator variant of a canonical key is rejected with a validation error rather than silently passed through.
+Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref`: it isn't rejected — it lands in passthrough as inert prompt noise instead of attaching the anchor, and nothing signals that it never took effect. Write `anchorRef`.
 
 ## Workflow
 
