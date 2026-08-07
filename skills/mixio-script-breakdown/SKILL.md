@@ -102,7 +102,7 @@ studio_link_graph({ projectId, relations: [{
 
 `lookRef` resolves shot → scene → reference default at generation time, and a stale value (pointing at a renamed/deleted variant) degrades silently to the default rather than erroring, where the cascade is live — check by looking for a `lookBindings` key in `get_production_context`'s response. Re-running this breakdown never wipes an existing binding: presence relations are created only when missing, so an already-bound relation's metadata is untouched by a re-run.
 
-**Still not covered by a canonical field:** zone, facing, posture, and relative-to. `appearanceState` is deliberately appearance, not staging, and the shot's `blocking` is one string for the whole frame. They're durable-but-unchecked, not session-local: written as passthrough they persist, survive re-entry, and reach the generation prompt under `- Additional direction:` — but nothing downstream reads or enforces them, so the continuity blocking map's pose columns still need restating per shot rather than trusted from inheritance — see `mixio-continuity`.
+**Still not covered by a canonical field:** zone, facing, posture, and relative-to. `appearanceState` is deliberately appearance, not staging, and the shot's `blocking` is one string for the whole frame. They're durable-but-unchecked, not session-local: written as passthrough they persist and survive re-entry, and — on jobs where the prompt materializer actually runs (`promptEnhancementMode: "enhance"`, see `references/canonical-schema.md`) — reach the generation prompt under `- Additional direction:`. Either way nothing downstream reads or enforces them, so the continuity blocking map's pose columns still need restating per shot rather than trusted from inheritance — see `mixio-continuity`.
 
 ## Canonical scene metadata
 
@@ -208,8 +208,9 @@ studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
       character_links: ["TONY", "POPPY"],
       location_links: ["TONY & POPPY'S BROOKLYN APARTMENT"],
       prop_links: ["TABLET", "PHONE"],
-      // non-spec keys persist verbatim and now reach the prompt as
-      // "Additional direction" — deliberate, not inert
+      // non-spec keys persist verbatim and, when the prompt materializer runs
+      // (promptEnhancementMode "enhance"), reach the prompt as "Additional
+      // direction" — deliberate, not inert
       pacing: "NORMAL"
     }
   }]

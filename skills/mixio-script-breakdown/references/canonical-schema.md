@@ -101,7 +101,7 @@ The shot-grammar fields map **1:1 onto canonical keys** — camera detail no lon
 
 ### Passthrough is visible — and permissive
 
-Non-spec keys still persist verbatim, and they **reach the generation prompt** under `- Additional direction:` (a denylist, not an allowlist). So a passthrough key is prompt text now, not an inert note — write it deliberately or not at all.
+Non-spec keys still persist verbatim, and **when the Tier 2 prompt materializer runs**, they reach the generation prompt under `- Additional direction:` (a denylist, not an allowlist). That's not every job: the materializer is skipped — and the gathered element is never woven into the prompt at all — for `promptEnhancementMode: "off"` or `"enhance_and_review"` (the user asked to ship their prompt untouched), for `image-edit`/TTS/voice-change use cases (bypassed before context gathering even starts), and for video-direction requests that are promptless, carry a structured prompt, or hit a disabled/unknown model profile. Only the default `"enhance"` mode, on a use case that isn't one of those bypasses, actually stitches passthrough into what the model sees. Either way, treat a passthrough key as something that *might* become prompt text — write it deliberately or not at all, and don't assume it silently vanished just because a test job didn't show it (check `promptEnhancementMode` first).
 
 The write boundary does not reject an unrecognized or confusable key — it either remaps it or warns and lets it through, but it never throws for this:
 
@@ -120,7 +120,7 @@ Passthrough isn't unbounded, and none of these limits produce an error, a warnin
 - Past **20** passthrough keys on one element, the survivors are chosen **alphabetically** (`sorted(extras)[:20]`), not by importance or recency — a 21st key you actually care about can lose to one you don't, purely on spelling.
 - The whole per-element passthrough block truncates at **2400 characters** even if every individual value is under the 400-char cap.
 
-Precondition: these caps only apply when the prompt materializer actually runs — some `promptEnhancementMode` settings and job configurations skip that read entirely, in which case passthrough persists without any of the above caps touching it. Confirm current behavior for your Studio before treating this as exhaustive.
+Precondition, precisely: element context (episode/scene/shot) is fetched and these three caps are applied whenever the job carries an `episodeId`/`sceneId`/`shotId`, full stop — that part doesn't depend on mode. What's conditional is whether the *capped result* ever reaches the model. It's discarded, not capped-and-sent, on the same three bypass paths as above: `promptEnhancementMode: "off"`/`"enhance_and_review"`, the two literal-content use cases (never even gathered there), and a promptless/structured/disabled-profile video-direction route. So on those paths the caps are moot — not because they're skipped, but because nothing downstream of them ships. Only under `"enhance"` (default), outside those bypasses, do the caps actually shape what the model reads.
 
 ## Canonical scene metadata
 
