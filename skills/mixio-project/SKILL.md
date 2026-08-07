@@ -69,7 +69,7 @@ Hold the resolved ids for the rest of the session and pass them on every call. R
 
 **Scope depth matters as much as correctness.** When you know the scene and shot, pass them too — `submit_studio_job`'s `context` takes `{ projectId, episodeId?, sceneId?, shotId? }`, and a job that omits `shotId` cannot be shown under that shot. Same for the `tags.episodeId` that scopes element queries.
 
-Only `mixio-workspace`'s `upload_file` family is genuinely project-free. Everything else needs at least a project.
+Only `mixio-workspace`'s `upload_file` family is genuinely project-free *as a precondition* — no need to ask for project scope before calling it. Still pass `project_id` (and `organization_id`) on the call whenever a project is already active in the session: the params are optional, but omitting them when you do have a project leaves the uploaded media's `projectId` `null` and unscoped from that project. Everything else needs at least a project to call at all.
 
 ## MCP Tools
 

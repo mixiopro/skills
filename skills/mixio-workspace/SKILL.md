@@ -24,13 +24,15 @@ Upload a local file to Mixio Studio media and cache the path → URL mapping. Re
 | Param | Required | Notes |
 |-------|----------|-------|
 | `path` | yes | absolute or `~`-expanded local path |
-| `project_id` | no | scope the media to a Mixio project |
-| `organization_id` | no | |
+| `project_id` | optional, but pass it | scope the media to a Mixio project — see below |
+| `organization_id` | optional, but pass it | see below |
 | `alt` | no | alt text/description |
 | `category` | no | media category tag |
 | `force` | no | re-upload even if cached |
 
-Returns `{ ok: true, entry }` where `entry` includes `path`, `sha256`, `size`, `mediaId`, `url`, `absoluteUrl`, `filename`, `organizationId`, `projectId`, `uploadedAt`, `publicUrl` (= `absoluteUrl ?? url`), `extra`. On failure returns `{ ok: false, error, message }` with `error` one of `not_found`, `permission_denied`, `filesystem_error`, `upload_failed`.
+**Pass `project_id`/`organization_id` whenever you have them.** The tool doesn't require a project — you never need to resolve or ask for one before calling `upload_file` — but if a project *is* already active in the session and you omit it anyway, the uploaded media persists with `projectId: null`. Nothing scopes it back to that project afterward; it just sits in the org's media pool, findable only by search. Resolve `organizationId` from the active project's org where you have it (`studio_get_project`), not by guessing.
+
+Returns `{ ok: true, entry }` where `entry` includes `path`, `sha256`, `size`, `mediaId`, `url`, `absoluteUrl`, `filename`, `organizationId`, `projectId`, `uploadedAt`, `publicUrl` (= `absoluteUrl ?? url`), `extra`. On failure returns `{ ok: false, error, message }` with `error` one of `not_found`, `permission_denied`, `filesystem_error`, `upload_failed`. Check `entry.projectId` isn't `null` when you expected a scoped upload — the call succeeds either way, so a missing scope won't surface as an error.
 
 ### `get_public_url`
 
@@ -40,7 +42,7 @@ Get the public URL for a local file, re-hashing to detect drift. On a fresh cach
 |-------|----------|-------|
 | `path` | yes | |
 | `upload` | no | defaults to `true`; set `false` for cache-only lookup |
-| `project_id`, `organization_id`, `alt`, `category` | no | used only when uploading on a cache miss |
+| `project_id`, `organization_id`, `alt`, `category` | optional, but pass project/org if known | used only when uploading on a cache miss — same orphaning risk as `upload_file` if omitted |
 
 Returns `{ ok: true, found, source, public_url, entry }` — `source` is `"cache"`, `"cache_sha256"`, or `"uploaded"`. With `upload: false` and no cache hit, returns `{ ok: true, found: false, public_url: null, entry: null }` (not a bare null).
 
@@ -61,7 +63,7 @@ No params. Drops every cached mapping (does not delete remote media). Returns `{
 ### Upload and share
 
 ```
-1. upload_file({ path: "/renders/final-cut.mp4" })
+1. upload_file({ path: "/renders/final-cut.mp4", project_id, organization_id })
    → { ok: true, entry: { publicUrl: "https://studio.mixio.pro/api/media/file/..." } }
 2. Share entry.publicUrl — it's permanent and publicly accessible
 ```
@@ -70,7 +72,7 @@ No params. Drops every cached mapping (does not delete remote media). Returns `{
 
 ```
 1. For each file in directory:
-     upload_file({ path })
+     upload_file({ path, project_id, organization_id })
 2. list_cached_files() to verify all uploaded
 ```
 
@@ -78,9 +80,11 @@ No params. Drops every cached mapping (does not delete remote media). Returns `{
 
 ```
 1. Edit the local file
-2. upload_file({ path: same_path })
+2. upload_file({ path: same_path, project_id, organization_id })
    → Detects content change (SHA-256), re-uploads, returns new URL
 ```
+
+`project_id`/`organization_id` above are whatever project is active in the session — omit only when there genuinely isn't one (see "Pass `project_id`/`organization_id` whenever you have them" above).
 
 ## Supported formats
 
