@@ -137,10 +137,12 @@ Bulk upsert by name — matches an existing element by `project + type + normali
 
 ```
 { projectId, type?: "CHARACTER"|"LOCATION"|"PROP"|"SCALING_SHEET", search?, limit? }
-→ { references: [{ id, name, type, description, workflow, characterDetails|locationDetails|propDetails, hasAttachments, hasReferenceVariants, thumbnailUrl, previewUrl, updatedAt }], total }
+→ { references: [{ id, name, type, description, workflow, characterDetails|locationDetails|propDetails, hasImage, hasAttachments, hasReferenceVariants, thumbnailUrl, previewUrl, updatedAt }], total }
 ```
 
 Use this to **get real reference-image URLs** before calling `studio_submit_studio_job` — that tool rejects raw media IDs in `input.media` slots and requires actual URLs, which live in each reference's `referenceVariants[].attachments[].media.url` (not surfaced directly in this list response — call `studio_get_element`/`studio_get_production_context` for the full metadata if you need the raw variant/attachment URLs, not just this summary view).
+
+**For image *presence* (does this reference have any image at all), trust `hasImage` — not `thumbnailUrl`/`previewUrl`.** `hasImage` is `hasAttachments || hasReferenceVariants`, computed live from `metadata.attachments`/`metadata.referenceVariants`, the actual Look data — check that field directly rather than OR-ing the two yourself. `thumbnailUrl`/`previewUrl` are a separate top-level card-preview column that nothing sets when you attach a Look — a reference with three real turnaround images can still show `thumbnailUrl: null`. Reading those two as a presence signal produces a false "no image" finding on a reference that has one. (`hasAttachments`/`hasReferenceVariants` are still returned individually if you need to know *which* mechanism holds the image — `attachments` is legacy, `referenceVariants` is where new writes land, see above.)
 
 ## Getting images onto a reference — the reliable path
 
