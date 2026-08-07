@@ -18,7 +18,7 @@ then                restate the resolved scope once so a wrong pick surfaces ear
 
 Never guess an id, infer one from a title, or create a project or episode to avoid asking. Pass the **deepest** scope you know on every call — `submit_studio_job`'s `context` takes `{ projectId, episodeId?, sceneId?, shotId? }`, and a job without `shotId` cannot be displayed under that shot.
 
-Note that `Shot 2.2` means scene 2, shot 2 *of some episode* — numbering restarts per scene and per episode, so that label exists in every episode and is under-specified until the episode is known. Only `mixio-workspace`'s upload tools are genuinely project-free.
+Note that `Shot 2.2` means scene 2, shot 2 *of some episode* — numbering restarts per scene and per episode, so that label exists in every episode and is under-specified until the episode is known. Only `mixio-workspace`'s upload tools are genuinely project-free *as a precondition* — you don't need to resolve/ask for project scope before calling them, unlike everything else in this section. That's not permission to omit `project_id`/`organization_id` when you already have them: those params are optional on the tool (uploading with no active project at all is a real, supported case), but leaving them off when a project *is* active in the session orphans the media — its `projectId` persists as `null` and nothing scopes it back to the production it was uploaded for. Pass what you know.
 
 ## Tool names across transports
 
