@@ -8,8 +8,8 @@ Seven required fields. Persisting a shot without them throws `Shot metadata miss
 
 | Key | Required | Notes |
 |-----|----------|-------|
-| `shot_type` | ✅ | closed enum below — **framing only**, angles live on `camera_angle` |
-| `camera_movement` | ✅ | closed enum below |
+| `shot_type` | ✅ | vocabulary below (not validated — see note) — **framing only**, angles live on `camera_angle` |
+| `camera_movement` | ✅ | vocabulary below (not validated — see note) |
 | `camera_angle` | — | enum below; alias `angle` / `cameraAngle`. Omit when the script gives no angle evidence |
 | `lens` | — | enum below. Omit when the script gives no lens evidence |
 | `subject` | ✅ | primary subject; ≤1000 chars |
@@ -77,15 +77,17 @@ tilt_down  tracking  crane  handheld  arc  rack_focus
 
 Match the move to emotional intent: `static` for tension, contemplation, dialogue weight, formality · `tracking`/`dolly_*` for following action, revealing space, momentum · `crane` for geography, power shifts, emotional distance · `handheld` for urgency, chaos, documentary · `arc` for reveals and circling tension · `rack_focus` for shifting attention between dual subjects · `pan` for surveying and following gaze · `tilt` for scale and vertical discovery.
 
+All four vocabularies above (`shot_type`, `camera_angle`, `lens`, `camera_movement`) are authoring conventions, not validation — the fields are plain strings server-side and an off-vocabulary value persists without complaint. Stay inside them for auditability and because the direction compiler expects them, not because a write outside them will fail.
+
 ## Where the fine-grained camera detail goes
 
-The shot-grammar fields map **1:1 onto canonical keys** — camera detail no longer degrades into prose. (On an older Studio, `camera_angle`, `lens`, `lighting`, `mood` and `blocking` are rejected by the strict write boundary — try a write and read it back before relying on them.)
+The shot-grammar fields map **1:1 onto canonical keys** — camera detail no longer degrades into prose. (On an older Studio, `camera_angle`, `lens`, `lighting`, `mood` and `blocking` aren't recognized as canonical fields yet — they aren't rejected, they land in passthrough same as any other unrecognized key. Write and read one back to see which behavior your Studio has.)
 
 | Grammar field | Canonical key | Notes |
 |---|---|---|
 | shot size (`EWS`, `MCU`, `OTS`) | `shot_type` | framing **only** — the enum no longer carries angles |
 | camera angle (low/high/eye) | `camera_angle` | own axis; alias `angle` / `cameraAngle` |
-| camera motion | `camera_movement` | closed enum |
+| camera motion | `camera_movement` | vocabulary, not validated |
 | lens (wide/normal/tele) | `lens` | first-class field |
 | `Lighting: as Anchor N` | `lighting` | canonical |
 | mood/atmosphere | `mood` | canonical |
@@ -97,16 +99,28 @@ The shot-grammar fields map **1:1 onto canonical keys** — camera detail no lon
 | `Pacing` (RAPID/PUNCHY) | passthrough `pacing` | skill-local |
 | `[M1]`/`[M2]` markers | inline in `action` | skill-local |
 
-### Passthrough is now visible — and now checked
+### Passthrough is visible — and permissive
 
 Non-spec keys still persist verbatim, and they **reach the generation prompt** under `- Additional direction:` (a denylist, not an allowlist). So a passthrough key is prompt text now, not an inert note — write it deliberately or not at all.
 
-Two classes of key are now **rejected with a `ShotSpecValidationError`** instead of silently passing through:
+The write boundary does not reject an unrecognized or confusable key — it either remaps it or warns and lets it through, but it never throws for this:
 
-1. a casing or separator variant of a key in the *same* spec — `styleambiance`, `Style_Ambiance`
-2. a canonical key belonging to the *other* spec — `timeOfDay` on a shot, `shot_type` on a scene
+1. a casing or separator variant of a key in the *same* spec — `styleambiance`, `Style_Ambiance` — is silently remapped onto the canonical key.
+2. a canonical key belonging to the *other* spec — `timeOfDay` on a shot, `shot_type` on a scene — logs a non-fatal warning and still lands in passthrough. `location`, `duration`, and `audio` are exempt even from the warning, being in genuine dual use.
 
-`location`, `duration`, and `audio` are exempt, being in genuine dual use. Practical consequence: **do not write `anchor_ref` on a shot or scene** — it normalizes to the same token as the canonical scene key `anchorRef` and will throw. Use `anchorRef` on the scene. `chunk_index` and `pacing` remain safe.
+A `ShotSpecValidationError` is thrown only for a *recognized* canonical field holding a malformed value — never for a key it doesn't recognize.
+
+Practical consequence: **write `anchorRef` on the scene, not `anchor_ref`** — not because the latter throws (it doesn't; it becomes an inert passthrough key that never attaches the anchor), but because `anchorRef` is the field generation actually reads. The real risk isn't an error, it's silence: a mistyped correction persists and reads back fine, so nothing tells you it didn't take effect. Write a value back and read it if you need to confirm which key it landed under.
+
+### Passthrough has silent caps
+
+Passthrough isn't unbounded, and none of these limits produce an error, a warning, or a log line — a value or key just quietly stops showing up in the prompt:
+
+- Each passthrough value truncates at **400 characters**.
+- Past **20** passthrough keys on one element, the survivors are chosen **alphabetically** (`sorted(extras)[:20]`), not by importance or recency — a 21st key you actually care about can lose to one you don't, purely on spelling.
+- The whole per-element passthrough block truncates at **2400 characters** even if every individual value is under the 400-char cap.
+
+Precondition: these caps only apply when the prompt materializer actually runs — some `promptEnhancementMode` settings and job configurations skip that read entirely, in which case passthrough persists without any of the above caps touching it. Confirm current behavior for your Studio before treating this as exhaustive.
 
 ## Canonical scene metadata
 

@@ -84,7 +84,7 @@ Blocking findings must be resolved before Step 03. Advisory findings are present
 
 ## Step 03 — Panel Breakdown
 
-→ `mixio-script-breakdown`, which owns the canonical schemas, the two closed enums, and the mapping from shot-grammar prose onto persistable keys. One scene at a time. Emit a `STAGING` block for the scene, then numbered shots using the field schema in `references/shot-grammar.md`. Non-negotiables:
+→ `mixio-script-breakdown`, which owns the canonical schemas, the two camera vocabularies (authoring conventions, not validated), and the mapping from shot-grammar prose onto persistable keys. One scene at a time. Emit a `STAGING` block for the scene, then numbered shots using the field schema in `references/shot-grammar.md`. Non-negotiables:
 
 - Every shot carries a `duration` in seconds. Batching (Step 05) and cost estimates are both arithmetic on this field.
 - Every shot names its anchor (`Lighting: as Anchor 1`) or is marked `TEXT-ONLY`.

@@ -61,7 +61,7 @@ Build the map before looking for problems. Most breaks are invisible in prose an
 
 **Half of this map is persistable.** `appearanceState` on each `appears_in` relation carries `wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef` and `continuityNotes` per character per shot — validated, and readable back. Write the map's wardrobe/condition/held-props columns there as you build it and the next session inherits them instead of re-deriving. `lookRef` is not just readable back: where the shot-scoped look cascade is live it *selects the variant generation actually renders* (shot → scene → reference default), so binding it here becomes the one column in this map that changes the output, not just the record — a wrong or missing `lookRef` degrades silently to the default look rather than erroring. Check whether your Studio has it: `get_production_context` returns a `lookBindings` key once it does.
 
-**Zone, facing, posture and relative-to are still session-local.** `appearanceState` is appearance, not staging, and the shot's canonical `blocking` is one string for the whole frame. So restate posture and facing in each shot's own `action` / `blocking` text rather than relying on inheritance, and expect to rebuild those four columns on re-entry.
+**Zone, facing, posture and relative-to have no canonical field — durable-but-unchecked, not session-local.** `appearanceState` is appearance, not staging, and the shot's canonical `blocking` is one string for the whole frame, so there's no validated home for these four columns. Written as passthrough (inline in `action`/`blocking`, or as their own keys) they persist and survive re-entry — but nothing downstream reads or enforces them, so restate posture and facing in each shot's own text rather than trusting an inherited value is still correct.
 
 ## Pass 2 — Continuity Checks
 
@@ -167,7 +167,7 @@ studio_update_shot_state({ shots: [
 
 Prefer the relation write for facts about a *character in a shot* (they carry the tablet now) and `update_shot_state.continuity` for the *verdict* on the shot. Putting a per-character fact in the shot verdict loses which character it was about.
 
-Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, so corrections must use canonical keys (`camera_movement`, not `Camera:`) — a casing variant or a cross-spec key is **rejected** rather than silently ignored. See `mixio-script-breakdown` for the full mapping. Then close the step:
+Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, but only for a *recognized* canonical field holding a malformed value — an unrecognized key is never rejected. Use canonical keys anyway (`camera_movement`, not `Camera:`): a casing variant gets silently remapped onto the canonical key, and a cross-spec key still writes to passthrough with only a console warning, not an error — so a typo doesn't fail the write, it just fails to mean anything, and that failure is silent. See `mixio-script-breakdown` for the full mapping. Then close the step:
 
 ```
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: { step_04: "complete" } } } })

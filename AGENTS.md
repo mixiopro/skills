@@ -86,7 +86,7 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 
 - Call `studio_describe_tools` before using an unfamiliar tool, and `studio_get_use_case_input_schema` before submitting an unfamiliar generation use case. Don't guess parameters.
 - Read `settings.references` on the project before creating references — `createPolicy` and `variantPolicy` can forbid writes this repo otherwise describes.
-- Shot metadata keys are `snake_case`; scene metadata keys are `camelCase`. Mixing them up is rejected, not silently ignored.
+- Shot metadata keys are `snake_case`; scene metadata keys are `camelCase`. Mixing them up is not rejected — the write boundary is permissive, so a mixed-up key is remapped or warned-and-passed-through, not thrown. It still lands in the wrong place (passthrough, unread by anything) and fails silently rather than loudly, which is worse: check by reading back what you wrote.
 - Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
 - Upload final outputs with `upload_file` for permanent URLs, and run `run_evaluation` before delivering to a client.
 - Generation is billable. Ask before video unless the user has said otherwise.

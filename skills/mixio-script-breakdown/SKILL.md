@@ -1,6 +1,6 @@
 ---
 name: mixio-script-breakdown
-description: "Break a script into canonical references, scenes, and shot specs the way Studio's own breakdown workflow does — same schemas, same closed enums, same verbatim rules — then persist through the breakdown primitives. Not the continuity check (mixio-continuity) or reference audit (mixio-reference-audit) that follow it. Unclear which step you need → mixio-pipeline."
+description: "Break a script into canonical references, scenes, and shot specs the way Studio's own breakdown workflow does — same schemas, same field vocabularies, same verbatim rules — then persist through the breakdown primitives. Not the continuity check (mixio-continuity) or reference audit (mixio-reference-audit) that follow it. Unclear which step you need → mixio-pipeline."
 version: 0.2.0
 invoke: /mixio:script-breakdown
 ---
@@ -63,7 +63,7 @@ Order matters: register references first so `character_links` / `location_links`
 
 Seven required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`); persisting a shot without them throws `Shot metadata missing required field <name>` at the materialization gate. Every entity present in a shot must be linked (`character_links` / `location_links` / `prop_links`) — that's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
 
-The full field table, the two closed camera enums (`shot_type` is framing only; `camera_angle`/`lens`/`camera_movement` are their own axes), the grammar→canonical-key mapping, and the passthrough/validation rules: `references/canonical-schema.md`.
+The full field table, the two camera vocabularies (`shot_type` is framing only; `camera_angle`/`lens`/`camera_movement` are their own axes — authoring conventions, not validated enums), the grammar→canonical-key mapping, and the passthrough rules: `references/canonical-schema.md`.
 
 ## Duration
 
@@ -102,7 +102,7 @@ studio_link_graph({ projectId, relations: [{
 
 `lookRef` resolves shot → scene → reference default at generation time, and a stale value (pointing at a renamed/deleted variant) degrades silently to the default rather than erroring, where the cascade is live — check by looking for a `lookBindings` key in `get_production_context`'s response. Re-running this breakdown never wipes an existing binding: presence relations are created only when missing, so an already-bound relation's metadata is untouched by a re-run.
 
-**Still not covered:** zone, facing, posture, and relative-to. `appearanceState` is deliberately appearance, not staging, and the shot's `blocking` is one string for the whole frame. So the continuity blocking map's pose columns remain session-local — see `mixio-continuity`.
+**Still not covered by a canonical field:** zone, facing, posture, and relative-to. `appearanceState` is deliberately appearance, not staging, and the shot's `blocking` is one string for the whole frame. They're durable-but-unchecked, not session-local: written as passthrough they persist, survive re-entry, and reach the generation prompt under `- Additional direction:` — but nothing downstream reads or enforces them, so the continuity blocking map's pose columns still need restating per shot rather than trusted from inheritance — see `mixio-continuity`.
 
 ## Canonical scene metadata
 
