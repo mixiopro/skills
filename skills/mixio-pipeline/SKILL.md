@@ -1,6 +1,6 @@
 ---
 name: mixio-pipeline
-description: "Run an episode from script to delivered video as gated steps — detailed script, anchor frames, reference audit, panel breakdown, continuity audit, shot planning, video generation — persisting progress and locking each step before the next. The entry point for a full episode, and the fallback whenever it's unclear which production skill applies — the others (mixio-sheets, mixio-reference-audit, mixio-script-breakdown, mixio-continuity, mixio-shot-planning) each assume you already know that's the one step you need."
+description: "Run an episode from screenplay to delivered video as gated steps — detailed screenplay, anchor frames, reference audit, panel breakdown, continuity audit, shot planning, video generation — persisting progress and locking each step before the next. The entry point for a full episode, and the fallback whenever it's unclear which production skill applies — the others (mixio-sheets, mixio-reference-audit, mixio-script-breakdown, mixio-continuity, mixio-shot-planning) each assume you already know that's the one step you need."
 version: 0.3.0
 invoke: /mixio:pipeline
 ---
@@ -9,7 +9,7 @@ invoke: /mixio:pipeline
 
 The orchestrator. The other Mixio skills are tool surfaces (`mixio-episode`, `mixio-generate`, …); this one is the **order and the gates**. Generation is billable and non-deterministic, so the whole point is to burn tokens on text passes until the plan is airtight, then spend credits once.
 
-Read `references/shot-grammar.md` before authoring or auditing any breakdown — it is the shared vocabulary that `mixio-sheets`, `mixio-continuity`, and `mixio-shot-planning` all assume.
+Read the [native screenplay grammar](../mixio-episode/references/screenplay-grammar.md) before Step 01 and `references/shot-grammar.md` before authoring or auditing a breakdown. The former is Studio-parsed source syntax; the latter is the authored production vocabulary that `mixio-sheets`, `mixio-continuity`, and `mixio-shot-planning` assume.
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ Read `references/shot-grammar.md` before authoring or auditing any breakdown —
 | # | Step | Owned by | Output locked into |
 |---|------|----------|--------------------|
 | 00 | **Lock frame contract** | this skill | `studio_update_episode({ metadata.pipeline })` |
-| 01 | **Detailed Script** | this skill | `studio_update_episode({ updates: { script, summary } })` |
+| 01 | **Detailed Screenplay** | this skill | `studio_upsert_screenplay({ projectId, episodeId, body })` (+ `studio_update_episode({ updates: { summary } })` for the logline) |
 | 02 | **Anchor Frames** | `mixio-sheets` | CHARACTER/LOCATION refs + one anchor KEYFRAME per scene |
 | 02.5 | **Reference Audit** | `mixio-reference-audit` | episode `metadata.pipeline.reference_audit` |
 | 03 | **Panel Breakdown** | `mixio-script-breakdown` | `studio_upsert_scene_packages` |
@@ -55,19 +55,23 @@ studio_update_episode({ episodeId, updates: { metadata: {
 }}})
 ```
 
-## Step 01 — Detailed Script
+## Step 01 — Detailed Screenplay
 
 Ask what the user already has, and offer the three real answers rather than an open prompt:
 
 1. **Synopsis only** — you write the script, then get sign-off.
 2. **Script only** — you parse it; derive the synopsis yourself.
-3. **Both** — synopsis for intent, script as source of truth.
+3. **Both** — synopsis for intent; persist the normalized screenplay as the breakdown source of truth.
 
-Then write/normalize to standard screenplay form: sluglines (`INT./EXT. — LOCATION — TIME`), action, character cues, dialogue. Set every recurring physical object and set dressing in `CAPS` on first mention (`BED`, `BEDSIDE TABLE`, `NAPOLI POSTER`) — those CAPS tokens are what Step 04 greps for prop continuity. Persist via `studio_update_episode({ updates: { script, summary } })`; the `script` field is the Script tab's source of truth.
+Then write/normalize to standard screenplay form: sluglines (`INT./EXT. — LOCATION — TIME`), action, character cues, dialogue. Set every recurring physical object and set dressing in `CAPS` on first mention (`BED`, `BEDSIDE TABLE`, `NAPOLI POSTER`) — those CAPS tokens are what Step 04 greps for prop continuity.
+
+Before writing, call `studio_list_references({ projectId, limit })` and build the valid mention catalog from its `mentionableLooks`. Reuse those exact `#name.variant[.view]` tokens for existing Cast & World entities—never hand-construct one. A two-segment mention is complete when a look has no views. Use `~location.landmark[.placement]` for advisory spatial continuity locks. For explicit director intent that must override inference, put a standalone `[Key: Value · Key: Value]` paragraph immediately before its beat; the recognized keys are `Camera`, `Camera Movement`, `Lighting`, `Mood`, `Blocking`, `Background`, `Location`, `Shot Type`, `SFX`, `Ambient`, and `Lens`.
+
+Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not** `studio_update_episode({ script })`. A screenplay is its own per-episode element and a non-empty body—draft included—wins over raw Idea/Story `script`/`fullScript` in Step 03. `upsert_screenplay` is idempotent and always writes a draft; Studio's human Screenplay view performs approval separately. Persist only the logline with `studio_update_episode({ episodeId, updates: { summary } })` when needed.
 
 ## Step 02 — Anchor Frames
 
-→ `mixio-sheets`. Extract the location list and cast from the script, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** at `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in script text alone — flag them, don't silently invent geography.
+→ `mixio-sheets`. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** at `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in screenplay text alone — flag them, don't silently invent geography.
 
 ## Step 02.5 — Reference Audit
 
@@ -145,7 +149,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 
 | Pipeline state | Where it lives in Mixio |
 |---|---|
-| Source (script, synopsis, aspect ratios) | episode `script`, `summary`, `metadata.pipeline` |
+| Source (screenplay, synopsis, aspect ratios) | SCREENPLAY `body` (or episode `script` only as fallback), episode `summary`, `metadata.pipeline` |
 | Locations | LOCATION references + `locationDetails` (`mixio-references`) |
 | Reference audit results | episode `metadata.pipeline.reference_audit` |
 | Scenes and direction | scene elements via `studio_upsert_scene_packages` |
@@ -153,13 +157,13 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 | Shot plan (method/model/batch) | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | Rendered assets and video | KEYFRAME / VIDEO elements + `upload_file` URLs |
 
-On resume, read `studio_get_episode` (cheap) rather than `studio_get_production_context` (100K+ chars on a real production) to find where you left off.
+On resume, read `studio_get_episode` (cheap) for pipeline state, then query the episode's `SCREENPLAY` element (`studio_query_elements` with `type: "SCREENPLAY"` and `tags: { episodeId }`) before reusing source text. Do not substitute a stale `fullScript` when a non-empty screenplay body exists; avoid `studio_get_production_context` until its graph detail is actually needed.
 
 ## Workflow
 
 ```
 00. studio_update_episode(metadata.pipeline)      → lock aspect_ratio + anchor_aspect_ratio
-01. script → studio_update_episode({ script })    → GATE: user confirms
+01. screenplay → studio_upsert_screenplay({ body }) → GATE: user confirms (draft; user approves in Studio)
 02. /mixio:sheets                                  → character + location sheets, anchor per scene → GATE
 02.5 /mixio:reference-audit                        → completeness, consistency, duplicates, metadata → GATE
 03. /mixio:script-breakdown → studio_upsert_scene_packages    → GATE
