@@ -27,7 +27,20 @@ Best of both: run the **composed** path but keep Studio's two safety properties 
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- A project and an episode with `script` persisted (`mixio-episode`)
+- A project and an episode with source text persisted (`mixio-episode`) — preferably a screenplay, otherwise the raw Idea/Story `script` field
+
+## Source text — screenplay first, `script` only as fallback
+
+Before either path, read the [native screenplay grammar](../mixio-episode/references/screenplay-grammar.md), then read the episode's screenplay element rather than assuming the episode's `script` is current:
+
+```
+studio_query_elements({ projectId, type: "SCREENPLAY", tags: { episodeId }, limit: 50, offset: 0, includeFull: true })
+```
+
+- A `SCREENPLAY` row with a non-empty `body` wins, **including a draft**. Use its body verbatim as `script_content`; do not strip `#mentions`, `~locks`, or standalone `[Key: Value]` annotation lines because native breakdown consumes them.
+- If no screenplay exists, or its `body` is empty, read `studio_get_episode({ episodeId })` and use `metadata.fullScript` as the fallback.
+
+The managed job only analyzes the text supplied in `script_content`. Submitting stale `fullScript` after a screenplay was written silently discards the newer screenplay work.
 
 ## Managed path
 
@@ -36,7 +49,7 @@ studio_submit_studio_job({
   jobType: "script_breakdown",
   model: "script-preproduction",
   useCaseId: "script-preproduction",
-  input: { script_content: "<full script text>" },
+  input: { script_content: "<screenplay body, or fullScript only when no screenplay body exists>" },
   context: { projectId, episodeId }
 })
 → jobId ; poll studio_get_job_status({ jobId, projectId })
@@ -225,13 +238,14 @@ For refinement after the initial persist use `studio_revise_shot_specs` (content
 ## Workflow
 
 ```
-1. studio_get_production_context({ projectId, episodeId })   → existing canonical names
-2. segment the script into scenes (headings, transitions, time-of-day)
-3. extract characters/locations/props → studio_register_reference_entities
-4. design shots per scene — purpose, then size/angle/movement/lens, then duration
-5. self-check against the repair criteria; fix rather than emitting "TBD"
-6. studio_upsert_scene_packages({ scenes })                  → counts.scenes / counts.shots
-7. → /mixio:continuity for the audit, then /mixio:shot-planning
+1. read SCREENPLAY by `tags.episodeId`; use non-empty `body`, otherwise episode `metadata.fullScript`
+2. studio_get_production_context({ projectId, episodeId })   → existing canonical names
+3. segment the selected source verbatim into scenes (headings, transitions, time-of-day); retain native mentions, locks, and standalone annotations
+4. extract characters/locations/props → studio_register_reference_entities
+5. design shots per scene — purpose, then size/angle/movement/lens, then duration; honor explicit screenplay annotations verbatim instead of inferring them
+6. self-check against the repair criteria; fix rather than emitting "TBD"
+7. studio_upsert_scene_packages({ scenes })                  → counts.scenes / counts.shots
+8. → /mixio:continuity for the audit, then /mixio:shot-planning
 ```
 
 ## Notes

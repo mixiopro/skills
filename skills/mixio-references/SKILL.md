@@ -28,7 +28,8 @@ All proxied `studio_*` tools.
 |------|---------|
 | `studio_register_reference_entities` | Bulk create-or-update characters/locations/props by name (idempotent — matches on normalized name within the project) |
 | `studio_update_reference` | Update one reference element's images and structured details |
-| `studio_list_references` | List/search a project's CHARACTER/LOCATION/PROP/SCALING_SHEET elements |
+| `studio_list_references` | List/search a project's CHARACTER/LOCATION/PROP/SCALING_SHEET elements, including ready-to-copy screenplay `mentionableLooks` |
+| `studio_resolve_mention` | Resolve one known mention to its exact element/look/view; use for a specific lookup, not to construct general mention tokens |
 
 ## Project reference policy — read this before creating anything
 
@@ -137,8 +138,10 @@ Bulk upsert by name — matches an existing element by `project + type + normali
 
 ```
 { projectId, type?: "CHARACTER"|"LOCATION"|"PROP"|"SCALING_SHEET", search?, limit? }
-→ { references: [{ id, name, type, description, workflow, characterDetails|locationDetails|propDetails, hasImage, hasAttachments, hasReferenceVariants, thumbnailUrl, previewUrl, updatedAt }], total }
+→ { references: [{ id, name, type, description, workflow, characterDetails|locationDetails|propDetails, hasImage, hasAttachments, hasReferenceVariants, mentionableLooks, thumbnailUrl, previewUrl, updatedAt }], total }
 ```
+
+Use `mentionableLooks` as the authoritative screenplay-mention catalog. Each look exposes its ready-to-copy `mention` (`#name.variant`) and any distinct view mentions (`#name.variant.view`). Copy the returned string exactly rather than constructing or dot-joining a display name; multi-word names are normalized as one hyphenated root segment. An empty `views` array is normal for agent-authored looks—the two-segment look `mention` is then complete. Read the [native screenplay grammar](../mixio-episode/references/screenplay-grammar.md) for the full `#` contract, locks, and annotations; use `studio_resolve_mention` only when you need to resolve one existing token to its specific media.
 
 Use this to **get real reference-image URLs** before calling `studio_submit_studio_job` — that tool rejects raw media IDs in `input.media` slots and requires actual URLs, which live in each reference's `referenceVariants[].attachments[].media.url` (not surfaced directly in this list response — call `studio_get_element`/`studio_get_production_context` for the full metadata if you need the raw variant/attachment URLs, not just this summary view).
 
@@ -159,7 +162,7 @@ Use this to **get real reference-image URLs** before calling `studio_submit_stud
 ## Workflow
 
 ```
-1. studio_list_references({ projectId, type })        → find existing character/location/prop, or confirm it doesn't exist
+1. studio_list_references({ projectId, type, limit }) → find existing references and collect exact `mentionableLooks` before authoring a screenplay
 2. studio_register_reference_entities({ projectId, references: [...] })   → create/upsert by name
 3. upload_file(local_path) → studio_update_reference({ referenceId, attachments/referenceVariants, characterDetails/locationDetails/propDetails })
    → populate images + structured details

@@ -69,7 +69,7 @@ No MCP client available (agents, scripts)? Use [mixio-cli](https://github.com/mi
 
 ## Skills
 
-Mixio's data model: a **project** contains episodes and a Cast & World roster. An **episode** owns script/breakdown/scenes/shots. Cast & World (characters/locations/props) is **project**-scoped and feeds generation for consistency.
+Mixio's data model: a **project** contains episodes and a Cast & World roster. An **episode** has a raw Idea/Story fallback (`script`) plus an optional native **Screenplay** element, then breakdown/scenes/shots. A non-empty screenplay body—draft included—is the source the breakdown prefers; `script` is used only when no usable screenplay exists. Cast & World (characters/locations/props) is **project**-scoped and feeds generation for consistency.
 
 **Tool skills** — what to call:
 
@@ -86,7 +86,7 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 
 | Skill | Invoke | Description |
 |-------|--------|-------------|
-| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — script → anchors → reference audit → breakdown → continuity → shot planning → video as gated steps, with resumable progress state. Owns the shared [shot grammar](./skills/mixio-pipeline/references/shot-grammar.md). |
+| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — screenplay → anchors → reference audit → breakdown → continuity → shot planning → video as gated steps, with resumable progress state. Uses the native [screenplay grammar](./skills/mixio-episode/references/screenplay-grammar.md) and the shared [shot grammar](./skills/mixio-pipeline/references/shot-grammar.md). |
 | [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Character turnaround sheets, six-field location sheets, prop sheets, and one wide anchor frame per scene — the reference layer every shot is generated against. |
 | [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit Cast & World for completeness, name/image consistency, duplicates, metadata quality, and policy compliance — catch reference problems before they cost re-renders. |
 | [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Script → canonical references, scenes, and shot specs. Mirrors Studio's own breakdown workflow: same schemas, the two closed camera enums, verbatim-preservation rules, and the mapping from shot grammar onto persistable keys. |
@@ -101,7 +101,7 @@ Running a full episode — `/mixio:pipeline` drives this, gating on user confirm
 
 ```
 Step 00  lock aspect_ratio (delivery) + anchor_aspect_ratio (wider, for anchors)
-Step 01  Detailed Script     → /mixio:episode persists it as the source of truth
+Step 01  Detailed Screenplay → /mixio:episode discovers mentions and upserts the native screenplay draft
 Step 02  Anchor Frames       → /mixio:sheets — character + location sheets, one anchor per scene
 Step 02.5 Reference Audit    → /mixio:reference-audit — completeness, consistency, duplicates, metadata
 Step 03  Panel Breakdown     → /mixio:script-breakdown — shot specs, canonical schemas, enums

@@ -30,9 +30,23 @@ All proxied `studio_*` tools. Call `studio_describe_tools` for exact current sch
 |------|---------|
 | `studio_create_episode` | `{ projectId, title, sequenceNumber, summary?, script?, metadata?, tags? }` |
 | `studio_get_episode` | `{ episodeId }` |
-| `studio_update_episode` | `{ episodeId, updates: { title?, sequenceNumber?, summary?, script?, metadata?, tags? } }` — `script` is the source-of-truth full script text shown in the Script tab |
+| `studio_update_episode` | `{ episodeId, updates: { title?, sequenceNumber?, summary?, script?, metadata?, tags? } }` — `script` is the episode's raw Idea/Story text (`metadata.fullScript`), **not** the screenplay. Use `studio_upsert_screenplay` below for a real screenplay; breakdown prefers it when it has a non-empty body |
 | `studio_delete_episode` | `{ episodeId }` |
 | `studio_list_episodes` | `{ projectId, limit? }` — sorted by `metadata.sequenceNumber` |
+
+### Screenplay
+
+A screenplay is its own per-episode `SCREENPLAY` element, distinct from the raw Idea/Story `script`/`fullScript` field. Breakdown uses a non-empty screenplay body **even while it is a draft** and falls back to `script` only when no usable screenplay exists. Read the canonical [native screenplay grammar](references/screenplay-grammar.md) before authoring or preserving a body.
+
+| Tool | Purpose |
+|------|---------|
+| `studio_upsert_screenplay` | `{ projectId, episodeId, body, name? }` — creates the screenplay on first call and updates that same episode's screenplay thereafter. It always writes a **draft**; approval is a separate human action in Studio's Screenplay view. Never report it as approved. |
+
+`body` is standard screenplay text—sluglines, action, character cues, dialogue—with three optional native token forms that breakdown preserves and honors:
+
+- **`#name.variant[.view]`** — explicit CAST & World reference, such as `#maya.wedding.front`. First call `studio_list_references({ projectId, limit })`, then copy an exact token from each reference's `mentionableLooks`; do **not** construct one from a display name. A look with no views correctly uses the returned two-segment `#name.variant` token.
+- **`~location.landmark[.placement]`** — advisory continuity lock for a specific location point, such as `~hall.dais.center`. It is a lock, not an entity mention.
+- **`[Key: Value · Key: Value]`** — a standalone paragraph immediately before the beat it governs. These explicit overrides win over breakdown inference. The only recognized keys are `Camera`, `Camera Movement`, `Lighting`, `Mood`, `Blocking`, `Background`, `Location`, `Shot Type`, `SFX`, `Ambient`, and `Lens`; preserve their spelling and keep ordinary bracketed prose inline.
 
 ### Scene/shot breakdown
 
@@ -63,7 +77,7 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 
 | Tool | Purpose |
 |------|---------|
-| `studio_create_element` | `{ projectId, type, name, subtype?, metadata?, tags?, thumbnailUrl?, previewUrl? }` — type enum: `SCENE`, `SHOT`, `CHARACTER`, `LOCATION`, `PROP`, `REFERENCE`, `SCALING_SHEET`, `KEYFRAME`, `VIDEO`, `SELECTION`, `WORKFLOW` |
+| `studio_create_element` | `{ projectId, type, name, subtype?, metadata?, tags?, thumbnailUrl?, previewUrl? }` — type enum includes `SCREENPLAY` as well as `SCENE`, `SHOT`, `CHARACTER`, `LOCATION`, `PROP`, `REFERENCE`, `SCALING_SHEET`, `KEYFRAME`, `VIDEO`, `SELECTION`, `WORKFLOW`; use `studio_upsert_screenplay` rather than raw creation for screenplays |
 | `studio_get_element` | `{ elementId }` |
 | `studio_update_element` | `{ elementId, updates: { name?, subtype?, metadata?, tags?, thumbnailUrl?, previewUrl? } }` — metadata/tags are merged, not replaced |
 | `studio_delete_element` | `{ elementId }` |
@@ -96,13 +110,15 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 
 ```
 1. studio_create_episode({ projectId, title, sequenceNumber })
-2. studio_update_episode({ episodeId, updates: { script } })                 → persist the source script
-3. studio_upsert_scene_packages({ projectId, episodeId, scenes: [...] })     → break the script into scenes/shots
-4. studio_revise_shot_specs / studio_update_shot_state                       → refine and approve shots
-5. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
+2. studio_list_references({ projectId, limit }) → copy valid `mentionableLooks`
+3. studio_upsert_screenplay({ projectId, episodeId, body })                  → persist the preferred screenplay draft
+   — or, for a raw idea with no screenplay stage: studio_update_episode({ episodeId, updates: { script } })
+4. studio_upsert_scene_packages({ projectId, episodeId, scenes: [...] })     → break the selected source into scenes/shots
+5. studio_revise_shot_specs / studio_update_shot_state                       → refine and approve shots
+6. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
 ```
 
 ## Notes
 
-- `studio_create_episode`'s `script` field maps to `metadata.fullScript` internally — pass it via `script`, not raw `metadata`.
+- `studio_create_episode`'s `script` field maps to `metadata.fullScript` internally — pass it via `script`, not raw `metadata`. It is the raw Idea/Story fallback, not the screenplay.
 - Shot/scene elements are tagged with `episodeId` (via `tags.episodeId`) — that's what scopes `studio_query_elements`/`studio_get_production_context` to one episode.

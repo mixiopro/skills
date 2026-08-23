@@ -37,7 +37,7 @@ transport actually exposes.
 
 ## Data model
 
-A **project** holds episodes and a Cast & World roster. An **episode** owns script, scenes and shots. Cast & World (characters, locations, props) is **project**-scoped and feeds generation for consistency, so it outlives any one episode.
+A **project** holds episodes and a Cast & World roster. An **episode** owns a raw Idea/Story fallback (`script`), an optional native `SCREENPLAY` element, scenes and shots. A non-empty screenplay body (even draft) is the source breakdown prefers; raw `script`/`metadata.fullScript` is only the fallback. Cast & World (characters, locations, props) is **project**-scoped and feeds generation for consistency, so it outlives any one episode.
 
 ## Skills
 
@@ -69,7 +69,7 @@ For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a pro
 
 ```
 00  lock aspect_ratio (delivery) + anchor_aspect_ratio (wider, for anchors)
-01  Script            → persisted on the episode as the source of truth
+01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty
 02  Sheets + anchors  → /mixio:sheets      — references must exist before shots reference them
 02.5 Reference audit  → /mixio:reference-audit — completeness, consistency, duplicates, metadata
 03  Shot breakdown    → /mixio:script-breakdown
@@ -86,6 +86,7 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 
 - Call `studio_describe_tools` before using an unfamiliar tool, and `studio_get_use_case_input_schema` before submitting an unfamiliar generation use case. Don't guess parameters.
 - Read `settings.references` on the project before creating references — `createPolicy` and `variantPolicy` can forbid writes this repo otherwise describes.
+- Before authoring a screenplay, read `skills/mixio-episode/references/screenplay-grammar.md`, call `studio_list_references({ projectId, limit })`, and copy exact `mentionableLooks` values for `#name.variant[.view]`; never hand-build a mention. Preserve `~location.landmark[.placement]` locks and standalone `[Key: Value · Key: Value]` paragraphs through breakdown. `studio_upsert_screenplay` writes a draft only; approval remains a human Studio action.
 - Shot metadata keys are `snake_case`; scene metadata keys are `camelCase`. Mixing them up is not rejected — the write boundary is permissive, so a mixed-up key is remapped or warned-and-passed-through, not thrown. It still lands in the wrong place (passthrough, unread by anything) and fails silently rather than loudly, which is worse: check by reading back what you wrote.
 - Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
 - Upload final outputs with `upload_file` for permanent URLs, and run `run_evaluation` before delivering to a client.
