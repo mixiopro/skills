@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "mixio": {
+      "command": "npx",
+      "args": ["-y", "@mixio-pro/mcp"],
+      "env_vars": ["MIXIO_API_KEY", "MIXIO_BASE_URL"]
+    }
+  }
+}

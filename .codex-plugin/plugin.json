@@ -10,5 +10,6 @@
   "homepage": "https://mixio.pro",
   "repository": "https://github.com/mixiopro/skills",
   "license": "Apache-2.0",
-  "skills": "./skills"
+  "skills": "./skills",
+  "mcpServers": "./.codex-plugin/mcp.json"
 }

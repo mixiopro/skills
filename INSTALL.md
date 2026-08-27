@@ -37,14 +37,16 @@ git clone --depth 1 https://github.com/mixiopro/skills.git ~/.mixio/skills
 ```
 /plugin install mixiopro/skills
 ```
+Bundles the `mixio` MCP server too (`.mcp.json`, auto-discovered) — just set `MIXIO_API_KEY` in your environment.
 
 ### Codex
 ```bash
 codex plugin add mixiopro/skills
 ```
+Bundles the `mixio` MCP server too (`.codex-plugin/plugin.json` points at `.mcp.json`) — just set `MIXIO_API_KEY` in your environment.
 
 ### Cursor
-Clone this repo into your project, Cursor auto-discovers `.cursor-plugin/plugin.json`.
+Clone this repo into your project, Cursor auto-discovers `.cursor-plugin/plugin.json`. MCP server config is not bundled for this method — use Method 1.
 
 ## Getting Your API Key
 
