@@ -1,5 +1,6 @@
 {
   "name": "mixio",
+  "description": "AI media generation, workspace management, and creative tools for Mixio Studio.",
   "owner": {
     "name": "Mixio",
     "email": "dev@mixio.pro",

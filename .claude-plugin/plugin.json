@@ -1,5 +1,6 @@
 {
   "name": "mixio",
+  "displayName": "Mixio",
   "version": "0.1.0",
   "description": "Mixio AI skills: manage projects, Cast & World references, and episode script/shot breakdown; generate images and video through Studio jobs; manage media workspaces; run continuity evaluations. Works with Claude Code, Cursor, Codex, and MCP-compatible agents.",
   "author": {
@@ -24,22 +25,19 @@
     "script-breakdown"
   ],
   "skills": "./skills",
-  "interface": {
-    "displayName": "Mixio",
-    "shortDescription": "AI media generation and workspace management",
-    "longDescription": "Manage Mixio Studio projects, Cast & World references (characters, locations, props), and episode script/scene/shot breakdown. Generate images and video through Studio jobs with reference consistency. Manage media workspaces, upload files, and run continuity evaluations. Built for film, media, and creative professionals.",
-    "developerName": "Mixio",
-    "category": "Creativity",
-    "capabilities": [
-      "Read",
-      "Write"
-    ],
-    "websiteURL": "https://mixio.pro",
-    "defaultPrompt": [
-      "Generate a cinematic establishing shot of a mountain landscape at golden hour",
-      "Add reference images and wardrobe notes for this character",
-      "Break this script into scenes and shots for episode 3"
-    ],
-    "brandColor": "#0a0a0a"
+  "userConfig": {
+    "mixio_api_key": {
+      "type": "string",
+      "title": "Mixio API key",
+      "description": "From Mixio Studio (https://studio.mixio.pro) → Settings → API Keys",
+      "sensitive": true,
+      "required": true
+    },
+    "mixio_base_url": {
+      "type": "string",
+      "title": "Mixio base URL",
+      "description": "Only override for a self-hosted Mixio Studio instance",
+      "default": "https://studio.mixio.pro"
+    }
   }
 }

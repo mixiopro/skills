@@ -34,16 +34,23 @@ git clone --depth 1 https://github.com/mixiopro/skills.git ~/.mixio/skills
 ## Method 3: Agent-specific
 
 ### Claude Code
+Interactively:
 ```
-/plugin install mixiopro/skills
+/plugin marketplace add mixiopro/skills
+/plugin install mixio@mixiopro/skills
 ```
-Bundles the `mixio` MCP server too (`.mcp.json`, auto-discovered) — just set `MIXIO_API_KEY` in your environment.
+Scripted (no chat, no dotfile editing — the key is prompted for and stored securely, not written to settings.json):
+```bash
+claude plugin marketplace add mixiopro/skills
+claude plugin install mixio@mixiopro/skills --config mixio_api_key=sk-your-key-here
+```
+Bundles the `mixio` MCP server (`.mcp.json`, auto-discovered).
 
 ### Codex
 ```bash
 codex plugin add mixiopro/skills
 ```
-Bundles the `mixio` MCP server too (`.codex-plugin/plugin.json` points at `.mcp.json`) — just set `MIXIO_API_KEY` in your environment.
+Bundles the `mixio` MCP server too (`.codex-plugin/plugin.json` points at `.codex-plugin/mcp.json`). Codex has no install-time key prompt — export `MIXIO_API_KEY` in your environment before running Codex; the server inherits it.
 
 ### Cursor
 Clone this repo into your project, Cursor auto-discovers `.cursor-plugin/plugin.json`. MCP server config is not bundled for this method — use Method 1.
