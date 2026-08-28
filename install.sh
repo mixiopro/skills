@@ -77,15 +77,15 @@ open_url_in_browser() {
 if [ -z "$API_KEY" ]; then
     echo ""
     info "Mixio API Key Configuration"
-    echo "  Get your API key at: ${BOLD}https://studio.mixio.pro/settings/api-keys${RESET}"
+    echo "  Get your API key at: ${BOLD}https://studio.mixio.pro/dashboard/api-keys${RESET}"
     
     # Try opening browser on user behalf if terminal is available
     if [ -t 0 ] || [ -e /dev/tty ]; then
         echo -n "  Open API keys page in browser now? [Y/n]: "
         read -r open_browser < /dev/tty || open_browser="y"
         if [[ "$open_browser" =~ ^[Yy]?$ ]]; then
-            info "Opening https://studio.mixio.pro/settings/api-keys in browser..."
-            open_url_in_browser "https://studio.mixio.pro/settings/api-keys"
+            info "Opening https://studio.mixio.pro/dashboard/api-keys in browser..."
+            open_url_in_browser "https://studio.mixio.pro/dashboard/api-keys"
         fi
 
         echo ""
@@ -384,7 +384,7 @@ echo "  • Registered Agents    : Claude Code, Codex, Gemini/Antigravity, Kiro,
 if [ -n "$API_KEY" ]; then
     echo "  • Mixio API Key        : ${GREEN}Configured in MCP configs & shell profile${RESET}"
 else
-    echo "  • Mixio API Key        : ${YELLOW}Not set (Get from https://studio.mixio.pro/settings/api-keys)${RESET}"
+    echo "  • Mixio API Key        : ${YELLOW}Not set (Get from https://studio.mixio.pro/dashboard/api-keys)${RESET}"
 fi
 echo ""
 echo "To test MCP server in your agent:"

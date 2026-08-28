@@ -90,13 +90,13 @@ $apiKey = if ($env:MIXIO_API_KEY) { $env:MIXIO_API_KEY } else { "" }
 if (-not $apiKey) {
     Write-Host ""
     Write-Info "Mixio API Key Configuration"
-    Write-Host "  Get your API key at: https://studio.mixio.pro/settings/api-keys" -ForegroundColor White
+    Write-Host "  Get your API key at: https://studio.mixio.pro/dashboard/api-keys" -ForegroundColor White
     
     $openBrowser = Read-Host "  Open API keys page in browser now? [Y/n]"
     if (-not $openBrowser -or $openBrowser -match "^[Yy]$") {
-        Write-Info "Opening https://studio.mixio.pro/settings/api-keys in browser..."
+        Write-Info "Opening https://studio.mixio.pro/dashboard/api-keys in browser..."
         try {
-            Start-Process "https://studio.mixio.pro/settings/api-keys"
+            Start-Process "https://studio.mixio.pro/dashboard/api-keys"
         } catch {}
     }
 
@@ -375,7 +375,7 @@ Write-Host "  • Registered Agents    : Claude Code, Codex, Gemini/Antigravity,
 if ($apiKey) {
     Write-Host "  • Mixio API Key        : Configured in MCP configs & User environment" -ForegroundColor Green
 } else {
-    Write-Host "  • Mixio API Key        : Not set (Get from https://studio.mixio.pro/settings/api-keys)" -ForegroundColor Yellow
+    Write-Host "  • Mixio API Key        : Not set (Get from https://studio.mixio.pro/dashboard/api-keys)" -ForegroundColor Yellow
 }
 Write-Host ""
 Write-Host "To test MCP server in your agent:" -ForegroundColor White

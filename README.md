@@ -77,7 +77,7 @@ Then add the MCP server to your agent's config:
 }
 ```
 
-Get your API key from [Mixio Studio](https://studio.mixio.pro) → Settings → API Keys.
+Get your API key from [Mixio Studio Dashboard](https://studio.mixio.pro/dashboard/api-keys).
 
 No MCP client available (agents, scripts)? Use [mixio-cli](https://github.com/mixiopro/mixio-cli) instead — see [AGENTS.md](./AGENTS.md#tool-names-across-transports) for how tool names differ across transports.
 

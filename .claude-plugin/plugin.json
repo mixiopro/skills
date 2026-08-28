@@ -29,7 +29,7 @@
     "mixio_api_key": {
       "type": "string",
       "title": "Mixio API key",
-      "description": "From Mixio Studio (https://studio.mixio.pro) → Settings → API Keys",
+      "description": "From Mixio Studio Dashboard (https://studio.mixio.pro/dashboard/api-keys)",
       "sensitive": true,
       "required": true
     },

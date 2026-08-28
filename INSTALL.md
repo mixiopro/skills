@@ -77,9 +77,9 @@ Clone this repo into your project, Cursor auto-discovers `.cursor-plugin/plugin.
 
 ## Getting Your API Key
 
-1. Go to [Mixio Studio](https://studio.mixio.pro)
+1. Go to [Mixio Studio Dashboard](https://studio.mixio.pro/dashboard/api-keys)
 2. Sign in or create an account
-3. Navigate to Settings → API Keys
+3. Navigate to Dashboard → API Keys
 4. Click "Create Key"
 5. Copy the key (starts with `sk-`)
 
