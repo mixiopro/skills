@@ -1,5 +1,25 @@
 # Installation
 
+## Quick Install (One-Line)
+
+**macOS & Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/mixiopro/skills/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/mixiopro/skills/main/install.ps1 | iex
+```
+
+This single command:
+1. Creates the global `~/.mixio` folder and `~/.agents` store.
+2. Clones or updates the complete suite of Mixio skills and `AGENTS.md`.
+3. Auto-discovers and registers skills across all installed AI agents (**Claude Code**, **Codex**, **Gemini / Antigravity**, **Kiro**, **Cursor**, **OpenCode**, **GitHub Copilot**, **Hermes Agent**).
+4. Configures the `@mixio-pro/mcp` MCP server in each agent's configuration.
+
+---
+
 ## Requirements
 
 - Node.js 22+ (for MCP server)

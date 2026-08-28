@@ -10,6 +10,20 @@ AI agent skills for media generation, workspace management, and creative workflo
 
 Pick one. Each method configures the Mixio MCP server and loads skills into your agent.
 
+### One-line installer (Recommended)
+
+**macOS & Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/mixiopro/skills/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/mixiopro/skills/main/install.ps1 | iex
+```
+
+This single command sets up the global `~/.mixio` folder, installs all skills into `~/.agents/skills` and `~/.mixio/skills`, places `AGENTS.md`, and automatically registers them into all detected AI agents (Claude Code, Codex, Gemini/Antigravity, Kiro, Cursor, OpenCode, Copilot, Hermes, etc.).
+
 **Want your agent to do it?** Paste [INSTALL_FOR_AGENTS.md](./INSTALL_FOR_AGENTS.md) into any AI coding agent — it covers both steps, installing the skills and configuring the MCP server. Longer reference in [INSTALL.md](./INSTALL.md).
 
 ### `npx skills` — recommended, works with 70+ agents
