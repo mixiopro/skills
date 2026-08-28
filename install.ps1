@@ -84,13 +84,50 @@ if (-not $hasNode) {
     Write-WarnMsg "Node.js not found. Node.js 22+ is recommended for running Mixio MCP server (@mixio-pro/mcp)."
 }
 
-# Step 2: Create directories
+# Step 2: Interactive API Key resolution & Browser open
+$apiKey = if ($env:MIXIO_API_KEY) { $env:MIXIO_API_KEY } else { "" }
+
+if (-not $apiKey) {
+    Write-Host ""
+    Write-Info "Mixio API Key Configuration"
+    Write-Host "  Get your API key at: https://studio.mixio.pro/settings/api-keys" -ForegroundColor White
+    
+    $openBrowser = Read-Host "  Open API keys page in browser now? [Y/n]"
+    if (-not $openBrowser -or $openBrowser -match "^[Yy]$") {
+        Write-Info "Opening https://studio.mixio.pro/settings/api-keys in browser..."
+        try {
+            Start-Process "https://studio.mixio.pro/settings/api-keys"
+        } catch {}
+    }
+
+    Write-Host ""
+    $inputKey = Read-Host "  Paste your Mixio API Key (sk-...) [press Enter to skip]"
+    if ($inputKey) {
+        $apiKey = $inputKey.Trim()
+    }
+}
+
+if ($apiKey) {
+    $maskedKey = if ($apiKey.Length -gt 11) { $apiKey.Substring(0, 7) + "..." + $apiKey.Substring($apiKey.Length - 4) } else { "sk-***" }
+    Write-Success "API Key provided: $maskedKey"
+    try {
+        [System.Environment]::SetEnvironmentVariable('MIXIO_API_KEY', $apiKey, 'User')
+        [System.Environment]::SetEnvironmentVariable('MIXIO_BASE_URL', 'https://studio.mixio.pro', 'User')
+        $env:MIXIO_API_KEY = $apiKey
+        $env:MIXIO_BASE_URL = 'https://studio.mixio.pro'
+        Write-Success "Persisted MIXIO_API_KEY in Windows User environment variables."
+    } catch {}
+} else {
+    Write-WarnMsg "No API key provided. You can set MIXIO_API_KEY later in Windows environment variables or MCP config."
+}
+
+# Step 3: Create directories
 Write-Info "Setting up global Mixio directories ($MixioDir)..."
 New-Item -ItemType Directory -Force -Path $MixioDir | Out-Null
 New-Item -ItemType Directory -Force -Path $MixioSkillsDir | Out-Null
 New-Item -ItemType Directory -Force -Path $AgentsSkillsDir | Out-Null
 
-# Step 3: Fetch repo skills and AGENTS.md
+# Step 4: Fetch repo skills and AGENTS.md
 Write-Info "Downloading latest Mixio skills..."
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("mixio_install_" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
@@ -98,7 +135,7 @@ New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 $downloadSuccess = $false
 
 # Check if running from local repo
-$localScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { "" }
+$localScriptDir = if (Test-Path variable:PSScriptRoot) { $PSScriptRoot } else { "" }
 if ($localScriptDir -and (Test-Path (Join-Path $localScriptDir "skills")) -and (Test-Path (Join-Path $localScriptDir "AGENTS.md"))) {
     Get-ChildItem -Path $MixioSkillsDir -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     Copy-Item -Path (Join-Path $localScriptDir "skills\*") -Destination $MixioSkillsDir -Recurse -Force
@@ -153,7 +190,7 @@ try {
     Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 } catch {}
 
-# Step 4: Populate ~/.agents/skills
+# Step 5: Populate ~/.agents/skills
 Write-Info "Populating skills into $AgentsSkillsDir..."
 
 # Clean stale mixio-* skills from ~/.agents/skills
@@ -177,7 +214,7 @@ Get-ChildItem -Path $MixioSkillsDir -Directory | ForEach-Object {
 $skillDirs = Get-ChildItem -Path $AgentsSkillsDir -Directory | Where-Object { $_.Name -like "mixio-*" }
 Write-Success "Installed $($skillDirs.Count) Mixio skills in $AgentsSkillsDir"
 
-# Step 5: Register skills with AI agents
+# Step 6: Register skills with AI agents
 Write-Info "Registering Mixio skills and docs to AI agent profiles..."
 
 function Link-Or-Copy-Skills {
@@ -231,7 +268,10 @@ function Link-Or-Copy-Skills {
 }
 
 function Configure-Mcp-Json {
-    param([string]$JsonFilePath)
+    param(
+        [string]$JsonFilePath,
+        [string]$PassedApiKey
+    )
     try {
         $parent = Split-Path -Path $JsonFilePath -Parent
         New-Item -ItemType Directory -Force -Path $parent | Out-Null
@@ -249,27 +289,37 @@ function Configure-Mcp-Json {
         }
 
         $mcpServers = $data["mcpServers"]
-        if (-not $mcpServers.ContainsKey("mixio")) {
-            $apiKey = if ($env:MIXIO_API_KEY) { $env:MIXIO_API_KEY } else { "YOUR_API_KEY_HERE" }
-            $mcpServers["mixio"] = @{
-                command = "npx"
-                args = @("-y", "@mixio-pro/mcp")
-                env = @{
-                    MIXIO_API_KEY = $apiKey
-                    MIXIO_BASE_URL = "https://studio.mixio.pro"
-                }
-            }
-            $data | ConvertTo-Json -Depth 10 | Set-Content -Path $JsonFilePath -Encoding utf8
+        $existingMixio = if ($mcpServers.ContainsKey("mixio")) { $mcpServers["mixio"] } else { @{} }
+        $existingEnv = if ($existingMixio.ContainsKey("env")) { $existingMixio["env"] } else { @{} }
+
+        $finalApiKey = if ($PassedApiKey) {
+            $PassedApiKey
+        } elseif ($existingEnv.ContainsKey("MIXIO_API_KEY") -and $existingEnv["MIXIO_API_KEY"] -ne "YOUR_API_KEY_HERE") {
+            $existingEnv["MIXIO_API_KEY"]
+        } elseif ($env:MIXIO_API_KEY) {
+            $env:MIXIO_API_KEY
+        } else {
+            "YOUR_API_KEY_HERE"
         }
+
+        $mcpServers["mixio"] = @{
+            command = "npx"
+            args = @("-y", "@mixio-pro/mcp")
+            env = @{
+                MIXIO_API_KEY = $finalApiKey
+                MIXIO_BASE_URL = "https://studio.mixio.pro"
+            }
+        }
+        $data | ConvertTo-Json -Depth 10 | Set-Content -Path $JsonFilePath -Encoding utf8
     } catch {}
 }
 
 # 1. Claude Code
 Link-Or-Copy-Skills -AgentName "Claude Code" -TargetSkillsDir (Join-Path $UserHome ".claude\skills") -TargetAgentsDoc (Join-Path $UserHome ".claude\CLAUDE.md")
-Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".claude\claude_desktop_config.json")
-Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".claude\mcp.json")
+Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".claude\claude_desktop_config.json") -PassedApiKey $apiKey
+Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".claude\mcp.json") -PassedApiKey $apiKey
 if ($env:APPDATA) {
-    Configure-Mcp-Json -JsonFilePath (Join-Path $env:APPDATA "Claude\claude_desktop_config.json")
+    Configure-Mcp-Json -JsonFilePath (Join-Path $env:APPDATA "Claude\claude_desktop_config.json") -PassedApiKey $apiKey
 }
 
 # 2. Codex
@@ -278,16 +328,16 @@ Link-Or-Copy-Skills -AgentName "Codex" -TargetSkillsDir (Join-Path $UserHome ".c
 # 3. Gemini / Antigravity
 Link-Or-Copy-Skills -AgentName "Gemini / Antigravity" -TargetSkillsDir (Join-Path $UserHome ".gemini\skills") -TargetAgentsDoc (Join-Path $UserHome ".gemini\GEMINI.md")
 Link-Or-Copy-Skills -AgentName "Antigravity CLI" -TargetSkillsDir (Join-Path $UserHome ".gemini\antigravity-cli\skills") -TargetAgentsDoc ""
-Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".gemini\antigravity-cli\mcp_config.json")
-Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".gemini\config\mcp_config.json")
+Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".gemini\antigravity-cli\mcp_config.json") -PassedApiKey $apiKey
+Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".gemini\config\mcp_config.json") -PassedApiKey $apiKey
 
 # 4. Kiro
 Link-Or-Copy-Skills -AgentName "Kiro" -TargetSkillsDir (Join-Path $UserHome ".kiro\skills") -TargetAgentsDoc (Join-Path $UserHome ".kiro\steering\mixio.md")
-Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".kiro\settings\mcp.json")
+Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".kiro\settings\mcp.json") -PassedApiKey $apiKey
 
 # 5. Cursor
 Link-Or-Copy-Skills -AgentName "Cursor" -TargetSkillsDir (Join-Path $UserHome ".cursor\skills") -TargetAgentsDoc (Join-Path $UserHome ".cursor\AGENTS.md")
-Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".cursor\mcp.json")
+Configure-Mcp-Json -JsonFilePath (Join-Path $UserHome ".cursor\mcp.json") -PassedApiKey $apiKey
 
 # 6. OpenCode
 Link-Or-Copy-Skills -AgentName "OpenCode" -TargetSkillsDir (Join-Path $UserHome ".opencode\skills") -TargetAgentsDoc (Join-Path $UserHome ".opencode\AGENTS.md")
@@ -322,11 +372,11 @@ Write-Host "  • Mixio Home Directory : $MixioDir" -ForegroundColor Gray
 Write-Host "  • Global Skills Store  : $MixioSkillsDir" -ForegroundColor Gray
 Write-Host "  • Global Agents Store  : $AgentsDir (AGENTS.md + skills)" -ForegroundColor Gray
 Write-Host "  • Registered Agents    : Claude Code, Codex, Gemini/Antigravity, Kiro, Cursor, Copilot, OpenCode, Hermes" -ForegroundColor Gray
-Write-Host ""
-Write-Host "Next step: Configure your API Key" -ForegroundColor White
-Write-Host "  1. Get your API key from https://studio.mixio.pro -> Settings -> API Keys" -ForegroundColor Gray
-Write-Host "  2. Set the environment variable in PowerShell:" -ForegroundColor Gray
-Write-Host "     [System.Environment]::SetEnvironmentVariable('MIXIO_API_KEY', 'sk-...', 'User')" -ForegroundColor Cyan
+if ($apiKey) {
+    Write-Host "  • Mixio API Key        : Configured in MCP configs & User environment" -ForegroundColor Green
+} else {
+    Write-Host "  • Mixio API Key        : Not set (Get from https://studio.mixio.pro/settings/api-keys)" -ForegroundColor Yellow
+}
 Write-Host ""
 Write-Host "To test MCP server in your agent:" -ForegroundColor White
 Write-Host "  Ask: ""Use the studio_ping tool to check Mixio Studio MCP connection""" -ForegroundColor Gray

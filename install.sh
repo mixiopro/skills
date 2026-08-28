@@ -40,7 +40,6 @@ AGENTS_SKILLS_DIR="$AGENTS_DIR/skills"
 AGENTS_MD_PATH="$AGENTS_DIR/AGENTS.md"
 
 REPO_URL="https://github.com/mixiopro/skills.git"
-RAW_BASE_URL="https://raw.githubusercontent.com/mixiopro/skills/main"
 
 # Step 1: Pre-flight checks
 info "Checking environment and prerequisites..."
@@ -60,13 +59,78 @@ else
     warn "Node.js not detected. Node 22+ is recommended for running Mixio MCP server (@mixio-pro/mcp)."
 fi
 
-# Step 2: Create ~/.mixio global directories
+# Step 2: Interactive API Key resolution & Browser open
+API_KEY="${MIXIO_API_KEY:-}"
+
+open_url_in_browser() {
+    local url="$1"
+    if command -v open &>/dev/null; then
+        open "$url" 2>/dev/null || true
+    elif command -v xdg-open &>/dev/null; then
+        xdg-open "$url" 2>/dev/null || true
+    elif command -v python3 &>/dev/null; then
+        python3 -m webbrowser "$url" 2>/dev/null || true
+    fi
+}
+
+# If no API Key passed in environment, ask interactively (reading from /dev/tty so curl | bash works)
+if [ -z "$API_KEY" ]; then
+    echo ""
+    info "Mixio API Key Configuration"
+    echo "  Get your API key at: ${BOLD}https://studio.mixio.pro/settings/api-keys${RESET}"
+    
+    # Try opening browser on user behalf if terminal is available
+    if [ -t 0 ] || [ -e /dev/tty ]; then
+        echo -n "  Open API keys page in browser now? [Y/n]: "
+        read -r open_browser < /dev/tty || open_browser="y"
+        if [[ "$open_browser" =~ ^[Yy]?$ ]]; then
+            info "Opening https://studio.mixio.pro/settings/api-keys in browser..."
+            open_url_in_browser "https://studio.mixio.pro/settings/api-keys"
+        fi
+
+        echo ""
+        echo -n "  Paste your Mixio API Key (sk-...) [press Enter to skip]: "
+        read -r input_key < /dev/tty || input_key=""
+        API_KEY="$(echo "$input_key" | tr -d '[:space:]')"
+    fi
+fi
+
+if [ -n "$API_KEY" ]; then
+    success "API Key provided: ${API_KEY:0:7}...${API_KEY: -4}"
+    
+    # Automatically add to shell configuration if not already present
+    USER_SHELL="$(basename "${SHELL:-bash}")"
+    PROFILE_FILE=""
+    if [ "$USER_SHELL" = "zsh" ]; then
+        PROFILE_FILE="$HOME/.zshrc"
+    elif [ "$USER_SHELL" = "bash" ]; then
+        if [ -f "$HOME/.bash_profile" ]; then
+            PROFILE_FILE="$HOME/.bash_profile"
+        else
+            PROFILE_FILE="$HOME/.bashrc"
+        fi
+    fi
+
+    if [ -n "$PROFILE_FILE" ]; then
+        if ! grep -q "MIXIO_API_KEY" "$PROFILE_FILE" 2>/dev/null; then
+            echo "" >> "$PROFILE_FILE"
+            echo "# Mixio API Key" >> "$PROFILE_FILE"
+            echo "export MIXIO_API_KEY=\"$API_KEY\"" >> "$PROFILE_FILE"
+            echo "export MIXIO_BASE_URL=\"https://studio.mixio.pro\"" >> "$PROFILE_FILE"
+            success "Saved MIXIO_API_KEY to $PROFILE_FILE"
+        fi
+    fi
+else
+    warn "No API Key provided. You can set MIXIO_API_KEY later in your shell or MCP config."
+fi
+
+# Step 3: Create ~/.mixio global directories
 info "Setting up global Mixio environment ($MIXIO_DIR)..."
 mkdir -p "$MIXIO_DIR"
 mkdir -p "$MIXIO_SKILLS_DIR"
 mkdir -p "$AGENTS_SKILLS_DIR"
 
-# Step 3: Fetch or update Mixio Skills and AGENTS.md
+# Step 4: Fetch or update Mixio Skills and AGENTS.md
 info "Downloading latest Mixio skills..."
 TMP_DIR="$(mktemp -d)"
 cleanup() {
@@ -74,8 +138,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check if we are running from within a clone of the skills repository
-SCRIPT_PARENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+# Safely check if running from within a clone of repo (handling unbound variable)
+SCRIPT_PARENT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    SCRIPT_PARENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+fi
+
 if [ -n "$SCRIPT_PARENT_DIR" ] && [ -d "$SCRIPT_PARENT_DIR/skills" ] && [ -f "$SCRIPT_PARENT_DIR/AGENTS.md" ]; then
     cp -R "$SCRIPT_PARENT_DIR/skills/." "$MIXIO_SKILLS_DIR/"
     cp "$SCRIPT_PARENT_DIR/AGENTS.md" "$MIXIO_DIR/AGENTS.md"
@@ -115,7 +183,7 @@ else
     fi
 fi
 
-# Step 4: Populate ~/.agents/skills
+# Step 5: Populate ~/.agents/skills
 info "Registering skills into ~/.agents/skills..."
 # Clean stale mixio-* skills from ~/.agents/skills
 for existing_mixio in "$AGENTS_SKILLS_DIR"/mixio-*; do
@@ -140,7 +208,7 @@ done
 SKILL_COUNT=$(find "$AGENTS_SKILLS_DIR" -maxdepth 2 -name "SKILL.md" | grep -c "mixio-" || echo "0")
 success "Installed $SKILL_COUNT Mixio skills in $AGENTS_SKILLS_DIR and $MIXIO_SKILLS_DIR"
 
-# Step 5: Register skills to all available AI agents
+# Step 6: Register skills to all available AI agents
 info "Detecting installed AI agents and registering Mixio skills..."
 
 # Function to link or copy skills to an agent directory
@@ -192,14 +260,15 @@ register_agent_skills() {
 # Helper function to merge MCP config into JSON file safely using python/node
 configure_mcp_json() {
     local config_file="$1"
-    local server_name="mixio"
+    local key_val="${2:-}"
 
     mkdir -p "$(dirname "$config_file")"
 
     if command -v node &>/dev/null; then
-        node -e '
+        MIXIO_KEY="$key_val" node -e '
 const fs = require("fs");
 const file = process.argv[1];
+const keyVal = process.env.MIXIO_KEY || "";
 let json = {};
 try {
     if (fs.existsSync(file)) {
@@ -209,22 +278,25 @@ try {
 } catch (e) { json = {}; }
 
 json.mcpServers = json.mcpServers || {};
-if (!json.mcpServers["mixio"]) {
-    json.mcpServers["mixio"] = {
-        command: "npx",
-        args: ["-y", "@mixio-pro/mcp"],
-        env: {
-            MIXIO_API_KEY: process.env.MIXIO_API_KEY || "YOUR_API_KEY_HERE",
-            MIXIO_BASE_URL: "https://studio.mixio.pro"
-        }
-    };
-    fs.writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
-}
+const existingServer = json.mcpServers["mixio"] || {};
+const existingEnv = existingServer.env || {};
+const finalKey = keyVal || existingEnv.MIXIO_API_KEY || process.env.MIXIO_API_KEY || "YOUR_API_KEY_HERE";
+
+json.mcpServers["mixio"] = {
+    command: "npx",
+    args: ["-y", "@mixio-pro/mcp"],
+    env: {
+        MIXIO_API_KEY: finalKey,
+        MIXIO_BASE_URL: existingEnv.MIXIO_BASE_URL || "https://studio.mixio.pro"
+    }
+};
+fs.writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
 ' "$config_file" 2>/dev/null || true
     elif command -v python3 &>/dev/null; then
-        python3 -c '
+        MIXIO_KEY="$key_val" python3 -c '
 import sys, json, os
 file = sys.argv[1]
+key_val = os.environ.get("MIXIO_KEY", "")
 data = {}
 try:
     if os.path.exists(file):
@@ -238,26 +310,29 @@ except Exception:
 if "mcpServers" not in data or not isinstance(data["mcpServers"], dict):
     data["mcpServers"] = {}
 
-if "mixio" not in data["mcpServers"]:
-    data["mcpServers"]["mixio"] = {
-        "command": "npx",
-        "args": ["-y", "@mixio-pro/mcp"],
-        "env": {
-            "MIXIO_API_KEY": os.environ.get("MIXIO_API_KEY", "YOUR_API_KEY_HERE"),
-            "MIXIO_BASE_URL": "https://studio.mixio.pro"
-        }
+existing_server = data["mcpServers"].get("mixio", {})
+existing_env = existing_server.get("env", {}) if isinstance(existing_server, dict) else {}
+final_key = key_val or existing_env.get("MIXIO_API_KEY") or os.environ.get("MIXIO_API_KEY", "YOUR_API_KEY_HERE")
+
+data["mcpServers"]["mixio"] = {
+    "command": "npx",
+    "args": ["-y", "@mixio-pro/mcp"],
+    "env": {
+        "MIXIO_API_KEY": final_key,
+        "MIXIO_BASE_URL": existing_env.get("MIXIO_BASE_URL", "https://studio.mixio.pro")
     }
-    with open(file, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+}
+with open(file, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
 ' "$config_file" 2>/dev/null || true
     fi
 }
 
 # 1. Claude Code (~/.claude)
 register_agent_skills "Claude Code" "$HOME/.claude/skills" "$HOME/.claude/CLAUDE.md"
-configure_mcp_json "$HOME/.claude/claude_desktop_config.json"
-configure_mcp_json "$HOME/.claude/mcp.json"
+configure_mcp_json "$HOME/.claude/claude_desktop_config.json" "$API_KEY"
+configure_mcp_json "$HOME/.claude/mcp.json" "$API_KEY"
 
 # 2. Codex (~/.codex)
 register_agent_skills "Codex" "$HOME/.codex/skills" "$HOME/.codex/AGENTS.md"
@@ -265,16 +340,16 @@ register_agent_skills "Codex" "$HOME/.codex/skills" "$HOME/.codex/AGENTS.md"
 # 3. Gemini / Antigravity (~/.gemini)
 register_agent_skills "Gemini / Antigravity" "$HOME/.gemini/skills" "$HOME/.gemini/GEMINI.md"
 register_agent_skills "Antigravity CLI" "$HOME/.gemini/antigravity-cli/skills" ""
-configure_mcp_json "$HOME/.gemini/antigravity-cli/mcp_config.json"
-configure_mcp_json "$HOME/.gemini/config/mcp_config.json"
+configure_mcp_json "$HOME/.gemini/antigravity-cli/mcp_config.json" "$API_KEY"
+configure_mcp_json "$HOME/.gemini/config/mcp_config.json" "$API_KEY"
 
 # 4. Kiro (~/.kiro)
 register_agent_skills "Kiro" "$HOME/.kiro/skills" "$HOME/.kiro/steering/mixio.md"
-configure_mcp_json "$HOME/.kiro/settings/mcp.json"
+configure_mcp_json "$HOME/.kiro/settings/mcp.json" "$API_KEY"
 
 # 5. Cursor (~/.cursor)
 register_agent_skills "Cursor" "$HOME/.cursor/skills" "$HOME/.cursor/AGENTS.md"
-configure_mcp_json "$HOME/.cursor/mcp.json"
+configure_mcp_json "$HOME/.cursor/mcp.json" "$API_KEY"
 
 # 6. OpenCode (~/.opencode)
 register_agent_skills "OpenCode" "$HOME/.opencode/skills" "$HOME/.opencode/AGENTS.md"
@@ -306,11 +381,11 @@ echo "  • Mixio Home Directory : $MIXIO_DIR"
 echo "  • Global Skills Store  : $MIXIO_SKILLS_DIR"
 echo "  • Global Agents Store  : $AGENTS_DIR (AGENTS.md + skills)"
 echo "  • Registered Agents    : Claude Code, Codex, Gemini/Antigravity, Kiro, Cursor, Copilot, OpenCode, Hermes"
-echo ""
-echo "Next step: Configure your API Key"
-echo "  1. Get your API key from ${BOLD}https://studio.mixio.pro${RESET} → Settings → API Keys"
-echo "  2. Set the environment variable in your shell profile (~/.bashrc or ~/.zshrc):"
-echo "     ${CYAN}export MIXIO_API_KEY=\"sk-...\"${RESET}"
+if [ -n "$API_KEY" ]; then
+    echo "  • Mixio API Key        : ${GREEN}Configured in MCP configs & shell profile${RESET}"
+else
+    echo "  • Mixio API Key        : ${YELLOW}Not set (Get from https://studio.mixio.pro/settings/api-keys)${RESET}"
+fi
 echo ""
 echo "To test MCP server in your agent:"
 echo "  Ask: ${DIM}\"Use the studio_ping tool to check Mixio Studio MCP connection\"${RESET}"
