@@ -4,36 +4,25 @@ Paste everything between the rules into your AI coding agent.
 
 ---
 
-Set up Mixio for me, in two steps.
+Set up Mixio for me by running the universal installer:
 
-**Step 1 — install the skill docs.** Run exactly this (the package is `skills`, not a scoped one, and the source is `owner/repo` with no `github:` prefix):
-
+**On macOS & Linux:**
 ```bash
-npx skills add mixiopro/skills -y
+curl -fsSL https://raw.githubusercontent.com/mixiopro/skills/main/install.sh | bash
 ```
 
-Add `-g` to install globally (user-level) instead of into this project. To update later, re-run the same command — it overwrites in place. This installs 12 skills named `mixio-*`; tell me how many were installed so I know it worked.
-
-**Step 2 — configure the MCP server.** The skills are documentation and cannot call anything on their own. Add this to my MCP configuration (typically `~/.claude/claude_desktop_config.json`, `~/.cursor/mcp.json`, `.kiro/settings/mcp.json`, a project-level `.mcp.json`, or equivalent):
-
-```json
-{
-  "mcpServers": {
-    "mixio": {
-      "command": "npx",
-      "args": ["-y", "@mixio-pro/mcp"],
-      "env": {
-        "MIXIO_API_KEY": "REPLACE_WITH_YOUR_KEY",
-        "MIXIO_BASE_URL": "https://studio.mixio.pro"
-      }
-    }
-  }
-}
+**On Windows:**
+```powershell
+irm https://raw.githubusercontent.com/mixiopro/skills/main/install.ps1 | iex
 ```
 
-No global install needed — `npx` fetches `@mixio-pro/mcp` on first run.
+This single command will:
+1. Create `~/.mixio` and `~/.agents` global directories.
+2. Install all 12 Mixio skills (`mixio-*`) and place `AGENTS.md`.
+3. Auto-configure the `@mixio-pro/mcp` MCP server in my agent configuration.
+4. Register the skills to all installed AI coding agents.
 
-Then verify with `studio_ping`, and list my projects with `studio_list_projects` so I can confirm which one to work in.
+After running the script, verify the connection with `studio_ping` and list my available projects with `studio_list_projects`.
 
 ---
 
