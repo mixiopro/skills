@@ -1,7 +1,7 @@
 ---
 name: mixio-generate
 description: "Generate images, video and audio through Mixio Studio jobs — which use cases exist, which models each supports, what each accepts as input, what it costs, and when a Studio production use case beats a Generate one."
-version: 0.3.0
+version: 0.3.1
 invoke: /mixio:generate
 ---
 
@@ -143,6 +143,33 @@ A job that "succeeded" with warnings ran **with your parameters removed**. Check
 ### Step 2 — honor project defaults before you choose anything
 
 `studio_get_project(projectId)` returns the user's own pinned choices. Confirmed present on live projects; treat them as overriding this skill's suggestions, and only differ when you say so.
+
+### Prompt Enhancement Modes (`Auto` vs `Raw` vs `Review`)
+
+Studio generation workflows support three prompt enhancement modes:
+
+| Mode | Wire Value (`promptEnhancementMode`) | When to use |
+|------|--------------------------------------|-------------|
+| **Auto** (Default) | `"enhance"` | **Default for creative runs.** Prompt is automatically enriched with character appearance, location details, camera angles, and style tokens via LLM prompt compilation before GPU execution. |
+| **Raw** | `"off"` | **Use for verbatim prompts, custom LoRA trigger words, exact benchmark tests, or pre-crafted directions.** Bypasses all LLM prompt rewriting and sends your exact prompt directly to the generation model. |
+| **Review** | `"enhance_and_review"` | Enhances the prompt and holds it for user inspection/editing before submitting the final GPU job. |
+
+Pass `promptEnhancementMode` directly to `studio_submit_studio_job` or within `context.intent`:
+
+```json
+studio_submit_studio_job({
+  jobType: "video",
+  model: "hailuo_v3_reference_to_video",
+  useCaseId: "multi-shot-video",
+  prompt: "Exact custom direction...",
+  promptEnhancementMode: "off", // Raw mode: no LLM rewriting
+  context: { projectId: "<uuid>" }
+})
+```
+
+For **Audio / Gemini TTS** (`text-to-speech`), raw transcript reading is controlled by `input.parameters.auto_enhance_ssml`:
+- `auto_enhance_ssml: true` (default) — wraps transcript in SSML tags and performance directions.
+- `auto_enhance_ssml: false` — reads the verbatim transcript text without performance guidance injection.
 
 `settings.generation`: `defaultModelByUseCase`, `defaultParametersByUseCase`, `defaultDurationByUseCase`, `defaultAspectRatioByOutputType`, `defaultResolutionByOutputType`, `recommendedStylePresetIds`, `inferenceMode`.
 `settings.studio`: `preferredVideoModel`, `videoDurationSeconds`, `defaultStylePrompt`, `defaultVideoShotMode`, `visualStyle`, `toneAndMood`, `cinematographyDirection`.
