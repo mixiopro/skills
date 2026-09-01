@@ -115,9 +115,9 @@ Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not**
 
 That first write is the start of a loop with Step 02, not the end of Step 01. A `#` token that resolves to nothing fails soft — it stays literal text, the screenplay saves, breakdown proceeds, and nothing binds a reference. `upsert_screenplay` returns `{ elementId, version, deduped }` and no mention diagnostics, so a body where every token missed writes exactly like one where every token landed.
 
-So loop: **draft → extract → resolve → propose → register/render → re-mention → re-upsert**, until zero character and location tokens are unmapped.
+So loop: **draft → extract → resolve → propose → register/render → re-mention → re-upsert**, until zero character and location tokens are unmapped *and* nothing the script contains is left un-mentioned.
 
-- **Asset-Ready draft** (already carries `#name.variant`) — harvest the distinct tokens and resolve them. A confidently-written token is not a resolved one.
+- **Asset-Ready draft** (already carries `#name.variant`) — harvest the distinct tokens *and* sweep the prose, then reconcile. A confidently-written token is not a resolved one, and a character or location nobody mentioned is invisible to a token-only check: `INT. HARBOR OFFICE — NIGHT` with no `#harbor-office` anywhere reads as zero unmapped while binding nothing.
 - **Raw idea or prose** (no tokens) — discover characters from cues, locations from sluglines, story props from CAPS, and candidate looks from described state changes. Propose them; write nothing yet.
 
 Resolve each distinct token with `studio_resolve_mention({ projectId, mention })`. It never throws for a miss — it returns `{ resolved: false, reason }`, and the reason separates the two cases that must not be confused: `no element named "…"` means create a reference, while `no look named "wet_look" on element "Maya"` means add a **variant to Maya**. Minting a second `Maya` for `#maya.wet_look` is the failure this loop exists to prevent. Flag it and ask — offering a generated variant, a supplied image, or (often the right answer) dropping the mention and carrying "soaked" as per-shot `appearanceState` at Step 03.

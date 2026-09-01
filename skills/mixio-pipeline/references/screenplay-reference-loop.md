@@ -1,6 +1,6 @@
 # Screenplay ↔ Reference Loop
 
-Step 01 does not end at the first `studio_upsert_screenplay`. It ends when every `#` token in the body resolves to a real Cast & World look. Between those two points is a loop with Step 02: **draft → extract → resolve → propose → register/render → re-mention → re-upsert**.
+Step 01 does not end at the first `studio_upsert_screenplay`. It ends when every `#` token in the body resolves to a real Cast & World look, and every character and location the script actually contains carries one. Between those two points is a loop with Step 02: **draft → extract → resolve → propose → register/render → re-mention → re-upsert**.
 
 The loop exists because an unresolved mention is silent. A `#` token that resolves to nothing fails soft and stays literal text — the screenplay persists, breakdown proceeds, and nothing binds a reference. `upsert_screenplay` returns `{ elementId, version, deduped }` and no mention diagnostics, so the write looks identical whether every token bound or none did. Checking is on you.
 
@@ -9,22 +9,31 @@ The loop exists because an unresolved mention is silent. A `#` token that resolv
 | | **A — Asset-Ready** | **B — Raw Idea / Script** |
 |---|---|---|
 | You have | a draft already carrying `#name.variant` mentions | prose, a synopsis, or a script with no tokens |
-| Pass 1 does | harvest the distinct `#` tokens already in the body | discover entities from sluglines, cues and CAPS |
+| Pass 1 does | sweep the prose **and** harvest the tokens already there, then reconcile the two | discover entities from sluglines, cues and CAPS |
 | Usual outcome | most tokens resolve; the loop is about the few that don't | nothing resolves yet; the loop is the whole of Step 01 |
-| Common trap | trusting a token because the author wrote it confidently | minting a second `Tony Russo` beside episode 1's `TONY` |
+| Common trap | reading the tokens and skipping the prose — an entity nobody mentioned is invisible to the exit gate | minting a second `Tony Russo` beside episode 1's `TONY` |
 
 Both paths converge at Pass 2. Run the same passes either way — Scenario A is not "already done", it is Scenario B with a head start.
 
 ## Pass 1 — extract
 
-**Scenario A.** Collect the distinct `#` tokens from the body. Grammar is `#` plus one to three dot-separated segments (see [screenplay grammar](../../mixio-episode/references/screenplay-grammar.md)); dedupe before resolving, since a token repeated twelve times is one question.
-
-**Scenario B.** There are no tokens yet, so read the prose:
+Read the prose for entities. **Both paths do this** — see the reconciliation note below for why Scenario A does not get to skip it.
 
 - **Locations** — every slugline's location field, plus any location named in a `[Location: ...]` annotation.
 - **Characters** — every character cue above a dialogue block, plus every named person in action lines. A cue is the reliable signal; a name in prose may be someone who never appears.
 - **Props** — CAPS tokens on first mention in action lines. Only the ones that carry story weight or change hands need a reference; set dressing belongs in the location sheet.
 - **Looks** — a described state change ("she comes out of the rain soaked", "he arrives in the tuxedo") is a candidate variant on an existing character, not a new one.
+
+On an Asset-Ready draft, also collect the distinct `#` tokens already in the body. Grammar is `#` plus one to three dot-separated segments (see [screenplay grammar](../../mixio-episode/references/screenplay-grammar.md)); dedupe before resolving, since a token repeated twelve times is one question.
+
+**Then reconcile the two lists.** A token that resolves is not the same as an entity that is covered, and the gap between them is silent in both directions:
+
+| | Has a `#` token | No token |
+|---|---|---|
+| **In the prose** | resolve it in Pass 2 | **un-mentioned entity** — the exit gate cannot see it |
+| **Not in the prose** | orphan token — mentioned but never staged; confirm it belongs | nothing to do |
+
+The bottom-left cell is the one that bites. `INT. HARBOR OFFICE — NIGHT` with no `#harbor-office` mention anywhere leaves the screenplay at zero unmapped tokens and the location bound to nothing — an unmentioned entity is not an unresolved token, so a token-only sweep reports success on a draft that references half its world. Carry every un-mentioned character and location into Pass 3 alongside the unresolved tokens: each one either gets a mention added, or an explicit decision that it stays plain prose.
 
 Emit the candidate list as a table and stop. Nothing is written in Pass 1.
 
@@ -64,6 +73,11 @@ Unmapped tokens — 3 of 14
   #maya.wet_look   Maya exists; look "wet_look" does not
   #harbor-office   no LOCATION named "harbor office"
   #tony            resolves to Tony, but binds no look (bare mention)
+
+Un-mentioned entities — 2
+
+  DOCKSIDE ALLEY   slugline in scene 4, no mention anywhere in the body
+  THE PILOT        speaks in scene 2, no mention anywhere in the body
 
 For #maya.wet_look:
   1. Generate a wet-look variant sheet now (one image job)
@@ -124,10 +138,11 @@ Idempotent against the same episode's screenplay element, so every pass of the l
 
 ## Exit gate
 
-The loop closes when **zero character or location tokens are unmapped**. Re-run Pass 2 against the final body and show the tally — a claim of zero that was not re-checked after the last edit is not a check.
+The loop closes when **zero character or location tokens are unmapped** and every character and location the prose sweep found is either mentioned or explicitly agreed to stay plain prose. Re-run Pass 1's reconciliation and Pass 2's resolution against the final body and show the tally — a claim of zero that was not re-checked after the last edit is not a check.
 
 ```
-Step 01 — Screenplay complete. 14 mentions, 14 resolved, 0 unmapped.
+Step 01 — Screenplay complete. 16 mentions, 16 resolved, 0 unmapped.
+Prose sweep: 6 characters, 4 locations — all mentioned.
 2 references created (Harbor Office, Dockside Alley), 1 variant added (Maya · wet).
 Screenplay saved as a draft — approval is yours to make in Studio. Moving to Step 02.
 ```
@@ -139,7 +154,8 @@ Record the outcome so a resumed session does not re-run the loop blind:
 ```
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   step_01: "complete",
-  screenplay_loop: { mentions: 14, unmapped: 0, references_created: 2, variants_added: 1 }
+  screenplay_loop: { mentions: 16, unmapped: 0, unmentioned: 0,
+                     references_created: 2, variants_added: 1 }
 }}}})
 ```
 
