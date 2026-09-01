@@ -1,7 +1,7 @@
 ---
 name: mixio-pipeline
 description: "Run an episode from screenplay to delivered video as gated steps — detailed screenplay, anchor frames, reference audit, panel breakdown, continuity audit, shot planning, video generation — persisting progress and locking each step before the next. The entry point for a full episode, and the fallback whenever it's unclear which production skill applies — the others (mixio-sheets, mixio-reference-audit, mixio-script-breakdown, mixio-continuity, mixio-shot-planning) each assume you already know that's the one step you need."
-version: 0.3.0
+version: 0.4.0
 invoke: /mixio:pipeline
 ---
 
@@ -107,7 +107,7 @@ Persist with `studio_upsert_scene_packages` (see `mixio-episode`), putting the s
 
 1. **Method** — classify each shot as SINGLE (one keyframe → video), DUAL_FRAME (start+end), MULTI_KF (3–12 keyframes), GRID (multi-panel), or T2V (prompt-only)
 2. **Model** — match to best available model based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.)
-3. **Feasibility** — validate duration vs model max, action density vs duration, dialogue timing, reference readiness
+3. **Feasibility** — validate duration vs model max, action density vs duration, dialogue timing, reference readiness, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. Every prompt referencing media assets must embed explicit `@tag` tokens.
 
 Then group into generation batches per model-group (different models have different ceilings). Emit a `PRODUCTION SUMMARY` with per-model costs, method distribution, keyframe/video job counts, and high-risk cross-model boundaries. Where a shot or scene has a bound look, carry the resolved `variantId`/`variantName` into the plan so Step 06 declares it directly (see `mixio-generate`).
 
@@ -118,6 +118,10 @@ Then group into generation batches per model-group (different models have differ
 - **Always allow** — generate without asking.
 - **Ask before video** — images are cheap, video is not; this is the sensible default.
 - **Always ask** — confirm every job.
+
+**Preflight Gating (Mandatory Invariant across all models before submit):**
+- Verify that every prompt string explicitly embeds `@tag` tokens (e.g. `@asset1`, `@tony`, `@scene1`) for all active media assets in `input.media` (`primary`, `enhancer_context`, `character_ref`, `location_ref`). This applies to all generation jobs (keyframes, storyboard grids, video renders) across all model families (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, etc.).
+- Verify that `slotTags` and `mentionMap` are present and paired. Plain descriptive prose without `@` tags prevents the prompt materializer and provider compilers from mapping assets to model tokens (`Image 1`, `@Image1`, `@tag`) or performing subject grounding, causing models to guess identity. Never submit ungrounded media jobs.
 
 **Use case IDs for this step:**
 - Keyframes, shot already locked by Step 04: `production-generate-shot-keyframes` with `keyframe_count: 1`, **one job per beat**. Our prompt is used verbatim, nothing re-plans it, and the sequence planner's diversity gate cannot reject a deliberate hold. Pass the previous beat's keyframe as a reference to chain continuity forward.

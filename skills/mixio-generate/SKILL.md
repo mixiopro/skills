@@ -1,7 +1,7 @@
 ---
 name: mixio-generate
 description: "Generate images, video and audio through Mixio Studio jobs — which use cases exist, which models each supports, what each accepts as input, what it costs, and when a Studio production use case beats a Generate one."
-version: 0.3.1
+version: 0.4.0
 invoke: /mixio:generate
 ---
 
@@ -197,9 +197,39 @@ Slot ids come from the schema, not from memory. Common ones: `primary`, `endFram
 | `mentionMap` | `{ "@tag": "Human Label" }` | Binds that tag to a subject. **Both maps are required** for a tag to bind |
 | `input.media` | `{ <slot>: { url } }` | Raw URLs, no provenance. The server derives slot references and mention tags from it automatically |
 
-### Mentions — binding an image to a subject
+### Mentions — binding an image to a subject (Universal across all models)
 
-Sending two character images does not say which is which. `@tag` tokens in the prompt do, rewritten at dispatch into each provider's own syntax (`@Image1`/`@Element1` Kling, indexed `image1`, `Image 1` Hailuo). Substitution is in place, so the tag binds wherever it sits in the sentence.
+Sending two character images does not say which is which. `@tag` tokens in the prompt do, rewritten at dispatch into each provider's own syntax (`@Image1`/`@Element1` Kling, indexed `image1`, `Image 1` Hailuo, or subject-grounded prompts in Veo/Sora/Wan). Substitution is in place, so the tag binds wherever it sits in the sentence.
+
+**This is a universal architectural requirement across ALL generation use cases and ALL models** (both image and video: Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX, Flux, etc.). Regardless of model provider, the prompt materializer and compiler pipeline rely on mention maps to ground media assets into prompt subjects.
+
+#### Incident Grounding & Failure Mode
+
+In job `b463831e-ac6f-4a40-a2b2-0ebde2527c92` (`hailuo_v3_reference_to_video`), `userInput.media` carried `primary` (Gary Player reference image) and `enhancer_context` (Scene 7 anchor) with `slotTags` (`@asset1`, `@scene1`), but:
+1. The prompt text contained plain descriptive prose (`"Gary Player (white athletic golfer in signature all-black polo)..."`) with **zero** `@` mention tokens.
+2. `mentionMap` was missing from `userInput`.
+3. Consequently, the prompt materializer and provider compiler could not map `@asset1` to Hailuo's required `"Image 1"` token in `providerRequest.prompt`. The video model received `reference_image_urls` but an ungrounded prompt, causing the model to guess identity and waste generation credits.
+
+The same failure mode applies across all other models: without prompt `@` mentions and paired mention maps, models receive detached reference images without semantic binding to the prompt text.
+
+#### Mandatory Invariants
+
+1. **Prompts MUST ALWAYS contain `@` mentions for all active assets/references** (e.g. `@asset1`, `@tony`, `@scene1`). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`) must be embedded in the prompt string where the subject acts. Plain descriptive prose without `@` tokens will fail grounding across all models.
+2. **Paired `slotTags` AND `mentionMap` are MANDATORY**: Whenever media references/assets are provided, `userInput` must always include both `slotTags` (`{ [assetKey]: "@tag" }`) and `mentionMap` (`{ "@tag": "Human Label / Description" }`).
+
+#### Model-Specific Mention Token Grammars
+
+Different model compilers transform `@tag` tokens into proprietary provider prompt syntaxes:
+
+| Model / Family | Wire Compiler Output | Token Grammar & Behavior |
+|----------------|----------------------|--------------------------|
+| **Hailuo** (`hailuo_v3_reference_to_video`, `hailuo_v3_text_to_video`) | `Image 1`, `Image 2` | Requires discrete `Image N` tokens in `providerRequest.prompt` matching the order in `reference_image_urls`. If prompt omits `@asset1`, compiler cannot inject `Image 1` and identity anchoring fails completely. |
+| **Kling** (`kling_o3_reference_to_video`, `kling_multi_image_to_video`, `kling_2_6_pro`) | `@Image1`, `@Element1` | Binds elements sequentially. Requires explicit `@Image1` / `@Element1` in prompt to steer facial identity and motion. |
+| **Seedance** (`seedance_image_to_video_v2`, `seedance_video_prior_i2v`) | `@tag` / slot references | Binds `@tag` tokens to image slots directly or maps them to subject descriptions. |
+| **Gemini Multi-Panel** (Storyboard & keyframe grids) | Panel indexing (`Panel 1`, `Image 1`) | Maps reference assets and character looks across distinct grid panels. |
+| **Veo / Sora / Wan / LTX** (`veo_3_1`, `sora_2`, `wan_i2v`, `ltx_2_3_quality_image_to_video`) | Subject grounding / inline expansion | Resolves `@tag` via `mentionMap` and `slotReferences` to inject precise visual descriptors and frame anchor references directly into the subject clauses. |
+
+#### Rules for Mention Construction
 
 - **`production-*` use cases derive the maps for you** from the shot's related elements; anything you pass overrides the derived value.
 - **No other use case derives anything.** Send `slotTags` + `mentionMap` yourself or multi-reference binding silently does not happen.
@@ -209,6 +239,49 @@ Sending two character images does not say which is which. `@tag` tokens in the p
 - `@scene`, `@shot`, `@style`, `@pose` prefixes are bookkeeping, not bindable subjects.
 
 Put per-character staging inline next to the mention — `@tony (MC, three-quarter-left, seated cross-legged, on BED)`. Structured staging fields get flattened on the way to the model; the mention token survives with its position intact.
+
+#### Preflight Gating Checklist (Step 06)
+
+Before calling `studio_submit_studio_job` for any billable generation:
+- [ ] **Asset Coverage**: Every asset URL in `input.media` has a corresponding entry in `slotTags`.
+- [ ] **Paired Maps**: `mentionMap` contains human labels for all tags declared in `slotTags`.
+- [ ] **Prompt `@` Embedding**: The `prompt` string explicitly embeds every `@tag` (e.g. `@asset1`, `@scene1`) in the active sentence/action description.
+- [ ] **No Ungrounded Prose**: Reject prompts containing descriptive character names without matching `@` tokens when `input.media` references are present.
+
+#### Correct Payload Example
+
+```json
+studio_submit_studio_job({
+  jobType: "video",
+  model: "hailuo_v3_reference_to_video",
+  useCaseId: "production-generate-video",
+  prompt: "@asset1 (Gary Player in signature all-black polo) takes a confident backswing on the tee box under @scene1 (Scene 7 wide fairway lighting), camera slowly dollys in.",
+  slotTags: {
+    "elem_gary_player_01": "@asset1",
+    "elem_scene_7_anchor": "@scene1"
+  },
+  mentionMap: {
+    "@asset1": "Gary Player",
+    "@scene1": "Scene 7 Fairway Anchor"
+  },
+  input: {
+    media: {
+      primary: { url: "https://studio.mixio.pro/api/media/file/gary_player.png" },
+      enhancer_context: { url: "https://studio.mixio.pro/api/media/file/scene7_anchor.png" }
+    },
+    parameters: {
+      duration: "5",
+      aspect_ratio: "16:9"
+    }
+  },
+  context: {
+    projectId: "proj_987654",
+    episodeId: "ep_123456",
+    sceneId: "scene_07",
+    shotId: "shot_7_1"
+  }
+})
+```
 
 ## 7. Look bindings — declaring which variant to render
 

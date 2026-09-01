@@ -1,7 +1,7 @@
 ---
 name: mixio-sheets
 description: "Build the reference layer an episode is generated against — character turnaround sheets, location sheets, prop sheets, and one wide anchor frame per scene — and persist them as Cast & World references so every shot inherits the same look. Not raw Cast & World CRUD (mixio-references) or auditing references that already exist (mixio-reference-audit). Unclear which step you need → mixio-pipeline."
-version: 0.2.0
+version: 0.3.0
 invoke: /mixio:sheets
 ---
 
@@ -115,12 +115,15 @@ The three voice fields are structured, not strings: `voiceProfile` takes `{ prov
 
 ### Mint the mention tag with the sheet
 
-The name you give a reference here becomes its `@tag` at generation time — `Tony` resolves `@tony`, a look variant resolves `@tony.casual`. That token is what binds this sheet's image to this character in a multi-reference prompt; without it the model receives several faces and guesses. See `mixio-generate` for the binding rules.
+The name you give a reference here becomes its `@tag` at generation time — `Tony` resolves `@tony`, a look variant resolves `@tony.casual`. That token is what binds this sheet's image to this character in a multi-reference prompt; without it the model receives several faces and guesses (see incident `b463831e-ac6f-4a40-a2b2-0ebde2527c92` in `mixio-generate`).
+
+**Mandatory Invariant (Universal across all generations & models)**: Prompts MUST ALWAYS contain `@` mentions for all active assets/references (e.g. `@asset1`, `@tony`, `@scene1`). Any asset passed via `media` (`primary`, `character_ref`, `location_ref`, `enhancer_context`) must be embedded in the prompt string where the subject acts across all image and video models.
 
 So decide the tag **once, here**, and record it in pipeline state next to the reference id, so the breakdown, the audit and the generation step all emit the same vocabulary. Two rules that save a re-render:
 
 - Keep the reference name short and unambiguous. `Tony` is a good tag; `Tony Russo (protagonist, ep1)` slugifies into something nobody will type consistently.
 - Do not name two references so they collapse to the same slug. `TONY'S APARTMENT` and `Tonys Apartment` are one tag, and whichever image loses the race silently stops binding.
+- Pair every tag in `slotTags` with an entry in `mentionMap` (`{ "@tony": "Tony Russo" }`) when submitting generation payloads.
 
 **Do not put per-shot state here.** Hair state, condition/damage, and carried props are properties of an *appearance*, not of the character, and belong on the `appears_in` relation's `appearanceState` — see `mixio-script-breakdown`. A soaked-hair value on the character is one global truth that is only correct in a few shots.
 
@@ -251,6 +254,28 @@ studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
 `anchorRef` (plus `anchorRefs` for extras, max 50) is a canonical scene key, and generation merges it into every job prepared for a shot in that scene. That replaces attaching the anchor by hand per shot. Anchors dedupe by slot reference id so an explicit per-shot choice still wins, and an anchor whose media can't be read is skipped rather than guessed at.
 
 Also record it in `metadata.pipeline.anchors` if you want a resumable index — but `anchorRef` is what actually drives generation. Do **not** write `anchor_ref`: it isn't rejected — it lands in passthrough as inert prompt noise instead of attaching the anchor, and nothing signals that it never took effect. Write `anchorRef`.
+
+### Anchor prompt binding & mention tagging
+
+When an anchor frame is passed in `input.media` (for instance as `enhancer_context` or `location_ref`), the generation prompt MUST explicitly bind it using its `@` mention tag (e.g. `@scene1` or `@anchor1`) alongside character tags (`@tony`, `@asset1`).
+
+Pair the anchor asset in `slotTags` and `mentionMap`:
+```json
+{
+  "slotTags": {
+    "elem_anchor_scene_1": "@scene1",
+    "elem_tony_ref": "@char1"
+  },
+  "mentionMap": {
+    "@scene1": "Scene 1 Apartment Anchor",
+    "@char1": "Tony"
+  }
+}
+```
+And embed in the prompt:
+`"@char1 sits at the edge of the bed under @scene1 lighting and layout, looking up toward the doorway."`
+
+Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, provider compilers cannot map the anchor to model tokens (`Image 2`, `@Element1`), causing the model to ignore the spatial truth and invent arbitrary room geometry.
 
 ## Workflow
 
