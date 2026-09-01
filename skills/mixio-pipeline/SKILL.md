@@ -54,10 +54,10 @@ answer is one character. Never let one default silently.
 
 | # | Confirm | Source of the legal values |
 |---|---------|----------------------------|
-| 1 | **Image model** — the keyframe model for every `production-*` keyframe use case | The five those use cases support: `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite` (`mixio-generate` §3) |
+| 1 | **Image model** — the keyframe model for every `production-*` keyframe use case | The six `production-generate-shot-keyframes` supports: `gemini-3.1-flash-lite-image`, `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite`. Re-read `supportedModels` rather than trusting this list — the catalog grows |
 | 2 | **Video model** — what Step 06 spends on | `supportedModels` from `studio_list_use_cases` for `production-generate-video`; quote credits from `mixio-generate/references/model-comparison.md` **before** the user picks |
 | 3 | **Aspect ratios** — delivery + anchor (see §2 below) | `aspect_ratio` enum from `studio_get_use_case_input_schema({ useCaseId, modelId })` for the chosen pairs — there is no global list |
-| 4 | **Resolution** — per output type | Same schema read. `resolution` is per (use case × model) too; do not assume `1080p` is offered |
+| 4 | **Resolution** — per output type and per video use case | Same schema read, and **many models expose no `resolution` parameter at all** (`gemini_omni_multishot` and `seedream_5_pro` have none; `veo_3_1` has one defaulting to `720p`). Confirm the parameter exists before locking a value for it |
 | 5 | **Visual style / tone** — style, mood, cinematography, default style prompt | The user. This is direction, not a catalog value |
 | 6 | **Reference policy** — `createPolicy`, `variantPolicy`, `variantVocabulary` | Closed sets: `allow` · `link_only` · `propose`, and `open` · `closed` (`mixio-references`) |
 
@@ -99,7 +99,11 @@ studio_update_project({ projectId, updates: { settings: {
       "production-generate-video": "gemini_omni_multishot"
     },
     defaultAspectRatioByOutputType: { IMAGE: "16:9", VIDEO: "9:16" },
-    defaultResolutionByOutputType: { VIDEO: "1080p" }
+    defaultResolutionByOutputType: { IMAGE: "2k" },
+    defaultParametersByUseCase: {
+      ...settings?.generation?.defaultParametersByUseCase,
+      "production-generate-video": { resolution: "720p" }
+    }
   },
   studio: {
     ...settings?.studio,
@@ -118,8 +122,12 @@ studio_update_project({ projectId, updates: { settings: {
 }}})
 ```
 
-`defaultAspectRatioByOutputType` and `defaultResolutionByOutputType` are keyed by output type
-(`IMAGE`, `VIDEO`, `STUDIO`, `AUDIO`), `defaultModelByUseCase` by use case id — set the video
+`defaultAspectRatioByOutputType` is keyed by output type (`IMAGE`, `VIDEO`) and
+`defaultModelByUseCase` by use case id. **Resolution splits across two keys in practice**:
+configured projects set `defaultResolutionByOutputType` for `IMAGE` only, in image vocabulary
+(`1k`, `2k`), and carry video resolution as `defaultParametersByUseCase[useCaseId].resolution`
+in model vocabulary (`720p`, `768P`). Writing `defaultResolutionByOutputType: { VIDEO: ... }` is
+inert on a model that has no `resolution` parameter. Set the video
 model in both `generation.defaultModelByUseCase` and `studio.preferredVideoModel`, since the two
 surfaces read different keys. `visualStyle`, `toneAndMood`, `cinematographyDirection` and
 `defaultStylePrompt` are the user's words, kept short enough to survive prompt assembly. The full
