@@ -1,7 +1,7 @@
 ---
 name: mixio-shot-planning
 description: "Classify each shot's generation method, match to the best model, validate duration and action density against model capabilities, and group into generation batches — the model-aware layer between continuity and video generation. Classification and batching only — submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
-version: 0.2.0
+version: 0.3.0
 invoke: /mixio:shot-planning
 ---
 
@@ -166,6 +166,21 @@ for each character_link / location_link / prop_link with a bound lookRef (shot o
 
 Pull bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. A resolved binding is worth carrying forward: record its `variantId`/`variantName` in the persisted plan (below) so Step 06 declares it directly on the media reference instead of re-resolving it (see `mixio-generate` §7; check `get_production_context` for a `lookBindings` key to confirm your Studio resolves it).
 
+### Prompt mention & mention map validation (Universal Invariant across all models & methods)
+
+Regardless of the model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX) or generation method (SINGLE, DUAL_FRAME, MULTI_KF, GRID, T2V), the prompt materializer and provider compilers require prompt text to contain explicit `@` mention tokens to map media references to model-specific tokens (`Image 1`, `@Image1`, `@tag`) or perform subject grounding. Failure to include `@` tokens or omitting `mentionMap` causes models to guess identity and waste generation credits (e.g. incident `b463831e-ac6f-4a40-a2b2-0ebde2527c92`):
+
+```
+for each shot with media references (primary, character_ref, location_ref, enhancer_context):
+    if prompt has NO '@' tokens (plain descriptive prose only):
+        FINDING: PROMPT_MENTIONS_MISSING — prompt describes subject but has 0 @ tags
+        → BLOCKING: embed @tag (e.g. @asset1, @tony, @scene1) where subject acts in prompt
+
+    if slotTags is defined but mentionMap is missing or incomplete:
+        FINDING: MENTION_MAP_UNPAIRED — slotTags declared without matching mentionMap
+        → BLOCKING: pair slotTags ({ assetKey: "@tag" }) with mentionMap ({ "@tag": "Label" })
+```
+
 ### Continuity handoff feasibility
 
 ```
@@ -196,11 +211,13 @@ Model assignments:
   seedance_text_to_video_pro: 1 shot  (t2v abstract)
 
 Feasibility findings:
-  ❌ DURATION_EXCEEDS_MODEL: Shot 9 (18s) > veo_3_1 max (8s) → split into 3 segments
-  ⚠️  ACTION_DENSITY_HIGH:   Shot 5 (4 actions in 3s) → extend to 5s or reduce actions
-  ⚠️  DIALOGUE_TOO_FAST:     Shot 11 (22 words in 4s) → extend to 6s
+  ❌ DURATION_EXCEEDS_MODEL:    Shot 9 (18s) > veo_3_1 max (8s) → split into 3 segments
+  ❌ PROMPT_MENTIONS_MISSING:   Shot 7 (Gary Player reference attached but 0 @ tags in prompt) → embed @asset1 and @scene1
+  ❌ MENTION_MAP_UNPAIRED:       Shot 7 (slotTags has @asset1 but mentionMap missing) → pair mentionMap
+  ⚠️  ACTION_DENSITY_HIGH:      Shot 5 (4 actions in 3s) → extend to 5s or reduce actions
+  ⚠️  DIALOGUE_TOO_FAST:        Shot 11 (22 words in 4s) → extend to 6s
 
-Blocking: 1 (must resolve)
+Blocking: 3 (must resolve)
 Advisory: 2 (recommend resolving)
 ```
 
@@ -354,8 +371,8 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 1. read corrected breakdown (Step 04) + project settings + live model catalog
 2. classify each shot's generation method (SINGLE / DUAL_FRAME / MULTI_KF / GRID / T2V)
 3. match each shot to best model based on characteristics
-4. run feasibility checks (duration, action density, dialogue, references, continuity)
-5. resolve blocking feasibility findings (split shots, adjust durations)
+4. run feasibility checks (duration, action density, dialogue, references, prompt @ mentions + paired mention maps, continuity)
+5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions & pair mentionMap)
 6. group into batches per model-specific constraints
 7. emit PRODUCTION SUMMARY with method/model/cost breakdown
 8. studio_revise_shot_specs → persist plan
