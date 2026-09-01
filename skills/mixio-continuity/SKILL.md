@@ -121,7 +121,7 @@ Clean shots: 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13.
 
 Name the clean shots explicitly. It tells the user what is locked, and it forces you to have actually considered every shot rather than only the ones with problems.
 
-## Pass 4 — Corrections
+## Pass 4 — Corrections & The Auto-Audit Loop
 
 A change log, then the full corrected shots. Never a diff fragment — emit the whole shot so what's persisted is unambiguous.
 
@@ -143,24 +143,26 @@ Rules:
 - **Fix the cause, not the symptom.** A prop that vanishes gets a put-down *action* added in the shot where it leaves her hand — not a note bolted onto the shot where its absence was noticed. Then check the sibling shots that carried the same wrong state; one fix at the source beats three patches downstream.
 - Preserve duration unless the fix genuinely needs more screen time — a changed duration re-batches the episode (Step 05).
 - Mark every corrected shot `(CORRECTED)`.
+- **The Self-Healing Loop (Ralph Loop):** Do not stop at writing a correction. Persist the fix and **immediately re-run Passes 1–3** on the corrected scene. Confirm the original break is cleared and verify that the edit did not introduce new breaks. Continue until **0 blocking continuity breaks** remain.
+- **Reference Remediation:** If a break is caused by `REF_MISSING`, `REF_NO_IMAGE`, or `STALE_LOOK_REF` (missing reference element or missing look variant), register/update the reference (`studio_register_reference_entities` / `studio_update_reference`), update `lookRef` on the relation, and re-run the check. Full procedure: `mixio-pipeline/references/pre-production-ralph-loop.md`.
 
 ## Persisting the result
 
 ```
-# content fixes
+# 1. Apply content fixes
 studio_revise_shot_specs({ shots: [{ shotId, metadata: { action, camera_movement, ... } }] })
 
-# per-character appearance facts the corrections established
+# 2. Update per-character appearance facts the corrections established
 studio_link_graph({ projectId, relations: [{
   fromId: characterId, toId: shotId, relationType: "appears_in",
   metadata: { carriedProps: ["TABLET"], continuityNotes: "phone put down in this shot [M2]" }
 }]})
 
-# verdict + audit trail
+# 3. Re-run audit to confirm 0 breaks, then record verdict + audit trail
 studio_update_shot_state({ shots: [
   { shotId: cleanId,     state: "approved" },
-  { shotId: correctedId, state: "in_review",
-    continuity: { pass: 4, issues: ["PROP — phone disappeared; put-down action added"] } }
+  { shotId: correctedId, state: "approved",
+    continuity: { pass: 4, issues: [], resolved: ["PROP — phone disappeared; put-down action added and verified"] } }
 ]})
 ```
 
@@ -168,27 +170,38 @@ studio_update_shot_state({ shots: [
 
 Prefer the relation write for facts about a *character in a shot* (they carry the tablet now) and `update_shot_state.continuity` for the *verdict* on the shot. Putting a per-character fact in the shot verdict loses which character it was about.
 
-Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, but only for a *recognized* canonical field holding a malformed value — an unrecognized key is never rejected. Use canonical keys anyway (`camera_movement`, not `Camera:`): a casing variant gets silently remapped onto the canonical key, and a cross-spec key still writes to passthrough with only a console warning, not an error — so a typo doesn't fail the write, it just fails to mean anything, and that failure is silent. See `mixio-script-breakdown` for the full mapping. Then close the step:
+Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, but only for a *recognized* canonical field holding a malformed value — an unrecognized key is never rejected. Use canonical keys anyway (`camera_movement`, not `Camera:`): a casing variant gets silently remapped onto the canonical key, and a cross-spec key still writes to passthrough with only a console warning, not an error — so a typo doesn't fail the write, it just fails to mean anything, and that failure is silent. See `mixio-script-breakdown` for the full mapping.
+
+When the Ralph loop converges (0 blocking continuity breaks and 0 blocking reference errors), close the step:
 
 ```
-studio_update_episode({ episodeId, updates: { metadata: { pipeline: { step_04: "complete" } } } })
+studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+  step_04: "complete",
+  pre_production_loop: {
+    status: "converged",
+    continuity_audit: { breaks_auto_corrected: 2, remaining_breaks: 0 }
+  }
+} } } })
 ```
 
-`Step 04 — Continuity Audit complete. Corrected breakdown locked.`
+`Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked.`
 
 ## Workflow
 
 ```
 1. read breakdown + anchors; declare GROUNDED or TEXT-ONLY
 2. Pass 1 — blocking map, every shot × every character
-3. Pass 2 — the 10 checks, each traced, each closing FINDING or ✅
+3. Pass 2 — the 11 checks, each traced, each closing FINDING or ✅
 4. Pass 3 — counts + one line per issue + clean shot list
 5. Pass 4 — change log + full corrected shots
-6. studio_revise_shot_specs → studio_update_shot_state → GATE → Step 05 Shot Planning
+6. studio_revise_shot_specs + studio_link_graph
+7. ↺ Auto-Audit Loop: re-run Passes 1–3 until 0 breaks remain
+8. studio_update_shot_state({ state: "approved" }) → GATE → Step 05 Shot Planning
 ```
 
 ## Notes
 
 - Audit one scene at a time, then roll up to an episode total. Cross-scene checks are limited to props and wardrobe carried between scenes.
 - Zero findings on a real 13-shot scene usually means the checks were run loosely. The vague-field check alone almost always catches something.
+- The Pre-Production Token Ralph Loop auto-corrects shot specs and re-verifies them autonomously before requesting user sign-off. Do not stop at finding an error when an automated shot spec revision can resolve it and re-verify cleanly.
 - Re-run the audit after any Step 03 edit. It is text-only, so re-running is free; assuming a stale audit still holds is not.
