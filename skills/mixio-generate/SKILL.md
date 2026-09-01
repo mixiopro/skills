@@ -201,7 +201,7 @@ Slot ids come from the schema, not from memory. Common ones: `primary`, `endFram
 | `mentionMap` | `{ "@tag": "Human Label" }` | Binds that tag to a subject. **Both maps are required** for a tag to bind |
 | `input.media` | `{ <slot>: { url } }` | Raw URLs, no provenance. The server derives slot references and mention tags from it automatically |
 
-### Mentions — binding an image to a subject (Universal across all models)
+### Mentions — binding an image to a subject
 
 Sending two character images does not say which is which. `@tag` tokens in the prompt do, rewritten at dispatch into each provider's own syntax (`@Image1`/`@Element1` Kling, `<Picture 1>`/`<Video 1>`/`<Audio 1>` for Hailuo reference-to-video, or subject-grounded prompts in Veo/Sora/Wan). Substitution is in place, so the tag binds wherever it sits in the sentence.
 
@@ -214,11 +214,9 @@ In job `b463831e-ac6f-4a40-a2b2-0ebde2527c92` (`hailuo_v3_reference_to_video`), 
 2. `mentionMap` was missing from `userInput`.
 3. Consequently, the prompt materializer and provider compiler could not map `@asset1` to Hailuo's required `<Picture 1>` token in `providerRequest.prompt`. The video model received `reference_image_urls` but an ungrounded prompt, causing the model to guess identity and waste generation credits.
 
-The same failure mode applies across all other models: without prompt `@` mentions and paired mention maps, models receive detached reference images without semantic binding to the prompt text.
-
 #### Mandatory Invariants
 
-1. **Prompts MUST ALWAYS contain `@` mentions for all active assets/references** (e.g. `@asset1`, `@tony`, `@scene1`). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`) must be embedded in the prompt string where the subject acts. Plain descriptive prose without `@` tokens will fail grounding across all models.
+1. **Prompts MUST ALWAYS contain `@` mentions for all active assets/references** (e.g. `@asset1`, `@tony`, `@scene1`). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`) must be embedded in the prompt string where the subject acts. Plain descriptive prose without `@` tokens will fail grounding.
 2. **Paired `slotTags` AND `mentionMap` are MANDATORY**: Whenever media references/assets are provided, `userInput` must always include both `slotTags` (`{ [assetKey]: "@tag" }`) and `mentionMap` (`{ "@tag": "Human Label / Description" }`).
 
 If a provider genuinely requires an active reference to remain unmentioned, recover with the semantic-only, reasoned bypass. It does not waive media, authorization, or other request validation:
@@ -242,7 +240,6 @@ Different model compilers transform `@tag` tokens into proprietary provider prom
 | **Kling** (`kling_o3_reference_to_video`, `kling_multi_image_to_video`, `kling_2_6_pro`) | `@Image1`, `@Element1` | Binds elements sequentially. Requires explicit `@Image1` / `@Element1` in prompt to steer facial identity and motion. |
 | **Seedance** (`seedance_image_to_video_v2`, `seedance_video_prior_i2v`) | `@tag` / slot references | Binds `@tag` tokens to image slots directly or maps them to subject descriptions. |
 | **Gemini Multi-Panel** (Storyboard & keyframe grids) | Panel indexing (`Panel 1`, `Image 1`) | Maps reference assets and character looks across distinct grid panels. |
-| **Veo / Sora / Wan / LTX** (`veo_3_1`, `sora_2`, `wan_i2v`, `ltx_2_3_quality_image_to_video`) | Subject grounding / inline expansion | Resolves `@tag` via `mentionMap` and `slotReferences` to inject precise visual descriptors and frame anchor references directly into the subject clauses. |
 
 #### Rules for Mention Construction
 
