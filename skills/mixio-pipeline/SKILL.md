@@ -27,7 +27,7 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 
 | # | Step | Owned by | Output locked into |
 |---|------|----------|--------------------|
-| 00 | **Lock frame contract** | this skill | `studio_update_episode({ metadata.pipeline })` |
+| 00 | **Preflight & Settings Lock** | this skill | `studio_update_project({ updates.settings })` + `studio_update_episode({ metadata.pipeline })` |
 | 01 | **Detailed Screenplay** | this skill | `studio_upsert_screenplay({ projectId, episodeId, body })` (+ `studio_update_episode({ updates: { summary } })` for the logline) |
 | 02 | **Anchor Frames** | `mixio-sheets` | CHARACTER/LOCATION refs + one anchor KEYFRAME per scene |
 | 02.5 | **Reference Audit** | `mixio-reference-audit` | episode `metadata.pipeline.reference_audit` |
@@ -38,22 +38,114 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 
 **Gate rule: never start step N+1 until step N is confirmed by the user.** Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete. Corrected breakdown locked. Moving to Step 05.` A step that silently rolls into the next one is how a 40-shot episode gets generated against a stale breakdown.
 
-## Step 00 — lock the frame contract first
+## Step 00 — Full Project Preflight & Settings Locking
 
-Before Step 01, settle two values and never re-derive them:
+Everything downstream reads project settings. If Step 00 doesn't set them, Step 06 doesn't
+fail — it inherits. `production-generate-shot-keyframes` renders at `aspect_ratio: '16:9'`
+on `gpt_image_2` because that is the production default, not because anyone chose it
+(`mixio-generate` §4). Model spread is roughly 70× on credits, so a model nobody picked is a
+cost decision nobody made. Settle the contract here, write it to the project, and gate
+Step 01 on the user confirming it.
+
+### 1. Confirm the contract — options in the same message as the question
+
+Six confirmations, presented the same way scope is: with the real options enumerated, so the
+answer is one character. Never let one default silently.
+
+| # | Confirm | Source of the legal values |
+|---|---------|----------------------------|
+| 1 | **Image model** — the keyframe model for every `production-*` keyframe use case | The five those use cases support: `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite` (`mixio-generate` §3) |
+| 2 | **Video model** — what Step 06 spends on | `supportedModels` from `studio_list_use_cases` for `production-generate-video`; quote credits from `mixio-generate/references/model-comparison.md` **before** the user picks |
+| 3 | **Aspect ratios** — delivery + anchor (see §2 below) | `aspect_ratio` enum from `studio_get_use_case_input_schema({ useCaseId, modelId })` for the chosen pairs — there is no global list |
+| 4 | **Resolution** — per output type | Same schema read. `resolution` is per (use case × model) too; do not assume `1080p` is offered |
+| 5 | **Visual style / tone** — style, mood, cinematography, default style prompt | The user. This is direction, not a catalog value |
+| 6 | **Reference policy** — `createPolicy`, `variantPolicy`, `variantVocabulary` | Closed sets: `allow` · `link_only` · `propose`, and `open` · `closed` (`mixio-references`) |
+
+Read the project first with `studio_get_project` and show what is *already* set — a configured
+project needs a diff confirmed, not a fresh interrogation. On a project whose settings are
+already correct, say so and move on; Step 00 is a checkpoint, not a form.
+
+The reference policy is the one the user is least likely to have an opinion about and the one
+that most changes agent behaviour: `link_only` forbids Step 02 and Step 03 from creating
+references at all, and `closed` constrains every variant name to `variantVocabulary`. Ask for
+it explicitly rather than inheriting the permissive defaults (`allow`, `open`, `{}`) by omission.
+
+### 2. The frame contract
+
+Two ratios, never re-derived after this step:
 
 - `aspect_ratio` — the **delivery** ratio (`9:16` vertical for microdrama, `16:9` for landscape).
 - `anchor_aspect_ratio` — the ratio for **anchor frames only**, deliberately wider than delivery (`16:9` when delivering `9:16`).
 
 Anchors are rendered wide on purpose: a wide master of the set gives every downstream shot a shared spatial truth to crop into, so left/right and near/far stay consistent between a wide and a close-up. Delivery shots then render at `aspect_ratio`.
 
-Persist both on the episode so a resumed session doesn't guess:
+### 3. Write the settings — read-modify-write, always
+
+`studio_update_project`'s `updates.settings` is an opaque object that **replaces** the whole
+settings blob; it is not a merge, and the tool schema does not validate the keys inside it. Send
+a partial and you silently drop every other setting on the project — including the reference
+policy someone configured in Studio. Fetch, merge, send back whole:
+
+```
+const { settings } = await studio_get_project({ projectId })
+
+studio_update_project({ projectId, updates: { settings: {
+  ...settings,
+  generation: {
+    ...settings?.generation,
+    defaultModelByUseCase: {
+      ...settings?.generation?.defaultModelByUseCase,
+      "production-generate-shot-keyframes": "seedream_5_pro",
+      "production-generate-video": "gemini_omni_multishot"
+    },
+    defaultAspectRatioByOutputType: { IMAGE: "16:9", VIDEO: "9:16" },
+    defaultResolutionByOutputType: { VIDEO: "1080p" }
+  },
+  studio: {
+    ...settings?.studio,
+    preferredVideoModel: "gemini_omni_multishot",
+    visualStyle: "grounded neo-noir, 35mm grain",
+    toneAndMood: "tense, intimate, cold-blue nights",
+    cinematographyDirection: "handheld coverage, shallow depth, practical sources only",
+    defaultStylePrompt: "35mm film grain, cold blue night practicals, shallow depth of field"
+  },
+  references: {
+    ...settings?.references,
+    createPolicy: "propose",
+    variantPolicy: "closed",
+    variantVocabulary: { CHARACTER: ["casual", "formal", "bloodied"], LOCATION: ["day", "night"], PROP: ["clean", "damaged"] }
+  }
+}}})
+```
+
+`defaultAspectRatioByOutputType` and `defaultResolutionByOutputType` are keyed by output type
+(`IMAGE`, `VIDEO`, `STUDIO`, `AUDIO`), `defaultModelByUseCase` by use case id — set the video
+model in both `generation.defaultModelByUseCase` and `studio.preferredVideoModel`, since the two
+surfaces read different keys. `visualStyle`, `toneAndMood`, `cinematographyDirection` and
+`defaultStylePrompt` are the user's words, kept short enough to survive prompt assembly. The full
+key list for `settings.generation` and `settings.studio` lives in `mixio-generate`; the
+`settings.references` contract and its defaults live in `mixio-references`.
+
+Then **read it back** with `studio_get_project` and show the resolved settings. Nothing rejects a
+misplaced key, so a typo persists as passthrough and is only visible on the read.
+
+### 4. Persist the frame contract on the episode
+
+Settings are project-scoped and outlive the episode; the frame contract is per-episode:
 
 ```
 studio_update_episode({ episodeId, updates: { metadata: {
-  pipeline: { aspect_ratio: "9:16", anchor_aspect_ratio: "16:9" }
+  pipeline: { aspect_ratio: "9:16", anchor_aspect_ratio: "16:9", step_00: "complete" }
 }}})
 ```
+
+### Gate
+
+**Step 01 does not start until Step 00 is confirmed.** Announce the close with the resolved
+values, not just the word complete — `Step 00 — Preflight complete. seedream_5_pro / gemini_omni_multishot,
+delivery 9:16, anchors 16:9, 1080p, references propose+closed. Moving to Step 01.` If the user later
+changes a model or a ratio, that is a re-entry into Step 00 and it invalidates anchors rendered
+at the old ratio — say so rather than quietly re-rendering one scene.
 
 ## Step 01 — Detailed Screenplay
 
@@ -143,7 +235,7 @@ Mixio has no dedicated shared-memory store, so pipeline state lives in existing 
 ```
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   aspect_ratio, anchor_aspect_ratio,
-  step_01: "complete", step_02: "complete", step_02_5: "complete",
+  step_00: "complete", step_01: "complete", step_02: "complete", step_02_5: "complete",
   step_03: "in_progress", step_04: "not_started",
   step_05: "not_started", step_06: "not_started",
   anchors: { "1": "<keyframe-element-id>" },
@@ -153,6 +245,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 
 | Pipeline state | Where it lives in Mixio |
 |---|---|
+| Locked models, resolution, style, reference policy | project `settings.generation` / `settings.studio` / `settings.references` |
 | Source (screenplay, synopsis, aspect ratios) | SCREENPLAY `body` (or episode `script` only as fallback), episode `summary`, `metadata.pipeline` |
 | Locations | LOCATION references + `locationDetails` (`mixio-references`) |
 | Reference audit results | episode `metadata.pipeline.reference_audit` |
@@ -161,12 +254,12 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 | Shot plan (method/model/batch) | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | Rendered assets and video | KEYFRAME / VIDEO elements + `upload_file` URLs |
 
-On resume, read `studio_get_episode` (cheap) for pipeline state, then query the episode's `SCREENPLAY` element (`studio_query_elements` with `type: "SCREENPLAY"` and `tags: { episodeId }`) before reusing source text. Do not substitute a stale `fullScript` when a non-empty screenplay body exists; avoid `studio_get_production_context` until its graph detail is actually needed.
+On resume, read `studio_get_project` for the locked settings and `studio_get_episode` (cheap) for pipeline state, then query the episode's `SCREENPLAY` element (`studio_query_elements` with `type: "SCREENPLAY"` and `tags: { episodeId }`) before reusing source text. Do not substitute a stale `fullScript` when a non-empty screenplay body exists; avoid `studio_get_production_context` until its graph detail is actually needed.
 
 ## Workflow
 
 ```
-00. studio_update_episode(metadata.pipeline)      → lock aspect_ratio + anchor_aspect_ratio
+00. studio_get_project → studio_update_project(settings) → studio_update_episode(metadata.pipeline) → GATE
 01. screenplay → studio_upsert_screenplay({ body }) → GATE: user confirms (draft; user approves in Studio)
 02. /mixio:sheets                                  → character + location sheets, anchor per scene → GATE
 02.5 /mixio:reference-audit                        → completeness, consistency, duplicates, metadata → GATE
