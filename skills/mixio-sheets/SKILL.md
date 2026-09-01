@@ -1,7 +1,7 @@
 ---
 name: mixio-sheets
 description: "Build the reference layer an episode is generated against — character turnaround sheets, location sheets, prop sheets, and one wide anchor frame per scene — and persist them as Cast & World references so every shot inherits the same look. Not raw Cast & World CRUD (mixio-references) or auditing references that already exist (mixio-reference-audit). Unclear which step you need → mixio-pipeline."
-version: 0.3.0
+version: 0.3.1
 invoke: /mixio:sheets
 ---
 
@@ -298,5 +298,5 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
 
 - Sheets are the cheapest place to fix a look. Re-rendering one sheet is one job; re-rendering the 12 shots that referenced a wrong sheet is twelve.
 - Wrong images already attached? Fix with `referenceVariants` (replaces), not `attachments` (merges) — and never with `thumbnailUrl`, which only changes the card preview. See `mixio-references`.
-- External URLs (Drive, etc.) frequently fail through `studio_upload_media_from_url`. Download locally, then `upload_file`.
+- External URLs (Drive, Dropbox, third-party CDNs) frequently fail through `studio_upload_media_from_url` with `No files were uploaded`. Always use the standardized 3-step download fallback: `curl -sL "<url>" -o /tmp/<file>` → `upload_file({ path: "/tmp/<file>", project_id, organization_id })` → update reference/slots → `rm /tmp/<file>`. See `mixio-references` and `mixio-workspace`.
 - Set `workflow.status` honestly (`draft` → `in_review` → `approved`). Downstream steps should treat a non-approved sheet as provisional.

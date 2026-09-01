@@ -1,7 +1,7 @@
 ---
 name: mixio-workspace
 description: "Manage media workspaces in Mixio Studio — upload files, get public URLs, organize projects, and manage cached media assets."
-version: 0.1.0
+version: 0.2.0
 invoke: /mixio:workspace
 ---
 
@@ -74,6 +74,18 @@ No params. Drops every cached mapping (does not delete remote media). Returns `{
 1. For each file in directory:
      upload_file({ path, project_id, organization_id })
 2. list_cached_files() to verify all uploaded
+```
+
+### Ingest external media URLs (Google Drive, CDNs, third-party hosts)
+
+`studio_upload_media_from_url` often fails on external URLs (Google Drive, third-party CDNs) with `No files were uploaded` due to server-side SSRF or network policy restrictions. Always use the standardized 3-step download fallback:
+
+```
+1. curl -sL "<external_url>" -o /tmp/asset.png
+2. upload_file({ path: "/tmp/asset.png", project_id, organization_id })
+   → { ok: true, entry: { publicUrl: "https://studio.mixio.pro/api/media/file/..." } }
+3. Pass entry.publicUrl to studio_update_reference or generation media slots
+4. rm /tmp/asset.png (clean up local temp file)
 ```
 
 ### Re-upload after edits

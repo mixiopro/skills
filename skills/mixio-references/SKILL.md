@@ -1,7 +1,7 @@
 ---
 name: mixio-references
 description: "Manage a Mixio Studio project's Cast & World roster — characters, locations, and props, including reference images (Looks) and structured details used for generation consistency."
-version: 0.2.0
+version: 0.3.0
 invoke: /mixio:references
 ---
 
@@ -149,13 +149,17 @@ Use this to **get real reference-image URLs** before calling `studio_submit_stud
 
 ## Getting images onto a reference — the reliable path
 
-**Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. The pattern that actually works:
+**Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. The standardized 3-step download fallback that actually works:
 
 ```
-1. curl <external-url> -o /tmp/asset.png              → local file
-2. upload_file({ path: "/tmp/asset.png" })             → { entry: { url / publicUrl } }  (see mixio-workspace)
+1. curl -sL "<external-url>" -o /tmp/asset.png
+2. upload_file({ path: "/tmp/asset.png", project_id, organization_id })
+   → { entry: { url / publicUrl } }  (see mixio-workspace)
 3. studio_update_reference({ referenceId, attachments: [{ url: entry.publicUrl, ... }] })
+4. rm /tmp/asset.png (clean up local temp file)
 ```
+
+Pass `project_id` and `organization_id` on `upload_file` so the asset is properly scoped to your production rather than orphaned (`projectId: null`). Always delete temporary `/tmp` files once the upload completes.
 
 `studio_upload_media_from_url` may still work for URLs already on trusted/reachable domains — try it first for a single asset, but don't build a batch workflow around it without a local-download fallback.
 
