@@ -24,7 +24,7 @@ Vocabulary: `mixio-pipeline/references/shot-grammar.md`.
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- A locked script (Step 01) — the cast and location lists come from its sluglines and CAPS tokens
+- A script from Step 01 — the cast and location lists come from its sluglines and CAPS tokens. It need not be locked: Step 01 loops back through this skill for every mention it could not resolve (`mixio-pipeline/references/screenplay-reference-loop.md`), so being called mid-draft against a partial cast list is normal, not a sign the previous step was skipped
 - `aspect_ratio` and `anchor_aspect_ratio` locked on the episode
 
 ## MCP tools used
@@ -306,6 +306,7 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
 ## Notes
 
 - Sheets are the cheapest place to fix a look. Re-rendering one sheet is one job; re-rendering the 12 shots that referenced a wrong sheet is twelve.
+- A sheet rendered to satisfy an unresolved screenplay mention isn't finished when the image is attached — the new look's exact `mentionableLooks` token has to go back into the screenplay body and be re-upserted, or the mention that triggered the render still resolves to nothing. Hand the token back to Step 01; see `mixio-pipeline/references/screenplay-reference-loop.md`.
 - Wrong images already attached? Fix with `referenceVariants` (replaces), not `attachments` (merges) — and never with `thumbnailUrl`, which only changes the card preview. See `mixio-references`.
 - External URLs (Drive, Dropbox, third-party CDNs) frequently fail through `studio_upload_media_from_url` with `No files were uploaded`. Use the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts), then `upload_file({ path: asset_path, project_id, organization_id })` and update the reference/slot with `entry.publicUrl`.
 - Set `workflow.status` honestly (`draft` → `in_review` → `approved`). Downstream steps should treat a non-approved sheet as provisional.

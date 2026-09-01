@@ -111,6 +111,21 @@ For explicit director intent that must override inference, place a standalone `[
 
 Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not** `studio_update_episode({ projectId, episodeId, updates: { script } })`. A screenplay is its own per-episode element and a non-empty body—draft included—wins over raw Idea/Story `script`/`fullScript` in Step 03. `upsert_screenplay` is idempotent and always writes a draft; Studio's human Screenplay view performs approval separately. Persist only the logline with `studio_update_episode({ projectId, episodeId, updates: { summary } })` when needed.
 
+### Step 01 does not close on the first upsert
+
+That first write is the start of a loop with Step 02, not the end of Step 01. A `#` token that resolves to nothing fails soft — it stays literal text, the screenplay saves, breakdown proceeds, and nothing binds a reference. `upsert_screenplay` returns `{ elementId, version, deduped }` and no mention diagnostics, so a body where every token missed writes exactly like one where every token landed.
+
+So loop: **draft → extract → resolve → propose → register/render → re-mention → re-upsert**, until zero character and location tokens are unmapped.
+
+- **Asset-Ready draft** (already carries `#name.variant`) — harvest the distinct tokens and resolve them. A confidently-written token is not a resolved one.
+- **Raw idea or prose** (no tokens) — discover characters from cues, locations from sluglines, story props from CAPS, and candidate looks from described state changes. Propose them; write nothing yet.
+
+Resolve each distinct token with `studio_resolve_mention({ projectId, mention })`. It never throws for a miss — it returns `{ resolved: false, reason }`, and the reason separates the two cases that must not be confused: `no element named "…"` means create a reference, while `no look named "wet_look" on element "Maya"` means add a **variant to Maya**. Minting a second `Maya` for `#maya.wet_look` is the failure this loop exists to prevent. Flag it and ask — offering a generated variant, a supplied image, or (often the right answer) dropping the mention and carrying "soaked" as per-shot `appearanceState` at Step 03.
+
+New references get registered with `studio_register_reference_entities` and dressed with `studio_update_reference` — but registering a name does **not** make it mentionable: `mentionableLooks` derives from variants, so a reference with no image still has no token. That is why the loop runs through Step 02 rather than before it. Re-list references after every write, copy the exact new tokens back into the body, and re-upsert.
+
+Full procedure — the five passes, the `reason`-string diagnosis table, the ask format, the policy gate and the exit tally: `references/screenplay-reference-loop.md`.
+
 ## Step 02 — Anchor Frames
 
 → `mixio-sheets`, after the user confirms this image-work step. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** with an explicit `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in screenplay text alone — flag them, don't silently invent geography.
@@ -239,6 +254,8 @@ exists; avoid `studio_get_production_context` until its graph detail is actually
 ```
 00. studio_get_project → studio_update_project({ projectId, updates: { settings } }) → studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline } } }) → GATE
 01. screenplay → studio_upsert_screenplay({ projectId, episodeId, body })
+    ↺ loop with 02: resolve_mention every token → register/render the misses → re-mention → re-upsert
+                                                   → GATE: 0 unmapped, user confirms (draft; user approves in Studio)
 02. /mixio:sheets → character + location sheets, anchor per scene → GATE (image work is separately confirmed)
 03. /mixio:script-breakdown → studio_upsert_scene_packages + studio_link_graph → relational audit
 ┌── Pre-Production Token Ralph Loop (01 ↔ 02.5 ↔ 04; safe text/graph corrections only) ─┐
@@ -258,3 +275,4 @@ exists; avoid `studio_get_production_context` until its graph detail is actually
 - If the user jumps straight to "generate this script", still run 01→05 — just run them fast and present each gate as a short confirm rather than a discussion.
 - Re-entering an earlier step invalidates the later ones. Editing Step 03 after Step 05 means re-planning; say so instead of patching one batch.
 - Step 02.5 catches reference problems that Step 02 should have resolved. If sheets were skipped or rushed, 02.5 surfaces the gaps. It's a safety net, not a replacement for doing sheets properly.
+- Steps 01 and 02 interleave by design — the screenplay names a reference, the reference has to exist before its mention resolves, and the resolved token has to go back into the screenplay. Announce the 01 gate only once the mention tally reads zero unmapped; a screenplay full of literal `#` text passes every later step without complaint and binds nothing.

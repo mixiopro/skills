@@ -149,6 +149,26 @@ Use this to **get real reference-image URLs** before calling `studio_submit_stud
 
 **For image *presence* (does this reference have any image at all), trust `hasImage` — not `thumbnailUrl`/`previewUrl`.** `hasImage` is `hasAttachments || hasReferenceVariants`, computed live from `metadata.attachments`/`metadata.referenceVariants`, the actual Look data — check that field directly rather than OR-ing the two yourself. `thumbnailUrl`/`previewUrl` are a separate top-level card-preview column that nothing sets when you attach a Look — a reference with three real turnaround images can still show `thumbnailUrl: null`. Reading those two as a presence signal produces a false "no image" finding on a reference that has one. (`hasAttachments`/`hasReferenceVariants` are still returned individually if you need to know *which* mechanism holds the image — `attachments` is legacy, `referenceVariants` is where new writes land, see above.)
 
+### `studio_resolve_mention` — the miss is the useful answer
+
+```
+{ projectId, mention: "#maya.wet_look" }   // "name", "name.look" or "name.look.view", leading # or @ optional
+→ { elementId, elementName, elementType, variantId?, variantName?, viewType?, imageUrl?, resolved: true }
+→ { elementId, elementName, elementType, resolved: false, reason }
+```
+
+**It never throws for an unresolved mention** — probing whether a reference exists yet is the expected use, which makes this the check that closes the screenplay loop. The `reason` string distinguishes the two cases that must not be conflated:
+
+| `reason` | Meaning |
+|---|---|
+| `no element named "…" in this project` | the entity does not exist — create the reference |
+| `no look named "wet_look" on element "Maya"` | the entity exists, the variant does not — add a **variant to Maya**, not a second Maya |
+| `ambiguous: 2 elements named "…" in this project` | two references collapse to one mention root — fix the duplicate before writing anything |
+
+Two results that read as success and are not. A bare `#maya` returns `resolved: true` with **no `variantId`** — it matched the element and bound no look. And an invented third segment does not fail: view resolution falls back requested view → primary view → first view → primary attachment → first attachment, so a wrong view silently resolves to a different angle. Only use a third segment copied from `mentionableLooks[].views[].mention`.
+
+Registering a name with `studio_register_reference_entities` and no image produces **no mentionable look at all** — `mentionableLooks` is derived from the reference's variants, and a reference with no variant, no attachment and no legacy look returns an empty array. The mention starts resolving once a look is attached, not once the name exists. Where images arrived as flat `attachments` rather than named variants, the derived variant is named after the reference itself, so its mention is the doubled-looking `#maya.maya` — copy it as returned rather than "correcting" it.
+
 ## Getting images onto a reference — the reliable path
 
 **Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. Run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts) in `mixio-workspace`; it permits only public HTTPS redirects, bounds the download, validates MIME type, derives the extension, and removes its unique temporary directory.
