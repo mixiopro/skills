@@ -20,7 +20,7 @@ INT. ARCHIVE HALL — NIGHT
 
 The heavy VAULT DOOR stands ajar. #maya.wedding.front crosses the tiled floor to the OAK DESK beside ~archive-hall.service-counter.left.
 
-[Camera: medium · Camera Movement: dolly in · Shot Type: medium]
+[Shot Type: medium · Camera Movement: dolly in · Camera: eye level]
 
 MAYA
 (whispering)
@@ -95,7 +95,7 @@ Locks are advisory spatial continuity cues. They are **not** entity lookups and 
 ## Native shot-intent annotations: standalone `[Key: Value]`
 
 ```text
-[Camera: wide · Camera Movement: dolly in · Lighting: cold blue practicals]
+[Shot Type: wide · Camera Movement: dolly in · Lighting: cold blue practicals]
 ```
 
 An annotation is a single, standalone paragraph whose full trimmed line is bracketed. It can contain one or more key/value pairs separated by `·` (interpunct) or `,` (comma). It MUST immediately precede the dramatic beat it governs.
@@ -104,12 +104,12 @@ Its 11 recognized keys are case-sensitive and exact:
 
 | Label | Breakdown destination (`ShotMetadata`) | Purpose / Override behavior |
 |---|---|---|
-| `Camera` | `camera_angle` / `cameraNotes` | Specific camera angle or framing intent (e.g. `low angle`, `60° high angle`) |
+| `Camera` | `camera_angle` | Camera angle/elevation only (e.g. `low angle`, `60° high angle`). Use `Shot Type` for framing size and `Camera Movement` for motion. |
 | `Camera Movement` | `camera_movement` | Camera move (e.g. `dolly in`, `tracking`, `pan left`, `static`) |
 | `Lighting` | `lighting` | Key lighting setup and atmosphere (e.g. `cold blue practicals`, `as Anchor 1`) |
 | `Mood` | `mood` | Emotional atmosphere of the frame (e.g. `tense`, `intimate`, `claustrophobic`) |
 | `Blocking` | `blocking` | In-frame spatial layering (e.g. `FG → MAYA; MG → OAK DESK; BG → VAULT DOOR`) |
-| `Background` | `background_elements` | Specific background action or environment features (e.g. `rain pelting glass`) |
+| `Background` | `context` | Specific background action or environment features (e.g. `rain pelting glass`); merge it into the shot's canonical environment context. |
 | `Location` | `location_links` | Target location; supports exact `#location.variant` mention |
 | `Shot Type` | `shot_type` | Framing size (e.g. `close_up`, `wide`, `over_shoulder`, `two_shot`) |
 | `SFX` | `audio.sfx` | Concrete sound effects / foley cues (e.g. `heavy steel door latch click`) |
