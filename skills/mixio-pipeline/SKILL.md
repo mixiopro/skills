@@ -36,7 +36,7 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 | 05 | **Shot Planning** | `mixio-shot-planning` | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | 06 | **Video Generation** | `mixio-generate` | VIDEO elements + workspace uploads |
 
-**Gate rule: never start step N+1 until step N is confirmed by the user.** Steps 01–04 operate as the autonomous Pre-Production Token Ralph Loop: correct screenplay, reference, and continuity findings, then re-audit until **0 blocking errors** remain before locking the breakdown for Step 05 cost approval (see `references/pre-production-ralph-loop.md`). Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Moving to Step 05.`
+**Gate rule: never start a new production step until the preceding step is confirmed by the user.** Steps 01–04 operate as the autonomous Pre-Production Token Ralph Loop: internal corrective passes may move between those steps and immediately re-audit without another prompt. Do not start Step 05 until the loop has **0 blocking errors** and the user has approved the converged breakdown (see `references/pre-production-ralph-loop.md`). Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Moving to Step 05.`
 
 ## Step 00 — Full Project Preflight & Settings Locking
 

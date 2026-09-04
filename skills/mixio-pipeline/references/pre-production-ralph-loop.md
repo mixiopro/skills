@@ -2,7 +2,7 @@
 
 The autonomous quality gate across pre-production steps (**Step 01 Screenplay** ↔ **Step 02 Sheets** ↔ **Step 02.5 Reference Audit** ↔ **Step 03 Panel Breakdown** ↔ **Step 04 Continuity Audit**).
 
-Generation (Step 06) is billable and non-deterministic. Pre-production steps (01–04) cost **only tokens** (zero generation credits). The Token Ralph Loop is the orchestrator's closed feedback loop that iterates on text schemas and graph metadata autonomously, correcting syntax, reference, and continuity errors until **zero blocking errors** remain, before requesting user sign-off for Step 05 shot planning and cost approval.
+Generation (Step 06) is billable and non-deterministic. Text-only checks in Steps 01, 02.5, 03, and 04 cost tokens; Step 02 sheet and anchor rendering submits image jobs and can spend generation credits. Apply the normal rendering permission gate before those jobs. The Token Ralph Loop is the orchestrator's closed feedback loop that iterates on text schemas and graph metadata autonomously, correcting syntax, reference, and continuity errors until **zero blocking errors** remain, before requesting user sign-off for Step 05 shot planning and cost approval.
 
 ---
 
@@ -50,17 +50,19 @@ Advisory findings (e.g. subtle description differences, non-blocking prop stubs)
 ### Phase 1: Screenplay & Entity Binding (01 ↔ 02)
 - Normalize source text to standard screenplay grammar.
 - Harvest `#name.variant` tokens and sweep prose for un-mentioned characters/locations.
-- Resolve mentions with `studio_resolve_mention`. If unmapped:
-  - Register entity with `studio_register_reference_entities`.
-  - Add variant/look sheet with `studio_update_reference` / `mixio-sheets`.
+- Resolve mentions with `studio_resolve_mention`. If unmapped, read `settings.references` and follow its policy before writing:
+  - With `createPolicy: "allow"`, register the entity with `studio_register_reference_entities`.
+  - With `createPolicy: "propose"`, record the proposed entity/look and pause for user approval.
+  - With `createPolicy: "link_only"`, do not create anything; ask the user to identify an existing reference to link.
+  - Only after the policy permits a write, add a variant/look sheet with `studio_update_reference` / `mixio-sheets`.
   - Put exact returned `mentionableLooks` tokens back into screenplay body and re-upsert via `studio_upsert_screenplay`.
 
 ### Phase 2: Reference Audit & Look-Binding Verification (02.5)
 - Run `mixio-reference-audit` across all script entities against registered references.
-- **Auto-remediation:**
-  - If `MISSING_REF` on a script entity: register the reference element with `studio_register_reference_entities`.
-  - If `STALE_LOOK_REF` or missing look variant: prompt variant registration or rebind to valid variant name in `variantVocabulary`.
-  - If HIGH-severity metadata gap (e.g. missing `visualAnchor` on core character or missing `lighting` on location): populate structured details via `studio_update_reference`.
+- **Auto-remediation (policy-gated):** Read `studio_get_project({ projectId })` and its complete `settings.references` policy before each proposed write.
+  - If `MISSING_REF` on a script entity: register it only with `createPolicy: "allow"`; with `"propose"`, create a proposal for approval; with `"link_only"`, stop and request an existing reference link.
+  - If `STALE_LOOK_REF` or missing look variant: rebind to a valid name in `variantVocabulary`, or propose/register a variant only when `variantPolicy` and `createPolicy` permit it.
+  - If HIGH-severity metadata gap (e.g. missing `visualAnchor` on core character or missing `lighting` on location): update the existing reference only after the policy check; otherwise surface the required proposal.
 - **Re-check:** Re-run Step 02.5 until blocking errors reach `0`.
 
 ### Phase 3: Breakdown & State Linking (03)
@@ -74,7 +76,7 @@ Advisory findings (e.g. subtle description differences, non-blocking prop stubs)
   - **Prop continuity break (`PROP`):** Auto-inject the missing put-down or pick-up action in the exact shot where the state changes using `studio_revise_shot_specs`. Update `appears_in` relation `carriedProps` via `studio_link_graph`.
   - **Eyeline / 180° axis violation (`FACING`):** Adjust camera placement / subject orientation in shot spec text or clarify camera repositioning.
   - **Missing movement marker (`[Mn]`):** Re-sequence marker tags across dependent shots.
-  - **Missing reference detected (`REF_MISSING` / `REF_NO_IMAGE`):** Route back to Phase 2 to register entity or attach look, then rebind `lookRef`.
+  - **Missing reference detected (`REF_MISSING` / `REF_NO_IMAGE`):** Route back to Phase 2 for policy-gated reference remediation, then rebind `lookRef`.
 - **Immediate Re-Audit (The Verification Loop):**
   - Immediately re-run Pass 1–3 on the revised shot specs.
   - Confirm the previous finding is cleared and verify that the edit did not introduce new breaks.
@@ -118,10 +120,10 @@ Advisory findings (e.g. subtle description differences, non-blocking prop stubs)
 ### Recipe 2: Missing Look Variant / Stale Look Ref (AC2)
 *Scenario:* Continuity audit finds Shot 4 specifies Tony in wet clothes after rain, but `lookRef` points to `wet_coat` which does not exist on `TONY` reference (`STALE_LOOK_REF` / `REF_MISSING`).
 
-1. **Check reference policy:** Read `projects.settings.references` (`createPolicy`, `variantPolicy`, `variantVocabulary`).
+1. **Check reference policy and complete state:** Read `projects.settings.references` (`createPolicy`, `variantPolicy`, `variantVocabulary`) and the full reference with `studio_get_element`. Collect variants from current `referenceVariants`, legacy `characterDetails.looks`, and flat `attachments` before any replacement write.
 2. **Remediate variant:**
    - If variant exists under alternative name (e.g. `soaked`): update `lookRef: "soaked"` on `appears_in` relation.
-   - If variant is missing and policy permits: attach variant via `studio_update_reference`:
+   - If variant is missing and policy permits: append the new look to that complete set via `studio_update_reference` (its `referenceVariants` argument replaces the entire list):
      ```javascript
      studio_update_reference({
        referenceId: tonyRefId,
@@ -131,7 +133,7 @@ Advisory findings (e.g. subtle description differences, non-blocking prop stubs)
        ]
      })
      ```
-   - If no variant image exists: drop `lookRef` and set `appearanceState.condition: "soaked clothing, wet hair"` in shot metadata.
+   - If no variant image exists: keep the finding blocking and ask the user for an image/approved replacement. Only after explicit approval of a fidelity downgrade may you clear the stale `lookRef` and set `condition: "soaked clothing, wet hair"` on that character's `appears_in` relation metadata via `studio_link_graph`.
 3. **Re-run Reference Audit (02.5) & Continuity Check (04):** Verify look-binding resolves cleanly.
 
 ---
