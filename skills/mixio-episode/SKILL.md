@@ -92,7 +92,7 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 → { results: [...], total }
 ```
 
-**`tags` and `metadata` must be passed as real objects, not JSON-stringified strings.** The server builds the query with `Object.entries(args.tags)` — if you pass a string like `"{\"episodeId\":\"...\"}"`, `Object.entries()` iterates it character-by-character and the query breaks with `Tool execution failed: { is not allowed as a JSON query value`. Pass `tags: { episodeId: "..." }` as an actual object.
+**`tags` and `metadata` must be passed as real objects, not JSON-stringified strings.** This applies to **both `studio_query_elements` and `studio_query_relations`**. The server builds the query with `Object.entries(args.tags)` — if you pass a string like `"{\"episodeId\":\"...\"}"`, `Object.entries()` iterates it character-by-character and the query breaks with `Tool execution failed: { is not allowed as a JSON query value`. Pass `tags: { episodeId: "..." }` (and `metadata: { ... }` on relations) as actual objects, never `JSON.stringify(...)` output.
 
 ### Relations
 
@@ -100,7 +100,7 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 |------|---------|
 | `studio_create_relation` | `{ projectId, fromId, toId, relationType, role?, metadata?, mirrorBelongsTo? }` |
 | `studio_delete_relation` | `{ relationId }` |
-| `studio_query_relations` | `{ projectId, fromId?, toId?, relationType?, limit? }` |
+| `studio_query_relations` | `{ projectId, fromId?, toId?, relationType?, limit? }` — see `tags`/`metadata` object warning below |
 | `studio_bulk_create_relations` | `{ projectId, relations: [...] }` — same per-item shape as `create_relation` |
 | `studio_link_graph` | `{ projectId, relations: [...] }` (max 200) — near-duplicate of `bulk_create_relations`; prefer this one for breakdown work since it verifies project access up front and documents the common breakdown relation types (`appears_in`, `located_at`, `used_in`, `belongs_to`) |
 
