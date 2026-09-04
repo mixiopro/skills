@@ -74,6 +74,8 @@ Or at creation time via `studio_register_reference_entities`, which does take
 `metadata`. Aliases only affect matching when `aliasMatching: true`; record them
 regardless, since the setting can be turned on later and the data will be there.
 
+**Query filters must be native objects, not stringified JSON.** `studio_query_elements` (`tags`, `metadata`) and `studio_query_relations` (`metadata`) take real objects; the server iterates filters with `Object.entries()`, which walks a JSON string character-by-character and fails with `Tool execution failed: { is not allowed as a JSON query value`. Pass `tags: { episodeId: "..." }` / `metadata: { ... }` as objects, never `JSON.stringify(...)` output.
+
 ### `studio_update_reference` — the critical gotcha: `attachments` vs `referenceVariants`
 
 Both parameters put images on a reference, but they are **not interchangeable**:
