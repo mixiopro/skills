@@ -30,9 +30,13 @@ Then group into deterministic batches, calculate estimated credit costs, and req
 
 ---
 
-## 1. Structural Shot Typology (The 5 Archetypes)
+## 1. Structural Shot Typology (The 5 Archetype Families)
 
-Every shot falls into exactly one generation archetype. Classify by inspecting `camera_movement`, `action`, `duration`, markers, scene anchors, and project settings.
+Every shot falls into exactly one generation archetype family: `GRID`, `SEQUENCE`,
+`MASTER_ANCHOR_MULTI_SHOT`, `SINGLE`/`DUAL_FRAME`, or `T2V`. `SINGLE` and `DUAL_FRAME` are
+the two input shapes in one standard i2v family; persist the concrete code on the shot.
+Classify by inspecting `camera_movement`, `action`, `duration`, markers, scene anchors, and
+project settings.
 
 | Archetype | Code | Target Studio Use Case / Shape | When to use |
 |-----------|------|--------------------------------|-------------|
@@ -44,6 +48,10 @@ Every shot falls into exactly one generation archetype. Classify by inspecting `
 | **Text-to-video** | `T2V` | Prompt only, no start frame (`production-generate-video`) | Abstract, establishing shots with no prior frame, mood pieces |
 
 ### Classification rules
+
+Select the model and read its live duration schema before applying these rules. The resulting
+`model_max_per_pass` is an input to classification, not a value that can be read before model
+matching.
 
 ```
 if shot is a multi-panel layout, montage sequence, or storyboard grid:
@@ -58,7 +66,10 @@ if shot is coverage (CU, MCU, OTS) framed within an established wide scene ancho
 if shot has ≥3 markers [M1] [M2] [M3] OR distinct multi-beat action choreographies:
     → SEQUENCE
 
-if camera_movement in (dolly_in, dolly_out, tracking, crane, arc):
+if shot.duration > model_max_per_pass:
+    → SEQUENCE (split into multi-segment passes)
+
+if camera_movement in (dolly_in, dolly_out, tracking, crane, arc, handheld):
     if duration ≤ 5s and action has ≤1 beat:
         → SINGLE (model handles short continuous move)
     elif duration ≤ 10s:
@@ -72,8 +83,8 @@ if camera_movement in (static, pan_left, pan_right, tilt_up, tilt_down, rack_foc
     else:
         → DUAL_FRAME
 
-if shot.duration > model_max_per_pass:
-    → SEQUENCE (split into multi-segment passes)
+if camera_movement is not in the listed vocabularies OR no prior rule matched:
+    → DUAL_FRAME (conservative total-classification fallback; record CLASSIFICATION_FALLBACK)
 ```
 
 ### Project-level defaults
@@ -105,7 +116,12 @@ For each shot × method × model, run the execution audit against model capabili
 ### Duration feasibility
 
 ```
-max_duration = max(schema.parameters.duration.enum)  # from studio_get_use_case_input_schema
+duration_schema = schema?.properties?.parameters?.properties?.duration
+duration_values = flatten_numeric_enums(duration_schema?.enum, duration_schema?.anyOf)
+if duration_values.length == 0:
+    FINDING: DURATION_SCHEMA_UNAVAILABLE — selected model exposes no readable duration enum
+    → BLOCKING: stop planning until the live schema is resolved or the user selects another model
+max_duration = Math.max(...duration_values)  # schema from studio_get_use_case_input_schema
 
 if shot.duration > max_duration:
     FINDING: DURATION_EXCEEDS_MODEL — Shot 9 (18s) > model max (8s)
@@ -172,14 +188,25 @@ for each character_link / location_link / prop_link with a bound lookRef:
 ### Prompt mention & mention map validation
 
 ```
-for each shot with media references (primary, character_ref, location_ref, enhancer_context):
-    if prompt has NO '@' tokens (plain descriptive prose only):
-        FINDING: PROMPT_MENTIONS_MISSING — prompt describes subject but has 0 @ tags
-        → BLOCKING: embed @tag (e.g. @asset1, @tony, @scene1) where subject acts in prompt
-
-    if slotTags is defined but mentionMap is missing or incomplete:
-        FINDING: MENTION_MAP_UNPAIRED — slotTags declared without matching mentionMap
-        → BLOCKING: pair slotTags ({ assetKey: "@tag" }) with mentionMap ({ "@tag": "Label" })
+for each shot with media references (primary, endFrame, references, character_ref,
+location_ref, enhancer_context, and every other schema-declared media slot):
+    assets = flatten_media_slots(input.media)  # stable key: slot or slot[index]
+    if assets.length == 0:
+        continue
+    if slotTags is missing OR mentionMap is missing:
+        FINDING: MENTION_MAP_UNPAIRED — media requires both maps
+        → BLOCKING: create one slotTags + mentionMap pair for every asset
+    for each assetKey, asset in assets:
+        tag = slotTags[assetKey]
+        if tag is missing OR prompt contains tag zero or more than once:
+            FINDING: PROMPT_MENTION_MISSING — asset has no unique prompt @tag
+            → BLOCKING: embed exactly one @tag where that asset acts
+        if mentionMap[tag] is missing:
+            FINDING: MENTION_MAP_UNPAIRED — slot tag has no label binding
+            → BLOCKING: add mentionMap[tag] with the asset's human-readable label
+    if any slotTags key has no asset OR any mentionMap key is not used by slotTags:
+        FINDING: MENTION_MAP_ORPHANED — maps do not match active media
+        → BLOCKING: remove orphan entries or bind them to a real asset
 ```
 
 ### Continuity handoff feasibility
@@ -217,10 +244,10 @@ Execution audit findings:
   ❌ PROMPT_MENTIONS_MISSING:   Shot 7 (Gary Player ref attached but 0 @ tags) → embed @asset1
   ❌ MENTION_MAP_UNPAIRED:       Shot 7 (slotTags has @asset1 but mentionMap missing) → pair mentionMap
   ⚠️  ACTION_DENSITY_HIGH:      Shot 5 (4 actions in 3s = 1.33 a/s) → extend to 5s or simplify
-  ⚠️  DIALOGUE_TOO_FAST:        Shot 11 (22 words in 4s = 5.5 wps) → extend to 6.5s
+  ❌ DIALOGUE_TOO_FAST:          Shot 11 (22 words in 4s = 5.5 wps) → extend to 6.5s
 
-Blocking: 3 (must resolve)
-Advisory: 2 (recommend resolving)
+Blocking: 4 (must resolve)
+Advisory: 1 (recommend resolving)
 ```
 
 ---
@@ -261,13 +288,13 @@ PRODUCTION SUMMARY
 ══════════════════
 
 Total shots:                    13
-Total batches:                   5
+Total batches:                   7
 Total runtime:               52.5s
-Estimated generation jobs:       7  (5 video batches + 2 keyframe passes)
+Estimated generation jobs:      17  (10 keyframe jobs + 7 video jobs)
 
 Per-model breakdown:
-  veo_3_1:                    5 shots / 2 batches / 22.0s / 720 credits
-  seedance_image_to_video_v2: 6 shots / 2 batches / 24.5s / 180 credits
+  veo_3_1:                    5 shots / 3 batches / 22.0s / 2,160 credits
+  seedance_image_to_video_v2: 6 shots / 3 batches / 24.5s / 540 credits
   sora_2:                     1 shot  / 1 batch  /  6.0s  / 120 credits
 
 Archetype breakdown:
@@ -278,16 +305,16 @@ Archetype breakdown:
   T2V (prompt only):                   1 shot
 
 Keyframe generation needed:           10 images (6 single + 3×2 dual - 2 anchor crops)
-Video generation jobs:                 7 (5 batches + 2 multi-segment)
+Video generation jobs:                 7 (one per resolved batch)
 
 Credit cost estimate:
   Keyframes (image gen):    10 × 10 credits (gpt_image_2) =  100 credits
-  Video gen:                veo_3_1 (720) + seedance (180) + sora (120) = 1,020 credits
-  Total estimate:                                          1,120 credits
+  Video gen:                3 × veo_3_1 (720) + 3 × seedance (180) + 1 × sora (120) = 2,820 credits
+  Total estimate:                                          2,920 credits
 
 High-risk boundaries:
-  Batch 2→3: cross-model (Seedance→Veo) — continuity frame critical
-  Batch 4→5: scene transition — less critical
+  Batch 3→4: cross-model (Seedance→Veo) — continuity frame critical
+  Batch 6→7: scene transition — less critical
 
 Rapid pacing sections:
   Batches 2, 3 — 3+ consecutive RAPID/PUNCHY shots
@@ -306,7 +333,7 @@ studio_revise_shot_specs({ shots: [
     generation_model: "seedance_image_to_video_v2",
     batch_index: 1,
     batch_position: 1,
-    batch_duration: 12.5,
+    batch_duration: 9.5,
     keyframe_count: 1,
     continuity_input: null
   }},
@@ -315,7 +342,7 @@ studio_revise_shot_specs({ shots: [
     generation_model: "veo_3_1",
     batch_index: 2,
     batch_position: 1,
-    batch_duration: 9.0,
+    batch_duration: 8.0,
     keyframe_count: 1,
     continuity_input: "scene_1_anchor"
   }}
@@ -332,9 +359,9 @@ Then close Step 05:
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   step_05: "complete",
   shot_plan: {
-    total_batches: 5,
+    total_batches: 7,
     total_runtime: 52.5,
-    estimated_credits: 1120,
+    estimated_credits: 2920,
     models_used: ["veo_3_1", "seedance_image_to_video_v2", "sora_2"],
     archetypes: { SINGLE: 6, DUAL_FRAME: 3, MASTER_ANCHOR_MULTI_SHOT: 2, SEQUENCE: 1, T2V: 1 },
     keyframe_jobs: 10,
@@ -350,7 +377,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 **Step 06 cannot proceed without explicit user approval of the Production Summary and credit budget.**
 
 Announce the close with the credit estimate:
-`Step 05 — Shot Planning complete. 13 shots / 5 batches / 52.5s runtime. Estimated cost: 1,120 credits across veo_3_1, seedance_image_to_video_v2, and sora_2. Please confirm budget approval to proceed to Step 06 Video Generation.`
+`Step 05 — Shot Planning complete. 13 shots / 7 batches / 52.5s runtime. Estimated cost: 2,920 credits across veo_3_1, seedance_image_to_video_v2, and sora_2. Please confirm budget approval to proceed to Step 06 Video Generation.`
 
 ---
 
@@ -358,8 +385,8 @@ Announce the close with the credit estimate:
 
 ```
 1. read corrected breakdown (Step 04) + project settings + live model catalog
-2. classify each shot into one of 5 archetypes (GRID / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V)
-3. match each shot to best model based on characteristics
+2. match each shot to the best model based on characteristics; read its live input schema and duration ceiling
+3. classify each shot into one of 5 archetype families (GRID / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V), using the selected model ceiling
 4. run execution audit (duration limits, action density, speaking rate, references, prompt @ mentions + mentionMap)
 5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions & pair mentionMap)
 6. group into contiguous batches per model-specific ceilings
