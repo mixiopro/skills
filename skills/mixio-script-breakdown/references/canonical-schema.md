@@ -92,7 +92,7 @@ The shot-grammar fields map **1:1 onto canonical keys** — camera detail no lon
 | `Lighting: as Anchor N` | `lighting` | canonical |
 | mood/atmosphere | `mood` | canonical |
 | in-frame `FG`/`MG`/`BG` layering | `blocking` | canonical; alias `subjectPosition` |
-| `Dialogue` / `Audio` | `audio.dialogue` / `.sfx` / `.ambient` | |
+| `Dialogue` / `Audio` | `audio.dialogue` / `.sfx` / `.ambient` | Dialogue from cues; SFX from `[SFX: ...]`; Ambient from `[Ambient: ...]` |
 | per-character wardrobe/hair/condition/held props | `appearanceState` on the `appears_in` relation | see below |
 | scene anchor | scene `anchorRef` / `anchorRefs` | auto-attached to every shot in the scene |
 | `Cut:` hold + outgoing cut | `action` prose, or `temporal_effect` | no dedicated field |
