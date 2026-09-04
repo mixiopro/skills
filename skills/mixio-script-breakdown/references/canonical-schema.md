@@ -153,6 +153,10 @@ Scene `status`: `scripting` (default) → `breakdown` → `approved`.
 
 Attached to `appears_in` relations via `studio_link_graph` for each character appearing in a shot:
 
+The breakdown audit requires `wardrobe`, `condition`, and `carriedProps` for every appearing
+character. `carriedProps` is an explicit array and must be `[]` when the character carries
+nothing; `hairState`, `emotionalState`, `lookRef`, and `continuityNotes` remain optional.
+
 | Key | Type | Description |
 |---|---|---|
 | `wardrobe` | string | Clothing/outfit description specific to this shot |

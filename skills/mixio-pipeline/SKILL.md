@@ -97,6 +97,7 @@ const confirmed = {
   videoModel: userConfirmed.videoModel,
   deliveryAspectRatio: userConfirmed.deliveryAspectRatio,
   anchorAspectRatio: userConfirmed.anchorAspectRatio,
+  plannedRuntimeSeconds: userConfirmed.plannedRuntimeSeconds,
   imageResolution: userConfirmed.imageResolution,
   videoResolution: userConfirmed.videoResolution,
   visualStyle: userConfirmed.visualStyle,
@@ -177,7 +178,12 @@ Settings are project-scoped and outlive the episode; the frame contract is per-e
 
 ```
 studio_update_episode({ episodeId, updates: { metadata: {
-  pipeline: { aspect_ratio: "9:16", anchor_aspect_ratio: "16:9", step_00: "complete" }
+  pipeline: {
+    aspect_ratio: "9:16",
+    anchor_aspect_ratio: "16:9",
+    planned_runtime_seconds: confirmed.plannedRuntimeSeconds,
+    step_00: "complete"
+  }
 }}})
 ```
 
