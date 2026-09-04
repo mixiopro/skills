@@ -78,15 +78,39 @@ No params. Drops every cached mapping (does not delete remote media). Returns `{
 
 ### Ingest external media URLs (Google Drive, CDNs, third-party hosts)
 
-`studio_upload_media_from_url` often fails on external URLs (Google Drive, third-party CDNs) with `No files were uploaded` due to server-side SSRF or network policy restrictions. Always use the standardized 3-step download fallback:
+`studio_upload_media_from_url` often fails on external URLs (Google Drive, third-party CDNs) with `No files were uploaded` due to server-side SSRF or network policy restrictions. Use a unique, validated local download and clean up only the directory created by that run:
+
+```sh
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/mixio-download.XXXXXX")"
+download_path="$tmp_dir/source"
+trap 'rm -rf -- "$tmp_dir"' EXIT
+
+curl --fail --silent --show-error --location "$external_url" -o "$download_path"
+test -s "$download_path" || { echo "download was empty" >&2; exit 1; }
+mime_type="$(file --brief --mime-type "$download_path")"
+case "$mime_type" in
+  image/jpeg) ext=jpg ;; image/png) ext=png ;; image/webp) ext=webp ;;
+  image/gif) ext=gif ;; image/svg+xml) ext=svg ;; video/mp4) ext=mp4 ;;
+  video/quicktime) ext=mov ;; video/webm) ext=webm ;; audio/mpeg) ext=mp3 ;;
+  audio/wav|audio/x-wav) ext=wav ;; audio/mp4) ext=m4a ;; audio/ogg) ext=ogg ;;
+  application/pdf) ext=pdf ;; application/json) ext=json ;; text/plain) ext=txt ;;
+  *) echo "unsupported downloaded media type: $mime_type" >&2; exit 1 ;;
+esac
+asset_path="$tmp_dir/asset.$ext"
+mv "$download_path" "$asset_path"
+```
+
+Then upload the MIME-validated file and pass its permanent URL onward:
 
 ```
-1. curl -sL "<external_url>" -o /tmp/asset.png
-2. upload_file({ path: "/tmp/asset.png", project_id, organization_id })
-   → { ok: true, entry: { publicUrl: "https://studio.mixio.pro/api/media/file/..." } }
-3. Pass entry.publicUrl to studio_update_reference or generation media slots
-4. rm /tmp/asset.png (clean up local temp file)
+upload_file({ path: asset_path, project_id, organization_id })
+  → { ok: true, entry: { publicUrl: "https://studio.mixio.pro/api/media/file/..." } }
+Pass entry.publicUrl to studio_update_reference or generation media slots
 ```
+
+The `trap` removes only this run's temporary directory on success or failure. `--fail` prevents
+HTTP error pages or login HTML from being uploaded as media, and the MIME-derived extension keeps
+the upload format intact.
 
 ### Re-upload after edits
 

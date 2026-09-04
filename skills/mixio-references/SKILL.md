@@ -149,17 +149,19 @@ Use this to **get real reference-image URLs** before calling `studio_submit_stud
 
 ## Getting images onto a reference — the reliable path
 
-**Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. The standardized 3-step download fallback that actually works:
+**Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. Use the validated local-download fallback documented in [mixio-workspace](../mixio-workspace/SKILL.md): create a unique `mktemp` directory, run `curl --fail --silent --show-error --location`, reject empty/unsupported MIME types, and derive the upload extension from the detected type.
 
-```
-1. curl -sL "<external-url>" -o /tmp/asset.png
-2. upload_file({ path: "/tmp/asset.png", project_id, organization_id })
-   → { entry: { url / publicUrl } }  (see mixio-workspace)
-3. studio_update_reference({ referenceId, attachments: [{ url: entry.publicUrl, ... }] })
-4. rm /tmp/asset.png (clean up local temp file)
+```sh
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/mixio-download.XXXXXX")"
+download_path="$tmp_dir/source"
+trap 'rm -rf -- "$tmp_dir"' EXIT
+curl --fail --silent --show-error --location "$external_url" -o "$download_path"
+test -s "$download_path" || { echo "download was empty" >&2; exit 1; }
+# Validate with `file --brief --mime-type`, rename to a supported MIME-derived extension,
+# then call upload_file({ path: asset_path, project_id, organization_id }).
 ```
 
-Pass `project_id` and `organization_id` on `upload_file` so the asset is properly scoped to your production rather than orphaned (`projectId: null`). Always delete temporary `/tmp` files once the upload completes.
+Call `studio_update_reference({ referenceId, attachments: [{ url: entry.publicUrl, ... }] })` only after `upload_file` succeeds. The `trap` cleans up only this run's directory on success or failure, and `--fail` prevents an HTTP error page or login HTML from becoming a reference image. Pass `project_id` and `organization_id` so the asset is scoped to the production rather than orphaned (`projectId: null`).
 
 `studio_upload_media_from_url` may still work for URLs already on trusted/reachable domains — try it first for a single asset, but don't build a batch workflow around it without a local-download fallback.
 

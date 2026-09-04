@@ -183,10 +183,11 @@ Media slots take **real URLs, not Payload media IDs** — the server rejects UUI
 1. `studio_list_references({ projectId })` — names, types, and a `hasAttachments` boolean. **No URLs.** This is a directory, not a source of images.
 2. `studio_get_element({ elementId })` → `referenceVariants[].attachments[].media.url`, or `studio_get_production_context({ projectId, episodeId })` for the whole graph at once (100K+ characters — prefer the element read when you know the id). If the shot or scene has a bound look, prefer resolving through it rather than picking `referenceVariants[0]` — see §7.
 3. Anything local: `upload_file(path)` or `get_public_url(path)` for a permanent URL first. `/api/media/file/{id}` form is also accepted.
-4. **External media URLs (Google Drive, third-party CDNs)**: Don't pass external URLs directly to generation slots or rely on server-side URL fetching (risk of SSRF / `No files were uploaded` failures). Use the standardized 3-step download fallback:
-   - `curl -sL "<url>" -o /tmp/asset.png`
-   - `upload_file({ path: "/tmp/asset.png", project_id, organization_id })` → `entry.publicUrl` (see `mixio-workspace`)
-   - Pass `entry.publicUrl` to `input.media.<slot>` and delete `/tmp/asset.png`.
+4. **External media URLs (Google Drive, third-party CDNs)**: Don't pass external URLs directly to generation slots or rely on server-side URL fetching (risk of SSRF / `No files were uploaded` failures). Use the validated local-download fallback from `mixio-workspace`:
+   - create a unique `mktemp` directory and `trap` its cleanup;
+   - run `curl --fail --silent --show-error --location "$url" -o "$tmp_dir/source"`, require a non-empty file, and reject unsupported MIME types/HTML;
+   - rename to a MIME-derived supported extension, then call `upload_file({ path: asset_path, project_id, organization_id })`;
+   - pass `entry.publicUrl` to `input.media.<slot>`; the cleanup trap removes only this run's directory.
 
 Slot ids come from the schema, not from memory. Common ones: `primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`. Each takes `{ url }` or an array of them.
 
