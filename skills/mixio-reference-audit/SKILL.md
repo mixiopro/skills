@@ -175,8 +175,8 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 
 | Severity | Gate behavior |
 |----------|--------------|
-| BLOCKING | Must be resolved before proceeding to Step 03. Generation without these will fail or produce inconsistent results |
-| ADVISORY | Surfaced for human decision. May proceed, but the user should explicitly acknowledge |
+| BLOCKING | Must be resolved before proceeding to Step 03. Part of the Pre-Production Token Ralph Loop: auto-remediate and re-check until 0 blocking errors remain |
+| ADVISORY | Surfaced for human decision. Recorded in metadata; does not block convergence |
 
 **Blocking criteria:**
 - Any `MISSING_REF` for an entity appearing in ≥2 shots
@@ -187,9 +187,9 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 
 Everything else is advisory. The user may say "proceed anyway" — record that decision in metadata so a later session knows it was acknowledged, not missed.
 
-## Fixing findings
+## Fixing findings & The Ralph Loop
 
-For each blocking finding, suggest the specific action:
+In the Pre-Production Token Ralph Loop (`mixio-pipeline/references/pre-production-ralph-loop.md`), blocking findings are auto-remediated and immediately re-verified:
 
 ```
 Fix: HALLWAY DOORWAY — MISSING_REF
@@ -208,7 +208,15 @@ Fix: TONY ↔ TONY RUSSO — LIKELY_DUPLICATE
     aliases: ["Tony Russo", "Antonia"]
   }}})
   Then: archive or delete the duplicate reference
+
+Fix: STALE_LOOK_REF — TONY'S APARTMENT:night
+→ studio_update_reference({ referenceId: "<apartment-id>", referenceVariants: [
+    ...existingVariants,
+    { name: "night", kind: "look", images: [{ url: nightUrl, isPrimary: true }] }
+  ]})
 ```
+
+After applying fixes, **re-run the audit immediately** to confirm blocking findings drop to `0`.
 
 ## Persisting the result
 
@@ -217,13 +225,13 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   step_02_5: "complete",
   reference_audit: {
     checked: 12,
-    blocking: 3,
-    advisory: 3,
-    clean: 7,
+    blocking: 0,
+    advisory: 1,
+    clean: 11,
     acknowledged_advisories: ["GENDER_MISMATCH:TONY"],
-    timestamp: "2025-..."
+    timestamp: "2026-..."
   }
-}}}})
+}}}}})
 ```
 
 ## Workflow
@@ -235,14 +243,15 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 4. studio_get_project({ projectId })                  → read reference policy
 5. run 6 check categories                            → findings
 6. emit REFERENCE AUDIT report
-7. if BLOCKING findings: present fixes, wait for resolution, re-check
-8. if ADVISORY only: present, get acknowledgment
-9. persist audit result → GATE → Step 03 Panel Breakdown
+7. ↺ Ralph Loop: if BLOCKING findings, auto-remediate refs/variants and re-check until 0 blocking errors
+8. if ADVISORY only: present, record in metadata
+9. persist audit result (0 blocking) → GATE → Step 03 Panel Breakdown
 ```
 
 ## Notes
 
 - Run this **after** sheets (Step 02) because sheets create the bulk of the reference images. Running before sheets would flag every reference as `MISSING_IMAGE`.
+- Step 02.5 participates in the Pre-Production Token Ralph Loop (`mixio-pipeline/references/pre-production-ralph-loop.md`): blocking errors must be remediated and re-checked autonomously before moving to Step 03.
 - Re-run after any reference change in a later step. It's free (reads only) and a stale audit means a stale contract.
 - The duplicate check uses normalized names (lowercased, stripped of punctuation, collapsed whitespace). `aliasMatching` in project settings controls whether recorded aliases participate in *breakdown* matching — the audit checks aliases regardless, because it's looking for data quality, not runtime behavior.
 - On a project with 50+ references, emit the clean list as a count rather than naming each one. The blocking and advisory lists are what the user needs to act on.

@@ -70,16 +70,18 @@ For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a pro
 ```
 00  Preflight          → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
                         resolution, visual style, reference policy into project `settings`
-01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty
-02  Sheets + anchors  → /mixio:sheets      — references must exist before shots reference them
-02.5 Reference audit  → /mixio:reference-audit — completeness, consistency, duplicates, metadata
-03  Shot breakdown    → /mixio:script-breakdown
-04  Continuity audit  → /mixio:continuity  — text only, free, catches logic
+┌── Pre-Production Token Ralph Loop (01 ↔ 02 ↔ 02.5 ↔ 03 ↔ 04) ────────────────────────┐
+│ 01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty│
+│ 02  Sheets + anchors  → /mixio:sheets      — references must exist before shots reference them │
+│ 02.5 Reference audit  → /mixio:reference-audit — completeness, consistency, duplicates, metadata│
+│ 03  Shot breakdown    → /mixio:script-breakdown                                       │
+│ 04  Continuity audit  → /mixio:continuity  — text only, free, catches logic           │
+└─────────────────────── ↺ auto-correct shot specs/refs until 0 blocking errors ────────┘
 05  Shot planning     → /mixio:shot-planning — then get cost approval
 06  Generation        → /mixio:generate per batch, then /mixio:eval before delivery
 ```
 
-Steps 01, 02.5, 03, 04 and 05 cost only tokens. That is the point: a continuity break caught in step 04 costs a paragraph; the same break caught in step 06 costs a re-render.
+Steps 01, 02.5, 03, 04 and 05 cost only tokens. That is the point: a continuity break caught in step 04 costs a paragraph; the same break caught in step 06 costs a re-render. Steps 01–04 form a closed Token Ralph Loop (`skills/mixio-pipeline/references/pre-production-ralph-loop.md`): correct reference and continuity errors, then re-audit until no blocking errors remain before Step 05.
 
 Sheets come **before** the breakdown because the breakdown emits references as shallow stubs (`name`, `description`, `attributes`) and writes no `characterDetails` or `locationDetails`. Build the sheets first and the breakdown reuses their canonical names instead of minting near-duplicates.
 
