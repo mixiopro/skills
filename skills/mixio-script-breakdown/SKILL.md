@@ -34,7 +34,7 @@ Best of both: run the **composed** path but keep Studio's two safety properties 
 Before either path, read the [native screenplay grammar](../mixio-episode/references/screenplay-grammar.md), then read the episode's screenplay element rather than assuming the episode's `script` is current:
 
 ```
-studio_query_elements({ projectId, type: "SCREENPLAY", tags: { episodeId }, limit: 50, offset: 0, includeFull: true })
+studio_query_elements({ projectId, type: "SCREENPLAY", tags: { episodeId }, limit: 50, offset: 0, includeFull: true })  # tags must be a native object, never JSON.stringify(...)
 ```
 
 - A `SCREENPLAY` row with a non-empty `body` wins, **including a draft**. Use its body verbatim as `script_content`; do not strip `#mentions`, `~locks`, or standalone `[Key: Value]` annotation lines because native breakdown consumes them.
