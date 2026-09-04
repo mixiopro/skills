@@ -89,35 +89,69 @@ policy someone configured in Studio. Fetch, merge, send back whole:
 ```
 const { settings } = await studio_get_project({ projectId })
 
+// `confirmed` contains the choices the user just approved and the values
+// returned by the selected model schemas. Never replace a nested map with a
+// partial example: settings are opaque and the update is a whole-blob write.
+const confirmed = {
+  imageModel: userConfirmed.imageModel,
+  videoModel: userConfirmed.videoModel,
+  deliveryAspectRatio: userConfirmed.deliveryAspectRatio,
+  anchorAspectRatio: userConfirmed.anchorAspectRatio,
+  imageResolution: userConfirmed.imageResolution,
+  videoResolution: userConfirmed.videoResolution,
+  visualStyle: userConfirmed.visualStyle,
+  toneAndMood: userConfirmed.toneAndMood,
+  cinematographyDirection: userConfirmed.cinematographyDirection,
+  defaultStylePrompt: userConfirmed.defaultStylePrompt,
+  references: userConfirmed.references
+}
+const videoSchema = await studio_get_use_case_input_schema({
+  useCaseId: "production-generate-video",
+  modelId: confirmed.videoModel
+})
+const videoHasResolution = Boolean(
+  videoSchema?.properties?.parameters?.properties?.resolution
+)
+const existingVideoParameters =
+  settings?.generation?.defaultParametersByUseCase?.["production-generate-video"]
+
 studio_update_project({ projectId, updates: { settings: {
   ...settings,
   generation: {
     ...settings?.generation,
     defaultModelByUseCase: {
       ...settings?.generation?.defaultModelByUseCase,
-      "production-generate-shot-keyframes": "seedream_5_pro",
-      "production-generate-video": "gemini_omni_multishot"
+      "production-generate-shot-keyframes": confirmed.imageModel,
+      "production-generate-video": confirmed.videoModel
     },
-    defaultAspectRatioByOutputType: { IMAGE: "16:9", VIDEO: "9:16" },
-    defaultResolutionByOutputType: { IMAGE: "2k" },
+    defaultAspectRatioByOutputType: {
+      ...settings?.generation?.defaultAspectRatioByOutputType,
+      IMAGE: confirmed.anchorAspectRatio,
+      VIDEO: confirmed.deliveryAspectRatio
+    },
+    defaultResolutionByOutputType: {
+      ...settings?.generation?.defaultResolutionByOutputType,
+      IMAGE: confirmed.imageResolution
+    },
     defaultParametersByUseCase: {
       ...settings?.generation?.defaultParametersByUseCase,
-      "production-generate-video": { resolution: "720p" }
+      "production-generate-video": {
+        ...existingVideoParameters,
+        ...(videoHasResolution ? { resolution: confirmed.videoResolution } : {})
+      }
     }
   },
   studio: {
     ...settings?.studio,
-    preferredVideoModel: "gemini_omni_multishot",
-    visualStyle: "grounded neo-noir, 35mm grain",
-    toneAndMood: "tense, intimate, cold-blue nights",
-    cinematographyDirection: "handheld coverage, shallow depth, practical sources only",
-    defaultStylePrompt: "35mm film grain, cold blue night practicals, shallow depth of field"
+    preferredVideoModel: confirmed.videoModel,
+    visualStyle: confirmed.visualStyle,
+    toneAndMood: confirmed.toneAndMood,
+    cinematographyDirection: confirmed.cinematographyDirection,
+    defaultStylePrompt: confirmed.defaultStylePrompt
   },
   references: {
     ...settings?.references,
-    createPolicy: "propose",
-    variantPolicy: "closed",
-    variantVocabulary: { CHARACTER: ["casual", "formal", "bloodied"], LOCATION: ["day", "night"], PROP: ["clean", "damaged"] }
+    ...confirmed.references
   }
 }}})
 ```
@@ -149,9 +183,9 @@ studio_update_episode({ episodeId, updates: { metadata: {
 
 ### Gate
 
-**Step 01 does not start until Step 00 is confirmed.** Announce the close with the resolved
-values, not just the word complete — `Step 00 — Preflight complete. seedream_5_pro / gemini_omni_multishot,
-delivery 9:16, anchors 16:9, 1080p, references propose+closed. Moving to Step 01.` If the user later
+**Step 01 does not start until Step 00 is confirmed.** Announce the close with the values read
+back from `studio_get_project`, not just the word complete. For example:
+`Step 00 — Preflight complete. ${resolved.imageModel} / ${resolved.videoModel}, delivery ${resolved.deliveryAspectRatio}, anchors ${resolved.anchorAspectRatio}, image ${resolved.imageResolution}, video ${resolved.videoResolution ?? "model default"}, references ${resolved.references.createPolicy}+${resolved.references.variantPolicy}. Moving to Step 01.` If the user later
 changes a model or a ratio, that is a re-entry into Step 00 and it invalidates anchors rendered
 at the old ratio — say so rather than quietly re-rendering one scene.
 
