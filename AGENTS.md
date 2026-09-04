@@ -59,7 +59,7 @@ A **project** holds episodes and a Cast & World roster. An **episode** owns a ra
 | `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode, and whenever it's unclear which production skill applies.** Six gated steps + resumable state |
 | `mixio-sheets` | `/mixio:sheets` | Character turnarounds, location sheets, prop sheets, per-scene anchors |
 | `mixio-reference-audit` | `/mixio:reference-audit` | Audit Cast & World for completeness, consistency, duplicates, metadata quality |
-| `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → references, scenes, shot specs against the canonical schemas |
+| `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → scenes and shot specs against canonical schemas, entity graph linking, appearanceState, and relational audit |
 | `mixio-continuity` | `/mixio:continuity` | Four-pass text continuity audit, before anything renders |
 | `mixio-shot-planning` | `/mixio:shot-planning` | Generation method + model per shot, feasibility, batches, production summary for cost approval |
 

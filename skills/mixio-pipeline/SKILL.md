@@ -31,7 +31,7 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 | 01 | **Detailed Screenplay** | this skill | `studio_upsert_screenplay({ projectId, episodeId, body })` (+ `studio_update_episode({ updates: { summary } })` for the logline) |
 | 02 | **Anchor Frames** | `mixio-sheets` | CHARACTER/LOCATION refs + one anchor KEYFRAME per scene |
 | 02.5 | **Reference Audit** | `mixio-reference-audit` | episode `metadata.pipeline.reference_audit` |
-| 03 | **Panel Breakdown** | `mixio-script-breakdown` | `studio_upsert_scene_packages` |
+| 03 | **Deterministic Breakdown & Relational Audit** | `mixio-script-breakdown` | `studio_upsert_scene_packages` + `studio_link_graph` + episode `metadata.pipeline.breakdown_audit` |
 | 04 | **Continuity Audit** | `mixio-continuity` | `studio_revise_shot_specs` + `studio_update_shot_state` |
 | 05 | **Shot Planning** | `mixio-shot-planning` | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | 06 | **Video Generation** | `mixio-generate` | VIDEO elements + workspace uploads |
@@ -222,17 +222,21 @@ Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not**
 
 Part of the Pre-Production Token Ralph Loop (`references/pre-production-ralph-loop.md`): blocking findings are auto-remediated (for example, registering a missing reference, attaching a valid look variant, or correcting a stale binding) and re-checked until **0 blocking errors** remain before Step 03. Advisory findings are presented for acknowledgment. This is the cheapest place to catch a reference problem — later detection costs re-renders.
 
-## Step 03 — Panel Breakdown
+## Step 03 — Deterministic Script Breakdown & Relational Audit
 
-→ `mixio-script-breakdown`, which owns the canonical schemas, the two camera vocabularies (authoring conventions, not validated), and the mapping from shot-grammar prose onto persistable keys. One scene at a time. Emit a `STAGING` block for the scene, then numbered shots using the field schema in `references/shot-grammar.md`. Non-negotiables:
+→ `mixio-script-breakdown`, which owns the canonical schemas, the two camera vocabularies (authoring conventions, not validated), the mapping from shot-grammar prose onto persistable keys, and the immediate post-breakdown relational audit. One scene at a time. Emit a `STAGING` block for the scene, then numbered shots using the field schema in `references/shot-grammar.md`. Non-negotiables:
 
-- Every shot carries a `duration` in seconds. Batching (Step 05) and cost estimates are both arithmetic on this field.
-- Every shot names its anchor (`Lighting: as Anchor 1`) or is marked `TEXT-ONLY`.
-- Intra-shot beats other shots depend on get a marker — `[M1]`, `[M2]` — so a later shot can say "tablet already with Tony after `[M2]`" instead of re-describing it.
-- The seven required canonical fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`) must all carry real values. A missing one persists as `"TBD"` and renders blank rather than failing — see `mixio-script-breakdown`.
-- Every shot maps audio cues into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }`. Standalone `[SFX: ...]` and `[Ambient: ...]` paragraphs map verbatim to `audio.sfx` and `audio.ambient`.
-
-Persist with `studio_upsert_scene_packages` (see `mixio-episode`), putting the shot spec in shot `metadata` and the cast/set links in `linked_character_ids` / `linked_location_ids` / `linked_prop_ids`.
+- **100% Canonical Fields**: The seven required canonical fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`) must all carry real, non-placeholder values. Zero `""`, `"TBD"`, `"tbd"`, `"n/a"`, `"unknown"`, `"none"`, or `"null"` strings — placeholders cause blank renders downstream.
+- **Continuous Float Duration**: Every shot carries a `duration` in seconds (continuous float 1.0–60.0s). Batching (Step 05) and cost estimates are arithmetic on this field.
+- **Anchor Attachment & Spatial Markers**: Every shot names its anchor (`Lighting: as Anchor 1`) or is marked `TEXT-ONLY`. Intra-shot beats other shots depend on get a marker — `[M1]`, `[M2]`.
+- **Audio/SFX Decomposition**: Every shot maps audio cues into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }`. Standalone `[SFX: ...]` and `[Ambient: ...]` paragraphs map verbatim to `audio.sfx` and `audio.ambient`.
+- **Entity ID Graph Linking**: Persist with `studio_upsert_scene_packages` (see `mixio-episode`), passing resolved entity IDs in `linked_character_ids`, `linked_location_ids`, `linked_prop_ids` (mapped from Cast & World context) along with human-readable names (`character_links`, `location_links`, `prop_links`).
+- **Per-Shot Appearance State**: Immediately call `studio_link_graph` with `relationType: "appears_in"` for every character appearing in each shot, binding `appearanceState` (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`).
+- **Immediate Relational Audit**: Execute a 3-point audit before closing Step 03:
+  1. *Canonical Fields Completeness*: 100% of shots have all 7 canonical fields populated with valid data.
+  2. *Graph & ID Integrity*: All linked entity IDs exist in Cast & World (0 orphaned links), and `appears_in` relations exist for all active characters.
+  3. *Scope & Duration Reconciliation*: Total shot durations sum to the screenplay scope runtime.
+  Emit the audit summary table and record the result into episode `metadata.pipeline.breakdown_audit`.
 
 ## Step 04 — Continuity Audit
 
@@ -283,10 +287,15 @@ Mixio has no dedicated shared-memory store, so pipeline state lives in existing 
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   aspect_ratio, anchor_aspect_ratio,
   step_00: "complete", step_01: "complete", step_02: "complete", step_02_5: "complete",
-  step_03: "in_progress", step_04: "not_started",
+  step_03: "complete", step_04: "complete",
   step_05: "not_started", step_06: "not_started",
   anchors: { "1": "<keyframe-element-id>" },
   reference_audit: { checked: 12, blocking: 0, advisory: 1 },
+  breakdown_audit: {
+    total_scenes: 3, total_shots: 18, total_duration: 84.5,
+    canonical_fields_complete: "100%", cast_world_links_valid: true,
+    unresolved_entities: 0, appearance_states_bound: 24
+  },
   pre_production_loop: {
     status: "converged",
     iterations: 2,
@@ -302,6 +311,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 | Source (screenplay, synopsis, aspect ratios) | SCREENPLAY `body` (or episode `script` only as fallback), episode `summary`, `metadata.pipeline` |
 | Locations | LOCATION references + `locationDetails` (`mixio-references`) |
 | Reference audit results | episode `metadata.pipeline.reference_audit` |
+| Relational breakdown audit results | episode `metadata.pipeline.breakdown_audit` |
 | Pre-production Ralph loop convergence | episode `metadata.pipeline.pre_production_loop` |
 | Scenes and direction | scene elements via `studio_upsert_scene_packages` |
 | Step progress | episode `metadata.pipeline` |
@@ -318,7 +328,8 @@ On resume, read `studio_get_project` for the locked settings and `studio_get_epi
 │ 01. screenplay → studio_upsert_screenplay({ body })                                   │
 │ 02. /mixio:sheets                → character + location sheets, anchor per scene       │
 │ 02.5 /mixio:reference-audit      → auto-remediate blocking reference/look errors        │
-│ 03. /mixio:script-breakdown      → studio_upsert_scene_packages                          │
+│ 03. /mixio:script-breakdown      → studio_upsert_scene_packages + studio_link_graph    │
+│                                    → relational audit → metadata.pipeline.breakdown_audit│
 │ 04. /mixio:continuity            → auto-correct specs, then re-audit                    │
 └─────────────────────────────────── ↺ iterate until 0 blocking errors ──────────────────┘
   → GATE: Pre-production converged & breakdown locked
