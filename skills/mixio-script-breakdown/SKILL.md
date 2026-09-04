@@ -13,14 +13,15 @@ Two ways to run it:
 
 | | **Managed** — one job | **Composed** — you author, primitives persist |
 |---|---|---|
-| Call | `studio_submit_studio_job` | `studio_register_reference_entities` → `studio_upsert_scene_packages` |
+| Call | `studio_submit_studio_job` | `studio_register_reference_entities` → `studio_upsert_scene_packages` → `studio_link_graph` |
 | Analysis by | Studio's workflow (Gemini + structured output) | you |
 | Granularity | whole script, one call | scene at a time, gated |
 | Gates | none, runs to completion | user sign-off between scenes |
 | Verbatim safety | regex pass wins over the LLM | you must replicate it (below) |
-| Use when | you want a fast, schema-safe first pass | you need shot-grammar depth and per-scene approval |
+| Relational audit | server internal | explicit audit emitted + locked into `metadata.pipeline` |
+| Use when | you want a fast, schema-safe first pass | you need shot-grammar depth, entity graph linking, per-shot `appearanceState`, and relational audit |
 
-Both paths reach the same contract, so the choice is about **process, not capability** — duration quantization is gone, so there is no longer a field the managed path can't express. Take the managed path for a cheap reproducible draft; take the composed path when you want sheets built first, gates between scenes, and per-shot `appearanceState`.
+Both paths reach the same contract, so the choice is about **process, not capability** — duration quantization is gone, so there is no longer a field the managed path can't express. Take the managed path for a cheap reproducible draft; take the composed path when you want sheets built first, gates between scenes, explicit entity ID linking, per-shot `appearanceState`, and a verified relational audit.
 
 Best of both: run the **composed** path but keep Studio's two safety properties — derive `scriptBody` / `transitionFromPrevious` / `isContinuation` from the text deterministically rather than authoring them, and self-check against the repair criteria before persisting.
 
@@ -59,22 +60,26 @@ It runs four stages: `prepare_inputs` → `load_production_context` → `script_
 
 A completed job that persisted zero scenes is converted to `FAILED` with `BREAKDOWN_EMPTY_PERSISTENCE`. Check status, don't assume.
 
-## Composed path — the four stages, done yourself
+## Composed path — the six stages, done yourself
 
 ```
 1. read context      studio_get_production_context({ projectId, episodeId })
-                     → canonical.characters / .locations / .props (reuse these names)
-2. analyze           your own LLM pass → references + scenes + shots
+                     → canonical.characters / .locations / .props (lookup map for IDs & names)
+2. analyze           your own LLM pass → references + scenes + shots (zero placeholders, 7 canonical fields)
 3. register refs     studio_register_reference_entities({ projectId, references })
-4. persist           studio_upsert_scene_packages({ projectId, episodeId, scenes })
-5. refine (later)    studio_revise_shot_specs / studio_update_shot_state
+4. persist packages  studio_upsert_scene_packages({ projectId, episodeId, scenes })
+                     (with linked_character_ids, linked_location_ids, linked_prop_ids)
+5. link appearances  studio_link_graph({ projectId, relations: [...] })
+                     (appears_in with appearanceState for every character in each shot)
+6. relational audit  audit 100% canonical fields, entity ID graph integrity, scope duration
+                     → emit report + lock into episode metadata.pipeline.breakdown_audit
 ```
 
-Order matters: register references first so `character_links` / `location_links` / `prop_links` resolve to real elements when the scene package materializes relations.
+Order matters: register references first so `linked_character_ids` / `linked_location_ids` / `linked_prop_ids` (and their name equivalents `character_links` / `location_links` / `prop_links`) resolve to real elements when the scene package materializes relations. Then create typed `appears_in` relations with `appearanceState` via `studio_link_graph` so per-shot wardrobe, condition, and carried props are bound to the graph. Finally, run the relational audit before advancing to Step 04.
 
 ## Canonical shot metadata
 
-Seven required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`); persisting a shot without them throws `Shot metadata missing required field <name>` at the materialization gate. Audio cues are decomposed into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }` (populating `audio.sfx` from `[SFX: ...]` and `audio.ambient` from `[Ambient: ...]` verbatim). Every entity present in a shot must be linked (`character_links` / `location_links` / `prop_links`) — that's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
+Seven required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`); persisting a shot without them throws `Shot metadata missing required field <name>` at the materialization gate. Audio cues are decomposed into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }` (populating `audio.sfx` from `[SFX: ...]` and `audio.ambient` from `[Ambient: ...]` verbatim). Every entity present in a shot must be linked — pass both the human-readable canonical names (`character_links` / `location_links` / `prop_links`) and the resolved element IDs (`linked_character_ids` / `linked_location_ids` / `linked_prop_ids`). That's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
 
 The full field table, the two camera vocabularies (`shot_type` is framing only; `camera_angle`/`lens`/`camera_movement` are their own axes — authoring conventions, not validated enums), the grammar→canonical-key mapping, and the passthrough rules: `references/canonical-schema.md`.
 
@@ -196,56 +201,175 @@ On repair: fill missing/weak metadata from the raw script, keep scene and shot o
 ## Persisting
 
 ```
-studio_upsert_scene_packages({ projectId, episodeId, scenes: [{
-  sceneNumber: 1,
-  name: "INT. TONY & POPPY'S BROOKLYN APARTMENT — DAY",
-  status: "breakdown",
-  metadata: { heading, location, timeOfDay, scriptBody, screenplayLines,
-              dialogueLines, dialogueLinesRomanized, cameraNotes,
-              directorNotes, transitionFromPrevious, isContinuation },
-  shots: [{
-    shotNumber: 7,
-    name: "Tony takes the tablet",
+// Step 4a: Persist scenes and shots with entity ID links
+const upsertResult = await studio_upsert_scene_packages({
+  projectId,
+  episodeId,
+  scenes: [{
+    sceneNumber: 1,
+    name: "INT. TONY & POPPY'S BROOKLYN APARTMENT — DAY",
+    status: "breakdown",
     metadata: {
-      shot_type: "over_shoulder", camera_movement: "dolly_in",
-      camera_angle: "eye_level", lens: "standard",
-      subject: "TONY on the BED, seated cross-legged",
-      action: "TONY drops her phone onto the bedding beside her, then reaches with her right hand to take the tablet from POPPY [M2].",
-      context: "TONY & POPPY'S BROOKLYN APARTMENT, day, warm sunlight through the two WINDOWS",
-      style_ambiance: "warm lived-in Italian-American Brooklyn; long diagonal light shafts",
-      lighting: "as Anchor 1 — hard midday sun from frame left, long shadows right",
-      mood: "unguarded, domestic, about to tip",
-      blocking: "FG → TONY's right shoulder; MG → tablet screen; BG → POPPY's face, soft focus",
-      duration: 4.5,
-      audio: { dialogue: "—", ambient: "a truck downshifting outside" },
-      character_links: ["TONY", "POPPY"],
-      location_links: ["TONY & POPPY'S BROOKLYN APARTMENT"],
-      prop_links: ["TABLET", "PHONE"],
-      // non-spec keys persist verbatim and, when the prompt materializer runs
-      // (promptEnhancementMode "enhance"), reach the prompt as "Additional
-      // direction" — deliberate, not inert
-      pacing: "NORMAL"
-    }
+      heading: "INT. TONY & POPPY'S BROOKLYN APARTMENT — DAY",
+      location: "TONY & POPPY'S BROOKLYN APARTMENT",
+      timeOfDay: "DAY",
+      scriptBody: "...",
+      screenplayLines: ["..."],
+      dialogueLines: ["..."],
+      dialogueLinesRomanized: [],
+      cameraNotes: "...",
+      directorNotes: "...",
+      transitionFromPrevious: "CUT TO",
+      isContinuation: false
+    },
+    shots: [{
+      shotNumber: 7,
+      name: "Tony takes the tablet",
+      metadata: {
+        shot_type: "over_shoulder",
+        camera_movement: "dolly_in",
+        camera_angle: "eye_level",
+        lens: "standard",
+        subject: "TONY on the BED, seated cross-legged",
+        action: "TONY drops her phone onto the bedding beside her, then reaches with her right hand to take the tablet from POPPY [M2].",
+        context: "TONY & POPPY'S BROOKLYN APARTMENT, day, warm sunlight through the two WINDOWS",
+        style_ambiance: "warm lived-in Italian-American Brooklyn; long diagonal light shafts",
+        lighting: "as Anchor 1 — hard midday sun from frame left, long shadows right",
+        mood: "unguarded, domestic, about to tip",
+        blocking: "FG → TONY's right shoulder; MG → tablet screen; BG → POPPY's face, soft focus",
+        duration: 4.5,
+        audio: { dialogue: "—", ambient: "a truck downshifting outside" },
+        character_links: ["TONY", "POPPY"],
+        location_links: ["TONY & POPPY'S BROOKLYN APARTMENT"],
+        prop_links: ["TABLET", "PHONE"],
+        linked_character_ids: ["elem_char_tony_uuid", "elem_char_poppy_uuid"],
+        linked_location_ids: ["elem_loc_apartment_uuid"],
+        linked_prop_ids: ["elem_prop_tablet_uuid", "elem_prop_phone_uuid"],
+        // non-spec keys persist verbatim and, when the prompt materializer runs
+        // (promptEnhancementMode "enhance"), reach the prompt as "Additional
+        // direction" — deliberate, not inert
+        pacing: "NORMAL"
+      }
+    }]
   }]
-}]})
-→ { scenes: [...], counts: { scenes, shots } }
+});
+// → { scenes: [...], counts: { scenes, shots } }
+
+// Step 4b: Link appearanceState for every appearing character
+await studio_link_graph({
+  projectId,
+  relations: [
+    {
+      fromId: "elem_char_tony_uuid",
+      toId: shotId,
+      relationType: "appears_in",
+      metadata: {
+        wardrobe: "oversized grey crewneck, faded denim shorts",
+        hairState: "loose natural curls, parted center",
+        condition: "rested, unblemished",
+        carriedProps: ["PHONE"],
+        emotionalState: "guarded curiosity",
+        continuityNotes: "holds phone in left hand initially, sets it down on bed"
+      }
+    },
+    {
+      fromId: "elem_char_poppy_uuid",
+      toId: shotId,
+      relationType: "appears_in",
+      metadata: {
+        wardrobe: "structured olive blazer, white silk camisole",
+        hairState: "sleek high ponytail",
+        condition: "pristine, sharp",
+        carriedProps: ["TABLET"],
+        emotionalState: "urgent, calculating",
+        continuityNotes: "extends tablet with both hands across the bed"
+      }
+    }
+  ]
+});
 ```
 
 Max 100 scenes per call. Scenes upsert by `sceneNumber + episodeId`; shots by `shotNumber` within a scene. Both `metadata` and `tags` merge, so a later partial write preserves omitted keys.
 
 For refinement after the initial persist use `studio_revise_shot_specs` (content) and `studio_update_shot_state` (workflow state) — see `mixio-continuity`. `revise_shot_specs` validates the spec partition partially, so you may send just the keys you're changing.
 
+## Relational Audit (Immediate Verification)
+
+Immediately after persisting scenes, shots, and appearance relations, execute a deterministic relational audit across three pillars:
+
+### 1. 100% Canonical Fields Audit
+Verify that all 7 required canonical fields are populated with real, non-placeholder values across 100% of persisted shots:
+- `shot_type`: valid framing convention (e.g. `close_up`, `wide`, `over_shoulder`, `two_shot`).
+- `camera_movement`: valid camera movement (e.g. `static`, `dolly_in`, `tracking`, `handheld`).
+- `subject`: concrete character/subject description (no blank or generic strings).
+- `action`: unambiguous physical action and staging beat.
+- `context`: specific environmental setting and conditions.
+- `style_ambiance`: lighting/color palette direction.
+- `duration`: continuous float between 1.0 and 60.0 seconds (e.g. `3.5`).
+- **Zero-placeholder rule**: Fail if any field contains `""`, `"TBD"`, `"tbd"`, `"n/a"`, `"na"`, `"unknown"`, `"none"`, or `"null"`.
+
+### 2. Cast & World Graph Integrity
+Verify all relational connections:
+- **Entity ID validation**: Every ID in `linked_character_ids`, `linked_location_ids`, `linked_prop_ids` resolves to an existing element in Cast & World (`studio_get_production_context` / `studio_list_references`). Zero orphaned links.
+- **Appearance State coverage**: Every character occurring in `linked_character_ids` for a shot must have a corresponding `appears_in` relation created with `appearanceState` (`wardrobe`, `condition`, `carriedProps`).
+- **Anchor attachment**: Every scene carries `anchorRef` referencing the scene's approved visual anchor.
+
+### 3. Scope & Duration Reconciliation
+- **Total Duration**: Sum of all shot durations must equal the planned scene/episode runtime.
+- **Shot Count**: Total shots match the decomposed dramatic beats from the screenplay.
+
+### 4. Emit Audit Report & Lock Metadata
+Emit a structured audit summary to the user:
+
+```
+=================== STEP 03: RELATIONAL AUDIT ===================
+Status: PASS (0 blocking issues)
+Scenes Persisted: 3 | Shots Persisted: 18 | Total Duration: 84.5s
+Canonical Fields: 100% complete (18/18 shots valid, 0 placeholders)
+Entity Graph:
+  - Characters Linked: 4 (4/4 resolved in Cast & World)
+  - Locations Linked: 2 (2/2 resolved in Cast & World)
+  - Props Linked: 5 (5/5 resolved in Cast & World)
+  - Appearance States Bound: 24/24 character-shot pairs
+=================================================================
+```
+
+Lock the audit result into episode `metadata.pipeline.breakdown_audit`:
+```
+studio_update_episode({
+  episodeId,
+  updates: {
+    metadata: {
+      pipeline: {
+        step_03: "complete",
+        breakdown_audit: {
+          total_scenes: 3,
+          total_shots: 18,
+          total_duration: 84.5,
+          canonical_fields_complete: "100%",
+          cast_world_links_valid: true,
+          unresolved_entities: 0,
+          appearance_states_bound: 24
+        }
+      }
+    }
+  }
+})
+```
+
 ## Workflow
 
 ```
 1. read SCREENPLAY by `tags.episodeId`; use non-empty `body`, otherwise episode `metadata.fullScript`
-2. studio_get_production_context({ projectId, episodeId })   → existing canonical names
+2. studio_get_production_context({ projectId, episodeId })   → build entity ID & canonical name lookup map
 3. segment the selected source verbatim into scenes (headings, transitions, time-of-day); retain native mentions, locks, and standalone annotations
 4. extract characters/locations/props → studio_register_reference_entities
-5. design shots per scene — purpose, then size/angle/movement/lens, then duration; honor explicit screenplay annotations verbatim instead of inferring them
+5. design shots per scene — 7 canonical fields with zero placeholders; map linked entity IDs and author per-shot appearanceState
 6. self-check against the repair criteria; fix rather than emitting "TBD"
-7. studio_upsert_scene_packages({ scenes })                  → counts.scenes / counts.shots
-8. → /mixio:continuity for the audit, then /mixio:shot-planning
+7. studio_upsert_scene_packages({ scenes })                  → persist scenes and shots with linked_*_ids
+8. studio_link_graph({ relations })                          → attach appears_in relations with appearanceState
+9. run relational audit (100% fields, valid entity IDs, duration/scope match) → lock into metadata.pipeline.breakdown_audit
+10. → /mixio:continuity for the continuity audit, then /mixio:shot-planning
 ```
 
 ## Notes

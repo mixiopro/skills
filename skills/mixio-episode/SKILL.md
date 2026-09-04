@@ -115,9 +115,10 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 2. studio_list_references({ projectId, limit }) → copy valid `mentionableLooks`
 3. studio_upsert_screenplay({ projectId, episodeId, body })                  → persist the preferred screenplay draft
    — or, for a raw idea with no screenplay stage: studio_update_episode({ episodeId, updates: { script } })
-4. studio_upsert_scene_packages({ projectId, episodeId, scenes: [...] })     → break the selected source into scenes/shots
-5. studio_revise_shot_specs / studio_update_shot_state                       → refine and approve shots
-6. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
+4. studio_upsert_scene_packages({ projectId, episodeId, scenes: [...] })     → break the selected source into scenes/shots (with linked entity IDs)
+5. studio_link_graph({ projectId, relations: [...] })                        → bind appears_in appearanceState for each character/shot pair
+6. studio_revise_shot_specs / studio_update_shot_state                       → refine and approve shots
+7. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
 ```
 
 ## Notes

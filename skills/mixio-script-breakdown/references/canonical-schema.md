@@ -25,11 +25,14 @@ Seven required fields. Persisting a shot without them throws `Shot metadata miss
 | `character_links` | — | canonical **names**, not ids |
 | `location_links` | — | canonical names |
 | `prop_links` | — | canonical names |
-| `linked_character_ids` | — | resolved element ids, if you already have them |
-| `linked_location_ids` | — | ” |
-| `linked_prop_ids` | — | ” |
+| `linked_character_ids` | — | resolved element IDs in Cast & World |
+| `linked_location_ids` | — | resolved element IDs in Cast & World |
+| `linked_prop_ids` | — | resolved element IDs in Cast & World |
 
-Every entity present in a shot must be linked — that's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
+Every entity present in a shot must be linked — passing both canonical names (`character_links`, `location_links`, `prop_links`) and resolved element IDs (`linked_character_ids`, `linked_location_ids`, `linked_prop_ids`). That builds the relation graph `mixio-generate` later reads to pull reference images, and it carries per-shot `appearanceState`.
+
+### Zero-Placeholder Rule
+The 7 required fields must never be populated with empty or placeholder strings (`""`, `"TBD"`, `"tbd"`, `"n/a"`, `"na"`, `"unknown"`, `"none"`, `"null"`). Downstream renderers and prompt assemblers treat placeholders as blank frames or corrupt prompts. Every shot must carry concrete, authored cinematic direction.
 
 ### `shot_type` — framing only
 
@@ -145,3 +148,38 @@ Precondition, precisely: element context (episode/scene/shot) is fetched and the
 Scene keys are **camelCase**; shot keys are **snake_case**. Not a typo in this doc — that's the actual contract, and mixing them up sends your field to the passthrough partition where nothing reads it.
 
 Scene `status`: `scripting` (default) → `breakdown` → `approved`.
+
+## Appearance state schema
+
+Attached to `appears_in` relations via `studio_link_graph` for each character appearing in a shot:
+
+| Key | Type | Description |
+|---|---|---|
+| `wardrobe` | string | Clothing/outfit description specific to this shot |
+| `hairState` | string | Hair style, state (e.g. wet, tied back, disheveled) |
+| `condition` | string | Physical condition (e.g. sweating, bruised, pristine) |
+| `carriedProps` | string[] | Array of canonical prop names held or carried in this shot |
+| `emotionalState` | string | Performance and emotional direction for the character |
+| `lookRef` | string | Variant name or ID from Cast & World reference |
+| `continuityNotes` | string | Granular continuity cues (e.g. prop in left hand) |
+
+## Relational audit specification
+
+Run immediately after breakdown persistence and graph linking. The audit verifies:
+
+1. **100% Canonical Fields Complete**: All 7 required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`) are populated on every shot without any placeholder strings.
+2. **Cast & World Graph Integrity**: Every element ID in `linked_character_ids`, `linked_location_ids`, `linked_prop_ids` resolves to an existing element in Cast & World. Every appearing character has an `appears_in` relation with `appearanceState`.
+3. **Scope & Duration Match**: Total duration of all shots equals planned episode/scene runtime. Total shot count matches screenplay breakdown beats.
+
+Persisted into episode `metadata.pipeline.breakdown_audit`:
+```json
+{
+  "total_scenes": 3,
+  "total_shots": 18,
+  "total_duration": 84.5,
+  "canonical_fields_complete": "100%",
+  "cast_world_links_valid": true,
+  "unresolved_entities": 0,
+  "appearance_states_bound": 24
+}
+```
