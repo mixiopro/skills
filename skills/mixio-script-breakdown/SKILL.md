@@ -95,7 +95,10 @@ Duration guidance: short holds (2.5–5s) for reaction cutaways, inserts, beat t
 
 A character reference says who someone *is*. What is true of them in **one shot** — soaked hair, a fresh cut over the left eye, the briefcase they didn't have two shots ago — belongs to the appearance, and a production has many appearances per character. Putting it on the character gives one global value that is only correct somewhere.
 
-It lives on the `appears_in` relation's `metadata`, validated by `appearanceStateSchema`. Every field is optional; an appearance with no state means "as described by the reference".
+It lives on the `appears_in` relation's `metadata`, validated by `appearanceStateSchema`. The
+schema permits optional fields, but the breakdown audit requires `wardrobe`, `condition`, and
+`carriedProps` for every appearing character; use `[]` when no props are carried. The remaining
+fields are optional, and an appearance with no state is not sufficient for a passing breakdown.
 
 | Key | Notes |
 |-----|-------|
@@ -113,6 +116,7 @@ Aliases are mapped, so `costume`/`outfit` → `wardrobe`, `hair`/`hair_state` �
 studio_link_graph({ projectId, relations: [{
   fromId: characterId, toId: shotId, relationType: "appears_in",
   metadata: { wardrobe: "red tee, dark jeans, bare feet",
+              condition: "rested, uninjured",
               hairState: "loose curls, slightly mussed",
               carriedProps: ["PHONE"], emotionalState: "amused, unguarded" }
 }]})
@@ -200,94 +204,12 @@ On repair: fill missing/weak metadata from the raw script, keep scene and shot o
 
 ## Persisting
 
-```
-// Step 4a: Persist scenes and shots with entity ID links
-const upsertResult = await studio_upsert_scene_packages({
-  projectId,
-  episodeId,
-  scenes: [{
-    sceneNumber: 1,
-    name: "INT. TONY & POPPY'S BROOKLYN APARTMENT — DAY",
-    status: "breakdown",
-    metadata: {
-      heading: "INT. TONY & POPPY'S BROOKLYN APARTMENT — DAY",
-      location: "TONY & POPPY'S BROOKLYN APARTMENT",
-      timeOfDay: "DAY",
-      scriptBody: "...",
-      screenplayLines: ["..."],
-      dialogueLines: ["..."],
-      dialogueLinesRomanized: [],
-      cameraNotes: "...",
-      directorNotes: "...",
-      transitionFromPrevious: "CUT TO",
-      isContinuation: false
-    },
-    shots: [{
-      shotNumber: 7,
-      name: "Tony takes the tablet",
-      metadata: {
-        shot_type: "over_shoulder",
-        camera_movement: "dolly_in",
-        camera_angle: "eye_level",
-        lens: "standard",
-        subject: "TONY on the BED, seated cross-legged",
-        action: "TONY drops her phone onto the bedding beside her, then reaches with her right hand to take the tablet from POPPY [M2].",
-        context: "TONY & POPPY'S BROOKLYN APARTMENT, day, warm sunlight through the two WINDOWS",
-        style_ambiance: "warm lived-in Italian-American Brooklyn; long diagonal light shafts",
-        lighting: "as Anchor 1 — hard midday sun from frame left, long shadows right",
-        mood: "unguarded, domestic, about to tip",
-        blocking: "FG → TONY's right shoulder; MG → tablet screen; BG → POPPY's face, soft focus",
-        duration: 4.5,
-        audio: { dialogue: "—", ambient: "a truck downshifting outside" },
-        character_links: ["TONY", "POPPY"],
-        location_links: ["TONY & POPPY'S BROOKLYN APARTMENT"],
-        prop_links: ["TABLET", "PHONE"],
-        linked_character_ids: ["elem_char_tony_uuid", "elem_char_poppy_uuid"],
-        linked_location_ids: ["elem_loc_apartment_uuid"],
-        linked_prop_ids: ["elem_prop_tablet_uuid", "elem_prop_phone_uuid"],
-        // non-spec keys persist verbatim and, when the prompt materializer runs
-        // (promptEnhancementMode "enhance"), reach the prompt as "Additional
-        // direction" — deliberate, not inert
-        pacing: "NORMAL"
-      }
-    }]
-  }]
-});
-// → { scenes: [...], counts: { scenes, shots } }
-
-// Step 4b: Link appearanceState for every appearing character
-await studio_link_graph({
-  projectId,
-  relations: [
-    {
-      fromId: "elem_char_tony_uuid",
-      toId: shotId,
-      relationType: "appears_in",
-      metadata: {
-        wardrobe: "oversized grey crewneck, faded denim shorts",
-        hairState: "loose natural curls, parted center",
-        condition: "rested, unblemished",
-        carriedProps: ["PHONE"],
-        emotionalState: "guarded curiosity",
-        continuityNotes: "holds phone in left hand initially, sets it down on bed"
-      }
-    },
-    {
-      fromId: "elem_char_poppy_uuid",
-      toId: shotId,
-      relationType: "appears_in",
-      metadata: {
-        wardrobe: "structured olive blazer, white silk camisole",
-        hairState: "sleek high ponytail",
-        condition: "pristine, sharp",
-        carriedProps: ["TABLET"],
-        emotionalState: "urgent, calculating",
-        continuityNotes: "extends tablet with both hands across the bed"
-      }
-    }
-  ]
-});
-```
+Read the production context first and build a name-to-ID map from its canonical references. The
+complete ID-safe persistence and relation-linking example lives in
+[references/persistence-and-audit.md](references/persistence-and-audit.md). It extracts the
+persisted shot ID from `studio_upsert_scene_packages` before calling `studio_link_graph`; if a
+Studio response omits nested IDs, query the scoped SHOT by episode, scene number, and shot number.
+Never substitute a fabricated ID.
 
 Max 100 scenes per call. Scenes upsert by `sceneNumber + episodeId`; shots by `shotNumber` within a scene. Both `metadata` and `tags` merge, so a later partial write preserves omitted keys.
 
@@ -311,51 +233,19 @@ Verify that all 7 required canonical fields are populated with real, non-placeho
 ### 2. Cast & World Graph Integrity
 Verify all relational connections:
 - **Entity ID validation**: Every ID in `linked_character_ids`, `linked_location_ids`, `linked_prop_ids` resolves to an existing element in Cast & World (`studio_get_production_context` / `studio_list_references`). Zero orphaned links.
-- **Appearance State coverage**: Every character occurring in `linked_character_ids` for a shot must have a corresponding `appears_in` relation created with `appearanceState` (`wardrobe`, `condition`, `carriedProps`).
+- **Appearance State coverage**: Every character occurring in `linked_character_ids` for a shot must have a corresponding `appears_in` relation with non-empty `wardrobe`, `condition`, and `carriedProps` (use `[]` when no props are carried). Other appearance fields remain optional.
 - **Anchor attachment**: Every scene carries `anchorRef` referencing the scene's approved visual anchor.
 
 ### 3. Scope & Duration Reconciliation
-- **Total Duration**: Sum of all shot durations must equal the planned scene/episode runtime.
+- **Planned runtime source**: Read `studio_get_episode({ episodeId })` before the audit and require `metadata.pipeline.planned_runtime_seconds`, set during preflight or explicitly supplied by the user. Do not claim a scope match when this value is absent.
+- **Total Duration**: Sum of all shot durations must equal that planned scene/episode runtime; report both values and the difference.
 - **Shot Count**: Total shots match the decomposed dramatic beats from the screenplay.
 
 ### 4. Emit Audit Report & Lock Metadata
-Emit a structured audit summary to the user:
-
-```
-=================== STEP 03: RELATIONAL AUDIT ===================
-Status: PASS (0 blocking issues)
-Scenes Persisted: 3 | Shots Persisted: 18 | Total Duration: 84.5s
-Canonical Fields: 100% complete (18/18 shots valid, 0 placeholders)
-Entity Graph:
-  - Characters Linked: 4 (4/4 resolved in Cast & World)
-  - Locations Linked: 2 (2/2 resolved in Cast & World)
-  - Props Linked: 5 (5/5 resolved in Cast & World)
-  - Appearance States Bound: 24/24 character-shot pairs
-=================================================================
-```
-
-Lock the audit result into episode `metadata.pipeline.breakdown_audit`:
-```
-studio_update_episode({
-  episodeId,
-  updates: {
-    metadata: {
-      pipeline: {
-        step_03: "complete",
-        breakdown_audit: {
-          total_scenes: 3,
-          total_shots: 18,
-          total_duration: 84.5,
-          canonical_fields_complete: "100%",
-          cast_world_links_valid: true,
-          unresolved_entities: 0,
-          appearance_states_bound: 24
-        }
-      }
-    }
-  }
-})
-```
+Emit a structured audit summary with actual counts, total duration, planned runtime, duration
+delta, resolved entity counts, and appearance-state coverage. Lock it into episode
+`metadata.pipeline.breakdown_audit` only after all checks pass. The concrete report and metadata
+payload are in [references/persistence-and-audit.md](references/persistence-and-audit.md).
 
 ## Workflow
 
