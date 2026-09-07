@@ -100,7 +100,7 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 |------|---------|
 | `studio_create_relation` | `{ projectId, fromId, toId, relationType, role?, metadata?, mirrorBelongsTo? }` |
 | `studio_delete_relation` | `{ relationId }` |
-| `studio_query_relations` | `{ projectId, fromId?, toId?, relationType?, limit? }` — see `tags`/`metadata` object warning below |
+| `studio_query_relations` | `{ projectId, fromId?, toId?, relationType?, metadata?: object, limit? }` — `metadata` is a native object; see the canonical warning above |
 | `studio_bulk_create_relations` | `{ projectId, relations: [...] }` — same per-item shape as `create_relation` |
 | `studio_link_graph` | `{ projectId, relations: [...] }` (max 200) — near-duplicate of `bulk_create_relations`; prefer this one for breakdown work since it verifies project access up front and documents the common breakdown relation types (`appears_in`, `located_at`, `used_in`, `belongs_to`) |
 

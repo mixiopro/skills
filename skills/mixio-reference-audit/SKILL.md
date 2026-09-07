@@ -128,7 +128,9 @@ This category is informational when the project has no policy set (the defaults 
 
 A shot or scene can bind a reference's look via `lookRef` on its `appears_in`/`presence` relation (`mixio-script-breakdown`). That binding degrades silently to the reference's default variant when it doesn't resolve — no error, no visible sign in the UI — so this is the one check that catches a wrong render before it happens rather than after.
 
-Pull bindings from `studio_get_production_context`'s `lookBindings` (or `query_relations` per relation), and cross-reference each `lookRef` against the target reference's `referenceVariants[].id` / `.name`.
+Pull bindings from `studio_get_production_context`'s `lookBindings` (or `studio_query_relations`
+per relation). Pass relation `metadata` as a native object, never a JSON-stringified string, and
+cross-reference each `lookRef` against the target reference's `referenceVariants[].id` / `.name`.
 
 | Finding | Meaning |
 |---------|---------|
