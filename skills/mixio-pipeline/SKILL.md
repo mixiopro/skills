@@ -299,7 +299,11 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 | Shot plan (method/model/batch) | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | Rendered assets and video | KEYFRAME / VIDEO elements + `upload_file` URLs |
 
-On resume, read `studio_get_project` for the locked settings and `studio_get_episode` (cheap) for pipeline state, then query the episode's `SCREENPLAY` element (`studio_query_elements` with `type: "SCREENPLAY"` and `tags: { episodeId }`) before reusing source text. Do not substitute a stale `fullScript` when a non-empty screenplay body exists; avoid `studio_get_production_context` until its graph detail is actually needed.
+On resume, read `studio_get_project` for the locked settings and `studio_get_episode` (cheap) for
+pipeline state, then query the episode's `SCREENPLAY` element (`studio_query_elements` with
+`type: "SCREENPLAY"` and native-object `tags: { episodeId }`, never `JSON.stringify(...)`) before
+reusing source text. Do not substitute a stale `fullScript` when a non-empty screenplay body
+exists; avoid `studio_get_production_context` until its graph detail is actually needed.
 
 ## Workflow
 

@@ -303,7 +303,7 @@ Three ways to hit a specific look, in order of directness:
 
 1. **Pass `variantId` / `variantName` on the media reference itself** — `input.media.<slot>: { url, variantId }`. Bound exactly, no lookup, and always wins over whatever generation would otherwise resolve.
 2. **Pass `selectedElements` alongside `media`.** Each reference is linked to its element, so the backend fallback can resolve the shot-then-scene binding for you. This is the step that's easy to skip — omit `selectedElements` and a URL-only reference has no element id, so there's nothing for the fallback to key on.
-3. **Read `lookBindings` and pass that look's URL yourself.** `studio_get_production_context` returns `lookBindings: [{ ownerId, referenceId, lookRef }]` for the whole episode; `query_relations` rows expose the same thing per relation as `metadata.lookRef`.
+3. **Read `lookBindings` and pass that look's URL yourself.** `studio_get_production_context` returns `lookBindings: [{ ownerId, referenceId, lookRef }]` for the whole episode; `studio_query_relations` rows expose the same thing per relation as `metadata.lookRef`. Pass a relation `metadata` filter as a native object, never a JSON-stringified string.
 
 With none of the three, a reference resolves to the element's default variant — indistinguishable from "nothing was bound," so a rebind the user made can silently not render. Whatever you declare (1 or 2) is a snapshot taken at submit time; rebinding after submitting a running job does not change what it renders.
 
