@@ -121,4 +121,4 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 ## Notes
 
 - `studio_create_episode`'s `script` field maps to `metadata.fullScript` internally — pass it via `script`, not raw `metadata`. It is the raw Idea/Story fallback, not the screenplay.
-- Shot/scene elements are tagged with `episodeId` (via `tags.episodeId`) — that's what scopes `studio_query_elements`/`studio_get_production_context` to one episode.
+- Shot/scene elements are tagged with `episodeId` (via native-object `tags: { episodeId }`, never `JSON.stringify(...)`) — that's what scopes `studio_query_elements`/`studio_get_production_context` to one episode.
