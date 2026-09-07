@@ -114,7 +114,8 @@ Tool skills are reference docs for the MCP surface and are safe to use standalon
 Running a full episode — `/mixio:pipeline` drives this, gating on user confirmation between steps:
 
 ```
-Step 00  lock aspect_ratio (delivery) + anchor_aspect_ratio (wider, for anchors)
+Step 00  Preflight           → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
+                              resolution, visual style and reference policy into the project settings
 Step 01  Detailed Screenplay → /mixio:episode discovers mentions and upserts the native screenplay draft
 Step 02  Anchor Frames       → /mixio:sheets — character + location sheets, one anchor per scene
 Step 02.5 Reference Audit    → /mixio:reference-audit — completeness, consistency, duplicates, metadata

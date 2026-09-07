@@ -68,7 +68,8 @@ For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a pro
 ## Order matters
 
 ```
-00  lock aspect_ratio (delivery) + anchor_aspect_ratio (wider, for anchors)
+00  Preflight          → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
+                        resolution, visual style, reference policy into project `settings`
 01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty
 02  Sheets + anchors  → /mixio:sheets      — references must exist before shots reference them
 02.5 Reference audit  → /mixio:reference-audit — completeness, consistency, duplicates, metadata
