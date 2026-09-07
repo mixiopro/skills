@@ -67,14 +67,20 @@ A look with no distinct `views` correctly uses its two-segment `#root.look` ment
 
 Every `#` token in the screenplay body must be validated against project references. Probing via `studio_resolve_mention({ projectId, mention })` returns `{ resolved, element?, variantId?, reason? }` and never throws on an unresolved mention. The `reason` string categorizes the four diagnosis states:
 
+Before remediating an unresolved entity or look, read `settings.references` with
+`studio_get_project`. Honor its `createPolicy` and `variantPolicy`; route the write through
+`mixio-references` when a policy needs interpretation.
+
 | Status / Reason | Meaning | Remediation |
 |---|---|---|
 | `RESOLVED` | Entity and look variant successfully resolved. | None needed. Ready for breakdown. |
-| `UNRESOLVED_ENTITY`<br>(`no element named "..." in this project`) | The character/location/prop element does not exist in Cast & World. | Register entity via `studio_register_reference_entities`, then generate look sheet. |
-| `UNRESOLVED_LOOK`<br>(`no look named "..." on element "..."`) | Entity exists, but the specific variant look does not. | Add a **variant look** to the existing element via `studio_update_reference` / `mixio-sheets`. **Never create a second duplicate character**. |
+| `UNRESOLVED_ENTITY`<br>(`no element named "..." in this project`) | The character/location/prop element does not exist in Cast & World. | After the reference-policy check, register the entity via `studio_register_reference_entities`, then generate its look sheet. |
+| `UNRESOLVED_LOOK`<br>(`no look named "..." on element "..."`) | Entity exists, but the specific variant look does not. | After the reference-policy check, add a **variant look** to the existing element via `studio_update_reference` / `mixio-sheets`. **Never create a second duplicate character**. |
 | `AMBIGUOUS`<br>(`ambiguous: 2 elements named "..." in this project`) | Two references collapse to one mention root slug. | Deduplicate or rename the conflicting reference element in Cast & World. |
 
-**Step 01 Quality Gate**: Zero unmapped character/location tokens permitted before advancing to Step 02/03. Unresolved mentions fail soft on write but prevent references from binding downstream.
+**Step 01 Quality Gate**: Zero unmapped `#` tokens—character, location, or prop—are permitted
+before advancing to Step 02/03. Unresolved mentions fail soft on write but prevent references
+from binding downstream.
 
 ## Native continuity locks: `~`
 
