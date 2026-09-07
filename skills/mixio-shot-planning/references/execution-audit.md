@@ -108,6 +108,8 @@ studio_revise_shot_specs({ shots: [
   { shotId: s1, metadata: {
     generation_method: "SINGLE",
     generation_model: "seedance_image_to_video_v2",
+    generation_use_case: "production-generate-video",
+    generation_input_contract: "single-start-frame",
     batch_index: 1,
     batch_position: 1,
     batch_duration: 9.5,
@@ -117,6 +119,8 @@ studio_revise_shot_specs({ shots: [
   { shotId: s4, metadata: {
     generation_method: "MASTER_ANCHOR_MULTI_SHOT",
     generation_model: "veo_3_1",
+    generation_use_case: "production-generate-video",
+    generation_input_contract: "scene-anchor-frame",
     batch_index: 2,
     batch_position: 1,
     batch_duration: 8.0,

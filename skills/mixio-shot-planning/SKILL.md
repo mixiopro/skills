@@ -89,9 +89,7 @@ if camera_movement is not in the listed vocabularies OR no prior rule matched:
 
 ### Project-level defaults
 
-Read `projects.settings` through `studio_get_project` before selecting a fallback model or
-generation shape. The setting paths and their planning effects are in
-[`references/execution-audit.md#project-level-defaults`](references/execution-audit.md#project-level-defaults).
+Read `projects.settings` through `studio_get_project` before selecting a fallback model or generation shape; see [`references/execution-audit.md#project-level-defaults`](references/execution-audit.md#project-level-defaults) for setting paths and effects.
 
 ---
 
@@ -197,7 +195,7 @@ location_ref, enhancer_context, and every other schema-declared media slot):
         → BLOCKING: create one slotTags + mentionMap pair for every asset
     for each assetKey, asset in assets:
         tag = slotTags[assetKey]
-        if tag is missing OR prompt contains tag zero or more than once:
+        if tag is missing OR prompt contains tag zero times or more than once:
             FINDING: PROMPT_MENTION_MISSING — asset has no unique prompt @tag
             → BLOCKING: embed exactly one @tag where that asset acts
         if mentionMap[tag] is missing:
@@ -241,8 +239,8 @@ not a substitute for the live contract.
 
 ### Batch formation algorithm
 
-1. Group consecutive shots with the **same model assignment**.
-2. Within each model-group, start a batch with the first shot and keep adding consecutive shots as long as the running duration and count remain under the model's ceilings.
+1. Group consecutive shots only when they share the **same model, generation use case, and input contract**. `GRID`, `SEQUENCE`, `SINGLE`, `DUAL_FRAME`, and `T2V` are separate input contracts unless the live schema explicitly supports batching them together.
+2. Within each compatible group, start a batch with the first shot and keep adding consecutive shots as long as the running duration and count remain under the model's ceilings.
 3. The moment either limit is exceeded, close the batch and open a new one beginning with that shot.
 4. A shot whose duration exceeds model max becomes a multi-segment batch (`SEQUENCE` forced).
 5. Prefer closing batches at scripted cuts over arbitrary duration boundaries.
@@ -262,9 +260,10 @@ shape. Do not submit a generation job until the user approves this estimate.
 
 ## Persisting the plan
 
-Persist each shot's planning metadata with `studio_revise_shot_specs`, then write the completed
-Step 05 summary to `episode.metadata.pipeline`. The required field shape and worked writes are
-in [`references/execution-audit.md#plan-persistence`](references/execution-audit.md#plan-persistence).
+Persist each shot's model, `generation_use_case`, and input contract with
+`studio_revise_shot_specs`, then write the completed Step 05 summary to
+`episode.metadata.pipeline`. The required field shape and worked writes are in
+[`references/execution-audit.md#plan-persistence`](references/execution-audit.md#plan-persistence).
 
 ---
 
