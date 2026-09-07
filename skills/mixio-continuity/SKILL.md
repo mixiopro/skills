@@ -101,6 +101,7 @@ Run all of these, every time:
 9. **Field completeness** — `GAP` for a missing field, `VAGUE` for a present-but-underspecified one (`seated`, `nearby`, `some light`).
 10. **Marker integrity** — every `[Mn]` referenced by another shot exists, and the referencing shot comes after it.
 11. **Reference readiness** — for each `character_links` / `location_links` / `prop_links` entry, confirm the reference element exists and (for characters/locations appearing in ≥2 shots) has at least one attached image. This is a cross-check against Step 02.5's audit — a reference that passed the audit but was later deleted or corrupted is caught here. Findings use code `REF_MISSING` (no element) or `REF_NO_IMAGE` (element exists, no media attached).
+12. **Audio continuity** — when a shot carries `audio.ambient`, verify it does not contradict what an earlier shot in the same scene established (room tone, weather, background activity) without a stated cause (a door closing, entering storm). Verify `audio.sfx` triggers correspond to explicit physical action beats. Report as `AUDIO`.
 
 ## Pass 3 — Report
 

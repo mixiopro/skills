@@ -74,7 +74,7 @@ Order matters: register references first so `character_links` / `location_links`
 
 ## Canonical shot metadata
 
-Seven required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`); persisting a shot without them throws `Shot metadata missing required field <name>` at the materialization gate. Every entity present in a shot must be linked (`character_links` / `location_links` / `prop_links`) — that's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
+Seven required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`); persisting a shot without them throws `Shot metadata missing required field <name>` at the materialization gate. Audio cues are decomposed into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }` (populating `audio.sfx` from `[SFX: ...]` and `audio.ambient` from `[Ambient: ...]` verbatim). Every entity present in a shot must be linked (`character_links` / `location_links` / `prop_links`) — that's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
 
 The full field table, the two camera vocabularies (`shot_type` is framing only; `camera_angle`/`lens`/`camera_movement` are their own axes — authoring conventions, not validated enums), the grammar→canonical-key mapping, and the passthrough rules: `references/canonical-schema.md`.
 

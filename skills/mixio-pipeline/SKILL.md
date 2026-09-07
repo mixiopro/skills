@@ -197,9 +197,11 @@ Ask what the user already has, and offer the three real answers rather than an o
 2. **Script only** — you parse it; derive the synopsis yourself.
 3. **Both** — synopsis for intent; persist the normalized screenplay as the breakdown source of truth.
 
-Then write/normalize to standard screenplay form: sluglines (`INT./EXT. — LOCATION — TIME`), action, character cues, dialogue. Set every recurring physical object and set dressing in `CAPS` on first mention (`BED`, `BEDSIDE TABLE`, `NAPOLI POSTER`) — those CAPS tokens are what Step 04 greps for prop continuity.
+Then write/normalize to standard screenplay form per the [native screenplay grammar](../mixio-episode/references/screenplay-grammar.md). Every scene must include four core components: **sluglines** (`INT./EXT. — LOCATION — TIME`), **action beats**, **character cues/dialogue**, and **audio/SFX design paragraphs** (`[SFX: ...]`, `[Ambient: ...]`). Set every recurring physical object, prop, and prominent setting element in `ALL CAPS` on first mention (`BED`, `BEDSIDE TABLE`, `NAPOLI POSTER`, `TABLET`, `PHONE`) — those CAPS tokens are what Step 03 extracts and Step 04 greps for prop continuity.
 
-Before writing, call `studio_list_references({ projectId, limit })` and build the valid mention catalog from its `mentionableLooks`. Reuse those exact `#name.variant[.view]` tokens for existing Cast & World entities—never hand-construct one. A two-segment mention is complete when a look has no views. Use `~location.landmark[.placement]` for advisory spatial continuity locks. For explicit director intent that must override inference, put a standalone `[Key: Value · Key: Value]` paragraph immediately before its beat; the recognized keys are `Camera`, `Camera Movement`, `Lighting`, `Mood`, `Blocking`, `Background`, `Location`, `Shot Type`, `SFX`, `Ambient`, and `Lens`.
+Before writing, call `studio_list_references({ projectId, limit })` and build the valid mention catalog from its `mentionableLooks`. Reuse those exact `#name.variant[.view]` tokens for existing Cast & World entities—never hand-construct one. A two-segment mention is complete when a look has no views. Validate all `#` mentions (probed via `studio_resolve_mention`): resolve all `UNRESOLVED_ENTITY`, `UNRESOLVED_LOOK`, or `AMBIGUOUS` tokens (0 unmapped tokens gate) before proceeding. Use `~location.landmark[.placement]` for advisory spatial continuity locks.
+
+For explicit director intent that must override inference, place a standalone `[Key: Value · Key: Value]` paragraph immediately before the beat it governs. The 11 recognized keys are `Camera`, `Camera Movement`, `Lighting`, `Mood`, `Blocking`, `Background`, `Location`, `Shot Type`, `SFX`, `Ambient`, and `Lens`.
 
 Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not** `studio_update_episode({ script })`. A screenplay is its own per-episode element and a non-empty body—draft included—wins over raw Idea/Story `script`/`fullScript` in Step 03. `upsert_screenplay` is idempotent and always writes a draft; Studio's human Screenplay view performs approval separately. Persist only the logline with `studio_update_episode({ episodeId, updates: { summary } })` when needed.
 
@@ -228,6 +230,7 @@ Blocking findings must be resolved before Step 03. Advisory findings are present
 - Every shot names its anchor (`Lighting: as Anchor 1`) or is marked `TEXT-ONLY`.
 - Intra-shot beats other shots depend on get a marker — `[M1]`, `[M2]` — so a later shot can say "tablet already with Tony after `[M2]`" instead of re-describing it.
 - The seven required canonical fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`) must all carry real values. A missing one persists as `"TBD"` and renders blank rather than failing — see `mixio-script-breakdown`.
+- Every shot maps audio cues into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }`. Standalone `[SFX: ...]` and `[Ambient: ...]` paragraphs map verbatim to `audio.sfx` and `audio.ambient`.
 
 Persist with `studio_upsert_scene_packages` (see `mixio-episode`), putting the shot spec in shot `metadata` and the cast/set links in `linked_character_ids` / `linked_location_ids` / `linked_prop_ids`.
 
