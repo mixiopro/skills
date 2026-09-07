@@ -89,15 +89,9 @@ if camera_movement is not in the listed vocabularies OR no prior rule matched:
 
 ### Project-level defaults
 
-Read from `projects.settings` via `studio_get_project`:
-
-| Setting Path | Type / Values | Effect |
-|--------------|---------------|--------|
-| `settings.generation.defaultModelByUseCase` | `Record<useCaseId, modelId>` | Pinned model per use case (e.g. `production-generate-video`, `production-generate-shot-keyframes`) |
-| `settings.studio.preferredVideoModel` | model ID | Default fallback video generation engine |
-| `settings.studio.defaultVideoShotMode` | `'single-shot'` · `'multi-keyframe'` · `'grid'` | Studio UI mode preference (`'single-shot'` biases to `SINGLE`/`DUAL_FRAME`, `'multi-keyframe'` to `SEQUENCE`, `'grid'` to `GRID`) |
-| `settings.generation.defaultAspectRatioByOutputType` | `{ IMAGE: string, VIDEO: string }` | Locked aspect ratios from Step 00 |
-| `settings.generation.defaultParametersByUseCase` | `Record<useCaseId, Record<string, unknown>>` | Default model parameters (e.g. `{ resolution: "720p" }`) |
+Read `projects.settings` through `studio_get_project` before selecting a fallback model or
+generation shape. The setting paths and their planning effects are in
+[`references/execution-audit.md#project-level-defaults`](references/execution-audit.md#project-level-defaults).
 
 ---
 
@@ -115,17 +109,22 @@ For each shot × method × model, run the execution audit against model capabili
 
 ### Duration feasibility
 
+A numeric duration contract is exact values (`enum`/`const`, including `anyOf`) or numeric bounds.
+
 ```
 duration_schema = schema?.properties?.parameters?.properties?.duration
-duration_values = flatten_numeric_enums(duration_schema?.enum, duration_schema?.anyOf)
-if duration_values.length == 0:
-    FINDING: DURATION_SCHEMA_UNAVAILABLE — selected model exposes no readable duration enum
+duration_contract = derive_numeric_duration_contract(duration_schema)
+if duration_contract is unreadable:
+    FINDING: DURATION_SCHEMA_UNAVAILABLE — selected model exposes no readable duration contract
     → BLOCKING: stop planning until the live schema is resolved or the user selects another model
-max_duration = Math.max(...duration_values)  # schema from studio_get_use_case_input_schema
 
-if shot.duration > max_duration:
-    FINDING: DURATION_EXCEEDS_MODEL — Shot 9 (18s) > model max (8s)
-    → BLOCKING: Split into segments or reassign to model with higher duration ceiling
+if duration_contract.allowed_values exists AND shot.duration not in allowed_values:
+    FINDING: DURATION_NOT_SUPPORTED — Shot 9 (6s) is not one of [4s, 8s]
+    → BLOCKING: Use an allowed duration, split the shot, or select another model
+
+if duration_contract.bounds exist AND shot.duration is outside [minimum, maximum]:
+    FINDING: DURATION_OUT_OF_RANGE — Shot 9 (18s) > model max (8s)
+    → BLOCKING: Split into segments or reassign to model with a compatible range
 
 if shot.duration < 2.0 and method in (SINGLE, DUAL_FRAME):
     FINDING: DURATION_TOO_SHORT — most video models produce minimum 3-4s
@@ -222,33 +221,10 @@ if shot is first in a new batch AND previous batch exists:
 
 ## Feasibility report
 
-```
-SHOT PLANNING — 13 shots across 2 scenes
-═══════════════════════════════════════════
-
-Archetype distribution:
-  SINGLE:                    6 shots (46%)
-  DUAL_FRAME:                3 shots (23%)
-  MASTER_ANCHOR_MULTI_SHOT:  2 shots (15%)
-  SEQUENCE:                  1 shot  (8%)
-  T2V:                       1 shot  (8%)
-
-Model assignments:
-  veo_3_1:                    5 shots (cinematic, multi-person)
-  seedance_image_to_video_v2: 6 shots (action, simple holds)
-  sora_2:                     1 shot  (establishing)
-  seedance_text_to_video_pro: 1 shot  (t2v abstract)
-
-Execution audit findings:
-  ❌ DURATION_EXCEEDS_MODEL:    Shot 9 (18s) > veo_3_1 max (8s) → split into 3 segments
-  ❌ PROMPT_MENTIONS_MISSING:   Shot 7 (Gary Player ref attached but 0 @ tags) → embed @asset1
-  ❌ MENTION_MAP_UNPAIRED:       Shot 7 (slotTags has @asset1 but mentionMap missing) → pair mentionMap
-  ⚠️  ACTION_DENSITY_HIGH:      Shot 5 (4 actions in 3s = 1.33 a/s) → extend to 5s or simplify
-  ❌ DIALOGUE_TOO_FAST:          Shot 11 (22 words in 4s = 5.5 wps) → extend to 6.5s
-
-Blocking: 4 (must resolve)
-Advisory: 1 (recommend resolving)
-```
+Report the archetype and model distribution, every finding with its remediation, and separate
+blocking from advisory work. Use the worked
+[feasibility-report format](references/execution-audit.md#feasibility-report) as the shape; the
+report may advance only when every blocking finding is resolved.
 
 ---
 
@@ -258,15 +234,10 @@ After archetype/model assignment and feasibility resolution, group shots into **
 
 ### Batch rules (per model)
 
-| Model family | Max duration/batch | Max shots/batch | Notes |
-|--------------|--------------------|-----------------|-------|
-| Seedance v2 | 10s | 5 | Default profile |
-| Seedance Pro | 15s | 5 | Higher quality, same limits |
-| Veo 3.1 | 8s | 3 | Shorter ceiling, high fidelity |
-| Sora 2 | 20s | 4 | Longer single-pass output |
-| Kling 2.6 Pro | 10s | 5 | Similar to Seedance |
-
-**Confirm per-shot limits from `studio_get_use_case_input_schema({ useCaseId, modelId })`** rather than relying on static tables — the `duration` enum is the model's true ceiling.
+**Confirm per-shot limits from `studio_get_use_case_input_schema({ useCaseId, modelId })`** —
+the schema is authoritative. The historical model-family profile is lookup material in
+[`references/execution-audit.md#batch-profiles`](references/execution-audit.md#batch-profiles),
+not a substitute for the live contract.
 
 ### Batch formation algorithm
 
@@ -281,94 +252,19 @@ After archetype/model assignment and feasibility resolution, group shots into **
 
 ## Production summary & credit cost estimation
 
-Emit this before asking for generation budget approval. Take credit costs directly from `mixio-generate/references/model-comparison.md` (`models.json` → `pricing`):
-
-```
-PRODUCTION SUMMARY
-══════════════════
-
-Total shots:                    13
-Total batches:                   7
-Total runtime:               52.5s
-Estimated generation jobs:      17  (10 keyframe jobs + 7 video jobs)
-
-Per-model breakdown:
-  veo_3_1:                    5 shots / 3 batches / 22.0s / 2,160 credits
-  seedance_image_to_video_v2: 6 shots / 3 batches / 24.5s / 540 credits
-  sora_2:                     1 shot  / 1 batch  /  6.0s  / 120 credits
-
-Archetype breakdown:
-  SINGLE (1 keyframe → video):         6 shots
-  DUAL_FRAME (start+end → video):      3 shots  (3 extra keyframe jobs)
-  MASTER_ANCHOR_MULTI_SHOT:            2 shots  (anchored to Scene 1 wide)
-  SEQUENCE (3+ keyframes → video):     1 shot   (1 keyframe-sequence job)
-  T2V (prompt only):                   1 shot
-
-Keyframe generation needed:           10 images (6 single + 3×2 dual - 2 anchor crops)
-Video generation jobs:                 7 (one per resolved batch)
-
-Credit cost estimate:
-  Keyframes (image gen):    10 × 10 credits (gpt_image_2) =  100 credits
-  Video gen:                3 × veo_3_1 (720) + 3 × seedance (180) + 1 × sora (120) = 2,820 credits
-  Total estimate:                                          2,920 credits
-
-High-risk boundaries:
-  Batch 3→4: cross-model (Seedance→Veo) — continuity frame critical
-  Batch 6→7: scene transition — less critical
-
-Rapid pacing sections:
-  Batches 2, 3 — 3+ consecutive RAPID/PUNCHY shots
-```
+Before asking for generation budget approval, calculate current credit costs from
+`mixio-generate/references/model-comparison.md` (`models.json` → `pricing`) and present totals,
+per-model and per-archetype accounting, job counts, and high-risk boundaries. Use the worked
+[production-summary format](references/execution-audit.md#production-summary) as the report
+shape. Do not submit a generation job until the user approves this estimate.
 
 ---
 
 ## Persisting the plan
 
-Write per-shot planning metadata alongside the batch assignment:
-
-```
-studio_revise_shot_specs({ shots: [
-  { shotId: s1, metadata: {
-    generation_method: "SINGLE",
-    generation_model: "seedance_image_to_video_v2",
-    batch_index: 1,
-    batch_position: 1,
-    batch_duration: 9.5,
-    keyframe_count: 1,
-    continuity_input: null
-  }},
-  { shotId: s4, metadata: {
-    generation_method: "MASTER_ANCHOR_MULTI_SHOT",
-    generation_model: "veo_3_1",
-    batch_index: 2,
-    batch_position: 1,
-    batch_duration: 8.0,
-    keyframe_count: 1,
-    continuity_input: "scene_1_anchor"
-  }}
-]})
-```
-
-Keep `chunk_index` as an alias for `batch_index` for backwards compatibility.
-
-Persist `look_variant_id` / `look_variant_name` when non-default looks are resolved so Step 06 inherits them without re-evaluating the cascade.
-
-Then close Step 05:
-
-```
-studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
-  step_05: "complete",
-  shot_plan: {
-    total_batches: 7,
-    total_runtime: 52.5,
-    estimated_credits: 2920,
-    models_used: ["veo_3_1", "seedance_image_to_video_v2", "sora_2"],
-    archetypes: { SINGLE: 6, DUAL_FRAME: 3, MASTER_ANCHOR_MULTI_SHOT: 2, SEQUENCE: 1, T2V: 1 },
-    keyframe_jobs: 10,
-    video_jobs: 7
-  }
-}}}})
-```
+Persist each shot's planning metadata with `studio_revise_shot_specs`, then write the completed
+Step 05 summary to `episode.metadata.pipeline`. The required field shape and worked writes are
+in [`references/execution-audit.md#plan-persistence`](references/execution-audit.md#plan-persistence).
 
 ---
 
@@ -397,7 +293,7 @@ Announce the close with the credit estimate:
 
 ## Notes
 
-- **Always query the live catalog.** Model capabilities change. Use `studio_get_use_case_input_schema` for authoritative duration enums and parameter support.
+- **Always query the live catalog.** Model capabilities change. Use `studio_get_use_case_input_schema` for the authoritative duration contract and parameter support.
 - Archetype classification is a recommendation. The user may override any assignment — record overrides in shot metadata.
 - Cross-model batch boundaries are where `mixio-eval` should focus its post-generation checks.
 - Duration adjustments during execution audit cascade batch boundaries. Re-batch after any duration change.
