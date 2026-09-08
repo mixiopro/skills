@@ -79,113 +79,13 @@ Two ratios, never re-derived after this step:
 
 Anchors are rendered wide on purpose: a wide master of the set gives every downstream shot a shared spatial truth to crop into, so left/right and near/far stay consistent between a wide and a close-up. Delivery shots then render at `aspect_ratio`.
 
-### 3. Write the settings — read-modify-write, always
+### 3. Write and read back
 
-`studio_update_project`'s `updates.settings` is an opaque object that **replaces** the whole
-settings blob; it is not a merge, and the tool schema does not validate the keys inside it. Send
-a partial and you silently drop every other setting on the project — including the reference
-policy someone configured in Studio. Fetch, merge, send back whole:
-
-```
-const { settings } = await studio_get_project({ projectId })
-
-// `confirmed` contains the choices the user just approved and the values
-// returned by the selected model schemas. Never replace a nested map with a
-// partial example: settings are opaque and the update is a whole-blob write.
-const confirmed = {
-  imageModel: userConfirmed.imageModel,
-  videoModel: userConfirmed.videoModel,
-  deliveryAspectRatio: userConfirmed.deliveryAspectRatio,
-  anchorAspectRatio: userConfirmed.anchorAspectRatio,
-  plannedRuntimeSeconds: userConfirmed.plannedRuntimeSeconds,
-  imageResolution: userConfirmed.imageResolution,
-  videoResolution: userConfirmed.videoResolution,
-  visualStyle: userConfirmed.visualStyle,
-  toneAndMood: userConfirmed.toneAndMood,
-  cinematographyDirection: userConfirmed.cinematographyDirection,
-  defaultStylePrompt: userConfirmed.defaultStylePrompt,
-  references: userConfirmed.references
-}
-const videoSchema = await studio_get_use_case_input_schema({
-  useCaseId: "production-generate-video",
-  modelId: confirmed.videoModel
-})
-const videoHasResolution = Boolean(
-  videoSchema?.properties?.parameters?.properties?.resolution
-)
-const existingVideoParameters =
-  settings?.generation?.defaultParametersByUseCase?.["production-generate-video"]
-
-studio_update_project({ projectId, updates: { settings: {
-  ...settings,
-  generation: {
-    ...settings?.generation,
-    defaultModelByUseCase: {
-      ...settings?.generation?.defaultModelByUseCase,
-      "production-generate-shot-keyframes": confirmed.imageModel,
-      "production-generate-video": confirmed.videoModel
-    },
-    defaultAspectRatioByOutputType: {
-      ...settings?.generation?.defaultAspectRatioByOutputType,
-      IMAGE: confirmed.anchorAspectRatio,
-      VIDEO: confirmed.deliveryAspectRatio
-    },
-    defaultResolutionByOutputType: {
-      ...settings?.generation?.defaultResolutionByOutputType,
-      IMAGE: confirmed.imageResolution
-    },
-    defaultParametersByUseCase: {
-      ...settings?.generation?.defaultParametersByUseCase,
-      "production-generate-video": {
-        ...existingVideoParameters,
-        ...(videoHasResolution ? { resolution: confirmed.videoResolution } : {})
-      }
-    }
-  },
-  studio: {
-    ...settings?.studio,
-    preferredVideoModel: confirmed.videoModel,
-    visualStyle: confirmed.visualStyle,
-    toneAndMood: confirmed.toneAndMood,
-    cinematographyDirection: confirmed.cinematographyDirection,
-    defaultStylePrompt: confirmed.defaultStylePrompt
-  },
-  references: {
-    ...settings?.references,
-    ...confirmed.references
-  }
-}}})
-```
-
-`defaultAspectRatioByOutputType` is keyed by output type (`IMAGE`, `VIDEO`) and
-`defaultModelByUseCase` by use case id. **Resolution splits across two keys in practice**:
-configured projects set `defaultResolutionByOutputType` for `IMAGE` only, in image vocabulary
-(`1k`, `2k`), and carry video resolution as `defaultParametersByUseCase[useCaseId].resolution`
-in model vocabulary (`720p`, `768P`). Writing `defaultResolutionByOutputType: { VIDEO: ... }` is
-inert on a model that has no `resolution` parameter. Set the video
-model in both `generation.defaultModelByUseCase` and `studio.preferredVideoModel`, since the two
-surfaces read different keys. `visualStyle`, `toneAndMood`, `cinematographyDirection` and
-`defaultStylePrompt` are the user's words, kept short enough to survive prompt assembly. The full
-key list for `settings.generation` and `settings.studio` lives in `mixio-generate`; the
-`settings.references` contract and its defaults live in `mixio-references`.
-
-Then **read it back** with `studio_get_project` and show the resolved settings. Nothing rejects a
-misplaced key, so a typo persists as passthrough and is only visible on the read.
-
-### 4. Persist the frame contract on the episode
-
-Settings are project-scoped and outlive the episode; the frame contract is per-episode:
-
-```
-studio_update_episode({ episodeId, updates: { metadata: {
-  pipeline: {
-    aspect_ratio: "9:16",
-    anchor_aspect_ratio: "16:9",
-    planned_runtime_seconds: confirmed.plannedRuntimeSeconds,
-    step_00: "complete"
-  }
-}}})
-```
+`updates.settings` replaces the complete settings object. Read the project, merge every nested
+map, write the whole object, then read it back before closing Step 00. The global `IMAGE` and
+`VIDEO` defaults use the delivery ratio; every anchor job supplies `anchor_aspect_ratio`
+explicitly. Use [the preflight settings recipe](references/preflight-settings.md) for the exact
+read-modify-write payload, resolution routing, and per-episode frame-contract write.
 
 ### Gate
 
@@ -213,7 +113,7 @@ Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not**
 
 ## Step 02 — Anchor Frames
 
-→ `mixio-sheets`, after the user confirms this image-work step. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** at `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in screenplay text alone — flag them, don't silently invent geography.
+→ `mixio-sheets`, after the user confirms this image-work step. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** with an explicit `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in screenplay text alone — flag them, don't silently invent geography.
 
 ## Step 02.5 — Reference Audit
 
@@ -230,19 +130,9 @@ Part of the Pre-Production Token Ralph Loop (`references/pre-production-ralph-lo
 
 ## Step 03 — Deterministic Script Breakdown & Relational Audit
 
-→ `mixio-script-breakdown`, which owns the canonical schemas, the two camera vocabularies (authoring conventions, not validated), the mapping from shot-grammar prose onto persistable keys, and the immediate post-breakdown relational audit. One scene at a time. Emit a `STAGING` block for the scene, then numbered shots using the field schema in `references/shot-grammar.md`. Non-negotiables:
-
-- **100% Canonical Fields**: The seven required canonical fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`) must all carry real, non-placeholder values. Zero `""`, `"TBD"`, `"tbd"`, `"n/a"`, `"unknown"`, `"none"`, or `"null"` strings — placeholders cause blank renders downstream.
-- **Continuous Float Duration**: Every shot carries a `duration` in seconds (continuous float 1.0–60.0s). Batching (Step 05) and cost estimates are arithmetic on this field.
-- **Anchor Attachment & Spatial Markers**: Every shot names its anchor (`Lighting: as Anchor 1`) or is marked `TEXT-ONLY`. Intra-shot beats other shots depend on get a marker — `[M1]`, `[M2]`.
-- **Audio/SFX Decomposition**: Every shot maps audio cues into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }`. Standalone `[SFX: ...]` and `[Ambient: ...]` paragraphs map verbatim to `audio.sfx` and `audio.ambient`.
-- **Entity ID Graph Linking**: Persist with `studio_upsert_scene_packages` (see `mixio-episode`), passing resolved entity IDs in `linked_character_ids`, `linked_location_ids`, `linked_prop_ids` (mapped from Cast & World context) along with human-readable names (`character_links`, `location_links`, `prop_links`).
-- **Per-Shot Appearance State**: Immediately call `studio_link_graph` with `relationType: "appears_in"` for every character appearing in each shot, binding `appearanceState` (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`).
-- **Immediate Relational Audit**: Execute a 3-point audit before closing Step 03:
-  1. *Canonical Fields Completeness*: 100% of shots have all 7 canonical fields populated with valid data.
-  2. *Graph & ID Integrity*: All linked entity IDs exist in Cast & World (0 orphaned links), and `appears_in` relations exist for all active characters.
-  3. *Scope & Duration Reconciliation*: Total shot durations sum to the screenplay scope runtime.
-  Emit the audit summary table and record the result into episode `metadata.pipeline.breakdown_audit`.
+→ `mixio-script-breakdown`. It persists canonical scene packages, resolves Cast & World IDs,
+links per-shot appearance state, and must pass its persisted relational audit before Step 04. The
+breakdown skill owns the fields, audit checks, and `metadata.pipeline.breakdown_audit` schema.
 
 ## Step 04 — Continuity Audit
 
@@ -297,11 +187,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   step_05: "not_started", step_06: "not_started",
   anchors: { "1": "<keyframe-element-id>" },
   reference_audit: { checked: 12, blocking: 0, advisory: 1 },
-  breakdown_audit: {
-    total_scenes: 3, total_shots: 18, total_duration: 84.5,
-    canonical_fields_complete: "100%", cast_world_links_valid: true,
-    unresolved_entities: 0, appearance_states_bound: 24
-  },
+  // `breakdown_audit`: exact schema in mixio-script-breakdown's persistence reference.
   // Add `pre_production_loop` exactly as defined in
   // references/pre-production-ralph-loop.md#persisting-loop-state.
 }}}})

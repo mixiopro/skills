@@ -169,21 +169,8 @@ nothing; `hairState`, `emotionalState`, `lookRef`, and `continuityNotes` remain 
 
 ## Relational audit specification
 
-Run immediately after breakdown persistence and graph linking. The audit verifies:
-
-1. **100% Canonical Fields Complete**: All 7 required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`) are populated on every shot without any placeholder strings.
-2. **Cast & World Graph Integrity**: Every element ID in `linked_character_ids`, `linked_location_ids`, `linked_prop_ids` resolves to an existing element in Cast & World. Every appearing character has an `appears_in` relation with `appearanceState`.
-3. **Scope & Duration Match**: Total duration of all shots equals planned episode/scene runtime. Total shot count matches screenplay breakdown beats.
-
-Persisted into episode `metadata.pipeline.breakdown_audit`:
-```json
-{
-  "total_scenes": 3,
-  "total_shots": 18,
-  "total_duration": 84.5,
-  "canonical_fields_complete": "100%",
-  "cast_world_links_valid": true,
-  "unresolved_entities": 0,
-  "appearance_states_bound": 24
-}
-```
+Run immediately after breakdown persistence and graph linking. The audit reads persisted shots
+and relations, verifies the seven canonical fields, Cast & World IDs, appearance state, and the
+deterministic screenplay-beat count/duration. Its one authoritative procedure and
+`metadata.pipeline.breakdown_audit` payload are in
+[persistence-and-audit.md](persistence-and-audit.md); do not recreate that schema here.

@@ -29,6 +29,8 @@ Best of both: run the **composed** path but keep Studio's two safety properties 
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
 - A project and an episode with source text persisted (`mixio-episode`) — preferably a screenplay, otherwise the raw Idea/Story `script` field
+- For the composed path, the project's `settings.references` read with `studio_get_project`; its
+  `createPolicy` decides whether an unmatched entity may be registered
 
 ## Source text — screenplay first, `script` only as fallback
 
@@ -60,22 +62,41 @@ It runs four stages: `prepare_inputs` → `load_production_context` → `script_
 
 A completed job that persisted zero scenes is converted to `FAILED` with `BREAKDOWN_EMPTY_PERSISTENCE`. Check status, don't assume.
 
-## Composed path — the six stages, done yourself
+## Composed path — the seven stages, done yourself
 
 ```
-1. read context      studio_get_production_context({ projectId, episodeId })
-                     → canonical.characters / .locations / .props (lookup map for IDs & names)
-2. analyze           your own LLM pass → references + scenes + shots (zero placeholders, 7 canonical fields)
-3. register refs     studio_register_reference_entities({ projectId, references })
-4. persist packages  studio_upsert_scene_packages({ projectId, episodeId, scenes })
+1. read policy + context  studio_get_project + studio_get_production_context
+                          → reference policy and canonical names for analysis
+2. analyze                your own LLM pass → references + scenes + shots (zero placeholders, 7 canonical fields)
+3. resolve policy         match every extracted entity; create only when `createPolicy: allow`
+4. register + refresh     studio_register_reference_entities → studio_get_production_context
+                          → fresh lookup map for IDs & canonical names
+5. persist packages       studio_upsert_scene_packages({ projectId, episodeId, scenes })
                      (with linked_character_ids, linked_location_ids, linked_prop_ids)
-5. link appearances  studio_link_graph({ projectId, relations: [...] })
+6. link appearances       studio_link_graph({ projectId, relations: [...] })
                      (appears_in with appearanceState for every character in each shot)
-6. relational audit  audit 100% canonical fields, entity ID graph integrity, scope duration
+7. relational audit       audit persisted fields, IDs, appearances, and screenplay-beat scope
                      → emit report + lock into episode metadata.pipeline.breakdown_audit
 ```
 
-Order matters: register references first so `linked_character_ids` / `linked_location_ids` / `linked_prop_ids` (and their name equivalents `character_links` / `location_links` / `prop_links`) resolve to real elements when the scene package materializes relations. Then create typed `appears_in` relations with `appearanceState` via `studio_link_graph` so per-shot wardrobe, condition, and carried props are bound to the graph. Finally, run the relational audit before advancing to Step 04.
+Order matters: use the initial context only to recognize existing names. After a permitted
+registration, refresh the context (or use every returned `registered[].id`) before deriving
+`linked_*_ids`; a map captured before registration cannot identify the new element. Then create
+typed `appears_in` relations with `appearanceState` and audit persisted reads before Step 04.
+
+### Reference-policy gate
+
+Read `settings.references` before Stage 3. Match extracted entities to the initial canonical
+context, including aliases when enabled. Existing matches may be linked. For unmatched entities:
+
+- `createPolicy: allow` — call `studio_register_reference_entities`, then refresh the ID map.
+- `createPolicy: propose` — emit the exact entity proposal and stop for approval; make no
+  reference, package, or relation write.
+- `createPolicy: link_only` — ask the user to select an existing reference and stop; make no
+  reference, package, or relation write.
+
+This is a blocking branch, not a best-effort fallback. Route any policy interpretation to
+`mixio-references`.
 
 ## Canonical shot metadata
 
@@ -188,7 +209,12 @@ studio_register_reference_entities({ projectId, references: [
 ]})
 ```
 
-Matching is by normalized `project + type + name`, so it is idempotent — run it before every breakdown. Reuse canonical names exactly as `studio_get_production_context` returns them; a name listed as an `aka` is the *same* entity and a listed variant is a *state* of that entity, never a separate reference. `TONY (gala)` as a second CHARACTER splits the identity and both halves drift.
+Matching is by normalized `project + type + name`, so a permitted registration is idempotent.
+Reuse canonical names exactly as `studio_get_production_context` returns them; a name listed as
+an `aka` is the *same* entity and a listed variant is a *state* of that entity, never a separate
+reference. `TONY (gala)` as a second CHARACTER splits the identity and both halves drift. Apply
+the reference-policy gate first; `link_only` and `propose` do not reach this tool for an
+unmatched name.
 
 ## Quality gates
 
@@ -204,8 +230,9 @@ On repair: fill missing/weak metadata from the raw script, keep scene and shot o
 
 ## Persisting
 
-Read the production context first and build a name-to-ID map from its canonical references. The
-complete ID-safe persistence and relation-linking example lives in
+Use the initial production context for matching, then refresh it after any permitted
+`studio_register_reference_entities` call and build the final name-to-ID map from that read. The
+complete policy-safe, ID-safe persistence and relation-linking example lives in
 [references/persistence-and-audit.md](references/persistence-and-audit.md). It extracts the
 persisted shot ID from `studio_upsert_scene_packages` before calling `studio_link_graph`; if a
 Studio response omits nested IDs, query the scoped SHOT by episode, scene number, and shot number.
@@ -236,30 +263,31 @@ Verify all relational connections:
 - **Appearance State coverage**: Every character occurring in `linked_character_ids` for a shot must have a corresponding `appears_in` relation with non-empty `wardrobe`, `condition`, and `carriedProps` (use `[]` when no props are carried). Other appearance fields remain optional.
 - **Anchor attachment**: Every scene carries `anchorRef` referencing the scene's approved visual anchor.
 
-### 3. Scope & Duration Reconciliation
-- **Planned runtime source**: Read `studio_get_episode({ episodeId })` before the audit and require `metadata.pipeline.planned_runtime_seconds`, set during preflight or explicitly supplied by the user. Do not claim a scope match when this value is absent.
-- **Total Duration**: Sum of all shot durations must equal that planned scene/episode runtime; report both values and the difference.
-- **Shot Count**: Total shots match the decomposed dramatic beats from the screenplay.
+### 3. Screenplay Scope Reconciliation
+- Build the expected shot count and total duration from the deterministic screenplay beat plan
+  before persistence; it is the scope contract, not a separate preflight setting.
+- Compare persisted shot count and duration to that plan; report the expected values and delta.
 
 ### 4. Emit Audit Report & Lock Metadata
-Emit a structured audit summary with actual counts, total duration, planned runtime, duration
-delta, resolved entity counts, and appearance-state coverage. Lock it into episode
-`metadata.pipeline.breakdown_audit` only after all checks pass. The concrete report and metadata
-payload are in [references/persistence-and-audit.md](references/persistence-and-audit.md).
+Read the persisted scenes, shots, and `appears_in` relations; derive every audit value from those
+reads. Lock the report into episode `metadata.pipeline.breakdown_audit` only after every check
+passes. Its canonical payload and executable example are in
+[references/persistence-and-audit.md](references/persistence-and-audit.md).
 
 ## Workflow
 
 ```
 1. read SCREENPLAY by `tags.episodeId`; use non-empty `body`, otherwise episode `metadata.fullScript`
-2. studio_get_production_context({ projectId, episodeId })   → build entity ID & canonical name lookup map
+2. studio_get_project + studio_get_production_context       → read reference policy and canonical names
 3. segment the selected source verbatim into scenes (headings, transitions, time-of-day); retain native mentions, locks, and standalone annotations
-4. extract characters/locations/props → studio_register_reference_entities
-5. design shots per scene — 7 canonical fields with zero placeholders; map linked entity IDs and author per-shot appearanceState
-6. self-check against the repair criteria; fix rather than emitting "TBD"
-7. studio_upsert_scene_packages({ scenes })                  → persist scenes and shots with linked_*_ids
-8. studio_link_graph({ relations })                          → attach appears_in relations with appearanceState
-9. run relational audit (100% fields, valid entity IDs, duration/scope match) → lock into metadata.pipeline.breakdown_audit
-10. → /mixio:continuity for the continuity audit, then /mixio:shot-planning
+4. extract entities → match policy: `allow` registers; `propose`/`link_only` stop before writes
+5. refresh production context → resolve every final linked ID and canonical name
+6. design shots per scene — 7 canonical fields with zero placeholders; author per-shot appearanceState
+7. self-check against the repair criteria; fix rather than emitting "TBD"
+8. studio_upsert_scene_packages({ scenes })                  → persist scenes and shots with linked_*_ids
+9. studio_link_graph({ relations })                          → attach appears_in relations with appearanceState
+10. read persisted records; audit fields, IDs, appearances, and screenplay-beat scope → lock metadata
+11. → /mixio:continuity for the continuity audit, then /mixio:shot-planning
 ```
 
 ## Notes
