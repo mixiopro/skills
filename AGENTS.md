@@ -71,15 +71,17 @@ For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a pro
 00  Preflight          → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
                         resolution, visual style, reference policy into project `settings`
 01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty
-02  Sheets + anchors  → /mixio:sheets      — references must exist before shots reference them
-02.5 Reference audit  → /mixio:reference-audit — completeness, consistency, duplicates, metadata
+02  Sheets + anchors  → /mixio:sheets — references must exist before shots reference them; confirm image generation separately
 03  Shot breakdown    → /mixio:script-breakdown
-04  Continuity audit  → /mixio:continuity  — text only, free, catches logic
+┌── Token Ralph Loop (01 ↔ 02.5 ↔ 04; text/graph corrections only) ─────────────────────┐
+│ 02.5 Reference audit → /mixio:reference-audit — policy-safe ref/binding corrections    │
+│ 04   Continuity audit → /mixio:continuity — correct specs, then re-audit               │
+└────────────────────── ↺ persist each cycle until 0 blocking errors ───────────────────┘
 05  Shot planning     → /mixio:shot-planning — then get cost approval
 06  Generation        → /mixio:generate per batch, then /mixio:eval before delivery
 ```
 
-Steps 01, 02.5, 03, 04 and 05 cost only tokens. That is the point: a continuity break caught in step 04 costs a paragraph; the same break caught in step 06 costs a re-render.
+The Ralph Loop's corrections in Steps 01, 02.5, and 04 cost only tokens. Step 02 can submit image jobs, so it remains explicitly confirmed and outside the autonomous loop. The loop (`skills/mixio-pipeline/references/pre-production-ralph-loop.md`) applies only policy-safe text/graph corrections, updates appearance state (`studio_link_graph`), persists every cycle, and re-audits until 0 blocking reference and continuity errors remain before Step 05.
 
 Sheets come **before** the breakdown because the breakdown emits references as shallow stubs (`name`, `description`, `attributes`) and writes no `characterDetails` or `locationDetails`. Build the sheets first and the breakdown reuses their canonical names instead of minting near-duplicates.
 

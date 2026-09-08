@@ -72,9 +72,9 @@ Duplicates — 12 references checked
   ⚠️  VARIANT_CONFUSED_AS_REF: "TONY (GALA)" is a separate CHARACTER — should be a variant of TONY
 ```
 
-Resolution actions:
-- Merge duplicates: pick the canonical name, add the other as an alias via `studio_update_element({ metadata: { aliases: [...] } })`
-- Convert variant-as-ref: delete the spurious reference, add as a `referenceVariant` on the parent with `studio_update_reference({ referenceVariants })`
+Resolution plan:
+- Merge duplicates: identify the canonical name and the alias to preserve; hand the plan to `/mixio:pipeline` Phase 2 or `mixio-references`, which reads `settings.references` before any update.
+- Convert variant-as-ref: identify the parent reference and its candidate look; hand the plan to `mixio-references` for a policy-safe migration. Do not delete a reference from this audit.
 
 ### 4. Metadata quality — structured detail completeness
 
@@ -177,8 +177,8 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 
 | Severity | Gate behavior |
 |----------|--------------|
-| BLOCKING | Must be resolved before proceeding to Step 03. Generation without these will fail or produce inconsistent results |
-| ADVISORY | Surfaced for human decision. May proceed, but the user should explicitly acknowledge |
+| BLOCKING | Must be resolved before proceeding to Step 03. In the Pre-Production Token Ralph Loop, the pipeline runner applies only policy-safe, non-generative remediation and re-checks until 0 blocking errors remain |
+| ADVISORY | Surfaced for human decision. Recorded in metadata; does not block convergence |
 
 **Blocking criteria:**
 - Any `MISSING_REF` for an entity appearing in ≥2 shots
@@ -189,9 +189,15 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 
 Everything else is advisory. The user may say "proceed anyway" — record that decision in metadata so a later session knows it was acknowledged, not missed.
 
-## Fixing findings
+## Fixing findings & The Ralph Loop
 
-For each blocking finding, suggest the specific action:
+This skill audits; it does not create or mutate references. When called directly, emit the specific remediation plan below and stop. When called from `/mixio:pipeline`, its Phase 2 runner owns policy-safe writes and immediate re-checks; follow the canonical [policy, asset, and loop-state boundary](../mixio-pipeline/references/pre-production-ralph-loop.md#boundaries-policy-and-asset-permission).
+
+Before any reference write, the runner reads `studio_get_project({ projectId })` and enforces `settings.references.createPolicy`, `variantPolicy`, and the type-specific `variantVocabulary`. If policy prevents the write, it persists `pre_production_loop.status: "blocked"` with the finding and exact next user action; it never overrides policy.
+
+`MISSING_IMAGE_HIGH_USAGE` has no zero-credit synthetic fix. Attach a permitted existing user-supplied asset when available; otherwise persist `blocked` and request an upload or explicit image-generation permission. Do not call `/mixio:sheets` or submit a generation job from this audit.
+
+The remediation plan identifies the required action:
 
 ```
 Fix: HALLWAY DOORWAY — MISSING_REF
@@ -210,7 +216,15 @@ Fix: TONY ↔ TONY RUSSO — LIKELY_DUPLICATE
     aliases: ["Tony Russo", "Antonia"]
   }}})
   Then: archive or delete the duplicate reference
+
+Fix: STALE_LOOK_REF — TONY'S APARTMENT:night
+→ studio_update_reference({ referenceId: "<apartment-id>", referenceVariants: [
+    ...existingVariants,
+    { name: "night", kind: "look", images: [{ url: nightUrl, isPrimary: true }] }
+  ]})
 ```
+
+After the pipeline runner applies a permitted fix, **re-run the audit immediately** to confirm blocking findings drop to `0`.
 
 ## Persisting the result
 
@@ -219,13 +233,16 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   step_02_5: "complete",
   reference_audit: {
     checked: 12,
-    blocking: 3,
-    advisory: 3,
-    clean: 7,
+    blocking: 0,
+    advisory: 1,
+    clean: 11,
     acknowledged_advisories: ["GENDER_MISMATCH:TONY"],
-    timestamp: "2025-..."
-  }
-}}}})
+    timestamp: "2026-..."
+  },
+  // For `running`, `blocked`, and `converged` loop-state fields, copy the
+  // canonical object from mixio-pipeline/references/pre-production-ralph-loop.md.
+  pre_production_loop: { status: "converged" }
+}}}}})
 ```
 
 ## Workflow
@@ -237,14 +254,15 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 4. studio_get_project({ projectId })                  → read reference policy
 5. run 6 check categories                            → findings
 6. emit REFERENCE AUDIT report
-7. if BLOCKING findings: present fixes, wait for resolution, re-check
-8. if ADVISORY only: present, get acknowledgment
-9. persist audit result → GATE → Step 03 Panel Breakdown
+7. ↺ Ralph Loop: hand blocking findings to the pipeline Phase 2 runner; it applies only policy-safe, non-generative remediation and re-checks until 0 blocking errors
+8. if ADVISORY only: present, record in metadata
+9. persist audit result (0 blocking) → GATE → Step 03 Panel Breakdown
 ```
 
 ## Notes
 
 - Run this **after** sheets (Step 02) because sheets create the bulk of the reference images. Running before sheets would flag every reference as `MISSING_IMAGE`.
+- Step 02.5 participates in the Pre-Production Token Ralph Loop (`mixio-pipeline/references/pre-production-ralph-loop.md`): the pipeline runner may remediate safe text/graph findings and must re-check before Step 03. This audit never bypasses reference policy or starts image generation itself.
 - Re-run after any reference change in a later step. It's free (reads only) and a stale audit means a stale contract.
 - The duplicate check uses normalized names (lowercased, stripped of punctuation, collapsed whitespace). `aliasMatching` in project settings controls whether recorded aliases participate in *breakdown* matching — the audit checks aliases regardless, because it's looking for data quality, not runtime behavior.
 - On a project with 50+ references, emit the clean list as a count rather than naming each one. The blocking and advisory lists are what the user needs to act on.
