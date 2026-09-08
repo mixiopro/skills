@@ -25,8 +25,8 @@ Note that `Shot 2.2` means scene 2, shot 2 *of some episode* — numbering resta
 These skills are written for the officially documented setup — `@mixio-pro/mcp` as
 your MCP server. That proxy prefixes every tool it forwards from Studio with
 `studio_` (`studio_list_projects`, `studio_get_element`, ...) to keep them apart
-from its own local-only tools, which are never prefixed: `upload_file`,
-`get_public_url`, `register_asset`, `run_evaluation`, `get_evaluation_result`.
+from its own local-only file tools, which are never prefixed: `upload_file`,
+`get_public_url`, `list_cached_files`, `forget_path`, and `clear_cache`.
 
 On a different transport — a client talking to the hosted MCP endpoint directly, or
 [mixio-cli](https://github.com/mixiopro/mixio-cli) — there is no `studio_` prefix:
@@ -93,7 +93,7 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 - Shot metadata keys are `snake_case`; scene metadata keys are `camelCase`. Mixing them up is not rejected — the write boundary is permissive, so a mixed-up key is remapped or warned-and-passed-through, not thrown. It still lands in the wrong place (passthrough, unread by anything) and fails silently rather than loudly, which is worse: check by reading back what you wrote.
 - Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
 - **Mandatory prompt `@` mentions & paired mention maps (Universal across all generations & models)**: Prompts MUST ALWAYS contain `@` mentions for all active media assets/references (e.g. `@asset1`, `@tony`, `@scene1`). This applies universally to all generation types (image, keyframe, video, storyboard) and all models (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX, etc.). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`) must be embedded in the prompt string where the subject acts. Paired `slotTags` (`{ [assetKey]: '@tag' }`) AND `mentionMap` (`{ '@tag': 'Human Label / Description' }`) are MANDATORY whenever media references are provided. Without both paired maps and prompt `@` tokens, the prompt materializer and provider compilers cannot ground assets to model-specific tokens or resolve subject identity, causing models to guess identity and waste generation credits. Validate prompt `@` mentions and mention maps in Step 05 (`mixio-shot-planning`) and Step 06 (`mixio-generate`) preflight before submitting billable jobs.
-- Upload final outputs with `upload_file` for permanent URLs, and run `run_evaluation` before delivering to a client.
+- Upload final outputs with `upload_file` for permanent URLs, and run `studio_run_eval` before delivering to a client.
 - Generation is billable. Ask before video unless the user has said otherwise.
 
 ## MCP server
@@ -110,7 +110,7 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 }
 ```
 
-`studio_*` tools are proxied from the Studio server. `upload_file`, `get_public_url`, `register_asset`, `run_evaluation` and `get_evaluation_result` are local to `@mixio-pro/mcp` and are **not** covered by `studio_describe_tools` — see `mixio-workspace` and `mixio-eval` for their parameters.
+`studio_*` tools are proxied from the Studio server. `upload_file`, `get_public_url`, `list_cached_files`, `forget_path`, and `clear_cache` are local to `@mixio-pro/mcp`; evaluation uses the hosted `studio_run_eval` tool.
 
 ## Scope
 
