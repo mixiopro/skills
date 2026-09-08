@@ -181,11 +181,34 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 **Blocking criteria:**
 - Any `MISSING_REF` for an entity appearing in ≥2 shots
 - Any `MISSING_IMAGE_HIGH_USAGE`
-- Any HIGH-severity metadata gap on a character appearing in ≥3 shots
+- Any HIGH-severity metadata gap on a character appearing in ≥1 scene — a missing `visualAnchor` means every prompt mentioning that character lacks its identity anchor, no matter how few scenes it appears in
+- Any HIGH-severity metadata gap on a location appearing in ≥1 scene — `setting` and `lighting` are required to render the scene's anchor frame without guessing
 - Any `GENDER_MISMATCH` confirmed by both text and vision (not advisory-only)
 - Any `STALE_LOOK_REF` — it renders the wrong look silently, with nothing in the UI to catch it before delivery
 
 Everything else is advisory. The user may say "proceed anyway" — record that decision in metadata so a later session knows it was acknowledged, not missed.
+
+### Enrichment completion gate (before Step 03)
+
+Before the audit passes, confirm that the **reference enrichment** phase from Step 02 (`mixio-sheets`) actually populated the load-bearing fields, not just the reference metadata. The breakdown in Step 03 emits references as **shallow stubs** (`name`, `description`, `attributes` only) and never writes `characterDetails`/`locationDetails`; if enrichment didn't happen here, these fields will be empty for the whole episode. HIGH-severity fields must be present on every character/location that appears in any scene:
+
+**Characters — `characterDetails` (via `studio_update_reference`):**
+| Field | Required |
+|-------|----------|
+| `build` | yes |
+| `hair` | yes |
+| `skin` | yes |
+| `visualAnchor` | **yes** — the identity anchor, non-negotiable |
+
+**Locations — `locationDetails` (via `studio_update_reference`):**
+| Field | Required |
+|-------|----------|
+| `setting` | **yes** |
+| `lighting` | **yes** |
+| `spatialLayout` | yes |
+| `depthAxes` | yes |
+
+These are the fields prompt materializers in Steps 05/06 rely on for visual continuity. If any are missing, treat the finding as BLOCKING and direct the fix back to Step 02 (`mixio-sheets`) to enrich rather than proceeding with a stub.
 
 ## Fixing findings
 

@@ -73,14 +73,34 @@ Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not**
 
 → `mixio-sheets`. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** at `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in screenplay text alone — flag them, don't silently invent geography.
 
+### Reference Enrichment (do this before Step 02.5)
+
+Sheet-building creates the reference images, but the **structured detail fields** are what make those images reusable for generation. This enrichment phase must complete before Step 02.5 validates, because Step 03 emits references as **shallow stubs** (`name`, `description`, `attributes` only) and never writes `characterDetails`/`locationDetails`. If enrichment is skipped here, those fields are empty for the whole episode.
+
+For each character, write the full profile via `studio_update_reference`:
+```
+characterDetails: { role, age, build, height, skin, eyes, hair,
+  distinctiveFeatures, visualAnchor, wardrobeNotes, ... }
+```
+The load-bearing fields prompt materializers in Steps 05/06 depend on: **`build`, `hair`, `skin`, and `visualAnchor`** — `visualAnchor` is the single identity anchor repeated in every shot prompt.
+
+For each location, write the 6-field sheet via `studio_update_reference`:
+```
+locationDetails: { setting, spatialLayout, accessPoints, keyLandmarks,
+  depthAxes, lightSources, lighting, surfaces, palette, ... }
+```
+The load-bearing fields: **`setting`, `lighting`, `spatialLayout`, and `depthAxes`** — `lighting` is what anchor-frame generation needs to avoid guessing.
+
+This is the only place structured reference detail is populated; Step 02.5 gates on the HIGH-severity fields (`visualAnchor` for characters, `setting`/`lighting` for locations) before allowing Step 03. See `mixio-sheets` for the full field schema.
+
 ## Step 02.5 — Reference Audit
 
-→ `mixio-reference-audit`. Runs after sheets so references *should* have images, and catches what was missed:
+→ `mixio-reference-audit`. Runs after sheets so references *should* have images, and catches what was missed — including whether the **Reference Enrichment** phase (above) actually populated the structured fields:
 
 - **Completeness** — every CAPS entity in the script has a reference; high-usage ones have images
 - **Consistency** — name/description vs attached image (gender, age, build mismatches)
 - **Duplicates** — fuzzy name matching, alias candidates, variants confused as separate refs
-- **Metadata quality** — missing `visualAnchor`, `lighting`, `setting` that downstream prompts need
+- **Metadata quality** — missing `visualAnchor`, `lighting`, `setting` that downstream prompts need (HIGH-severity gaps block for any entity in ≥1 scene)
 - **Policy compliance** — `createPolicy`, `variantVocabulary` adherence
 - **Look-binding integrity** — a bound `lookRef` that no longer resolves to a real variant, which otherwise renders the default look silently
 
