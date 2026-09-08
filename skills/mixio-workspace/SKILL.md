@@ -78,7 +78,7 @@ No params. Drops every cached mapping (does not delete remote media). Returns `{
 
 ### Ingest external media URLs (Google Drive, CDNs, third-party hosts)
 
-`studio_upload_media_from_url` often fails on external URLs (Google Drive, third-party CDNs) with `No files were uploaded` due to server-side SSRF or network policy restrictions. Do **not** move that SSRF risk to the agent: this canonical recipe accepts only public `https` hosts, validates each redirect target before connecting, pins curl to the validated DNS answers, and bounds the download to 100 MiB. Use a unique temporary directory and clean up only that directory:
+`studio_upload_media_from_url` often fails on external URLs (Google Drive, third-party CDNs) with `No files were uploaded` due to server-side SSRF or network policy restrictions. Do **not** move that SSRF risk to the agent: this canonical Bash recipe (with `external_url` set to the user-provided URL) accepts only public `https` hosts, validates each redirect target before connecting, pins curl to the validated DNS answers, and bounds the download to 100 MiB. Use a unique temporary directory and clean up only that directory:
 
 ```sh
 set -euo pipefail
@@ -131,7 +131,7 @@ for hop in 0 1 2 3 4; do
     --connect-timeout 10 --max-time 20 --resolve "$resolve_rule" \
     --dump-header "$header_path" --output /dev/null -- "$next_url"
   status="$(awk '/^HTTP\// { status=$2 } END { print status }' "$header_path")"
-  location="$(awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }' "$header_path")"
+  location="$(awk 'tolower($0) ~ /^location:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }' "$header_path")"
   if [ -z "$location" ]; then
     [ "$status" = 200 ] || { echo "unexpected response status: $status" >&2; exit 1; }
     break
