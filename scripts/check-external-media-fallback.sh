@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+cd "$(dirname "$0")/.."
 
 workspace='skills/mixio-workspace/SKILL.md'
 require() { rg -Fq -- "$2" "$1" || { echo "missing: $2 in $1" >&2; exit 1; }; }

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+cd "$(dirname "$0")/.."
 
 planning='skills/mixio-shot-planning/SKILL.md'
 audit='skills/mixio-shot-planning/references/execution-audit.md'
