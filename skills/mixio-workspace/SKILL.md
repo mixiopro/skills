@@ -83,6 +83,11 @@ No params. Drops every cached mapping (does not delete remote media). Returns `{
 ```sh
 set -euo pipefail
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/mixio-download.XXXXXX")"
+created_tmp_dir="$tmp_dir"
+if ! tmp_dir="$(cd "$created_tmp_dir" && pwd -P)"; then
+  rm -rf -- "$created_tmp_dir"
+  exit 1
+fi
 download_path="$tmp_dir/source"
 # Keep a successful download for the following MCP upload; delete it automatically on an error.
 cleanup_on_error() { status=$?; [ "$status" -eq 0 ] || rm -rf -- "$tmp_dir"; }

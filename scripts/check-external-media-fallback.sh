@@ -16,6 +16,7 @@ require "$workspace" 'curl --fail --silent --show-error --location --max-redirs 
 require "$workspace" 'cleanup_on_error()'
 require "$workspace" 'UPLOAD_PATH='
 require "$workspace" 'CLEANUP_DIR='
+require "$workspace" 'pwd -P'
 require 'skills/mixio-references/SKILL.md' 'safe external-media recipe'
 require 'skills/mixio-generate/SKILL.md' 'safe external-media recipe'
 require 'skills/mixio-sheets/SKILL.md' 'safe external-media recipe'
