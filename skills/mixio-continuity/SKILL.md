@@ -144,7 +144,7 @@ Rules:
 - Preserve duration unless the fix genuinely needs more screen time — a changed duration re-batches the episode (Step 05).
 - Mark every corrected shot `(CORRECTED)`.
 - **The Self-Healing Loop (Ralph Loop):** Do not stop at writing a correction. Persist the fix and **immediately re-run Passes 1–3** on the corrected scene. Confirm the original break is cleared and verify that the edit did not introduce new breaks. Continue until **0 blocking continuity breaks** remain.
-- **Reference Remediation:** If a break is caused by `REF_MISSING`, `REF_NO_IMAGE`, or `STALE_LOOK_REF` (missing reference element or missing look variant), register/update the reference (`studio_register_reference_entities` / `studio_update_reference`), update `lookRef` on the relation, and re-run the check. Full procedure: `mixio-pipeline/references/pre-production-ralph-loop.md`.
+- **Reference Remediation:** If a break is caused by `REF_MISSING`, `REF_NO_IMAGE`, or `STALE_LOOK_REF`, route it to the pipeline's Phase 2 runner. It reads `settings.references`, applies only a permitted reference/binding correction, and then re-runs this check. `MISSING_IMAGE_HIGH_USAGE`/`REF_NO_IMAGE` requires an existing user-supplied asset, an upload, or explicit image-generation permission; this audit never creates references or starts rendering itself. Full procedure: `mixio-pipeline/references/pre-production-ralph-loop.md`.
 
 ## Persisting the result
 
@@ -172,15 +172,12 @@ Prefer the relation write for facts about a *character in a shot* (they carry th
 
 Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, but only for a *recognized* canonical field holding a malformed value — an unrecognized key is never rejected. Use canonical keys anyway (`camera_movement`, not `Camera:`): a casing variant gets silently remapped onto the canonical key, and a cross-spec key still writes to passthrough with only a console warning, not an error — so a typo doesn't fail the write, it just fails to mean anything, and that failure is silent. See `mixio-script-breakdown` for the full mapping.
 
-When the Ralph loop converges (0 blocking continuity breaks and 0 blocking reference errors), close the step:
+When the Ralph loop converges (0 blocking continuity breaks and 0 blocking reference errors), close the step. The complete `pre_production_loop` object is canonical in `mixio-pipeline/references/pre-production-ralph-loop.md`:
 
 ```
 studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   step_04: "complete",
-  pre_production_loop: {
-    status: "converged",
-    continuity_audit: { breaks_auto_corrected: 2, remaining_breaks: 0 }
-  }
+  pre_production_loop: { status: "converged" }
 } } } })
 ```
 

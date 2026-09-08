@@ -36,7 +36,7 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 | 05 | **Shot Planning** | `mixio-shot-planning` | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | 06 | **Video Generation** | `mixio-generate` | VIDEO elements + workspace uploads |
 
-**Gate rule: never start a new production step until the preceding step is confirmed by the user.** Steps 01–04 operate as the autonomous Pre-Production Token Ralph Loop: internal corrective passes may move between those steps and immediately re-audit without another prompt. Do not start Step 05 until the loop has **0 blocking errors** and the user has approved the converged breakdown (see `references/pre-production-ralph-loop.md`). Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Moving to Step 05.`
+**Gate rule: never start step N+1 until step N is confirmed by the user.** The Pre-Production Token Ralph Loop is limited to safe text and graph corrections across Step 01, Step 02.5, and Step 04; Step 03 is re-audited only when one of those corrections changes a shot or relation. Step 02's sheets and anchors remain a separately confirmed step: do not enter an image-generation use case from the loop. The loop re-checks every safe correction until it reaches **0 blocking errors**, then asks the user to approve the converged breakdown before Step 05 cost approval (see `references/pre-production-ralph-loop.md`). Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Ready for Step 05 approval.`
 
 ## Step 00 — Full Project Preflight & Settings Locking
 
@@ -207,7 +207,7 @@ Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not**
 
 ## Step 02 — Anchor Frames
 
-→ `mixio-sheets`. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** at `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in screenplay text alone — flag them, don't silently invent geography.
+→ `mixio-sheets`, after the user confirms this image-work step. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** at `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in screenplay text alone — flag them, don't silently invent geography.
 
 ## Step 02.5 — Reference Audit
 
@@ -220,7 +220,7 @@ Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not**
 - **Policy compliance** — `createPolicy`, `variantVocabulary` adherence
 - **Look-binding integrity** — a bound `lookRef` that no longer resolves to a real variant, which otherwise renders the default look silently
 
-Part of the Pre-Production Token Ralph Loop (`references/pre-production-ralph-loop.md`): blocking findings are auto-remediated (for example, registering a missing reference, attaching a valid look variant, or correcting a stale binding) and re-checked until **0 blocking errors** remain before Step 03. Advisory findings are presented for acknowledgment. This is the cheapest place to catch a reference problem — later detection costs re-renders.
+Part of the Pre-Production Token Ralph Loop (`references/pre-production-ralph-loop.md`): safe text and graph corrections are re-checked until **0 blocking errors** remain before Step 03 proceeds. Every reference write must first satisfy `settings.references`; a missing image is resolved only by an existing attachment, a user upload, or explicit permission to generate. Advisory findings are presented for acknowledgment. This is the cheapest place to catch a reference problem — later detection costs re-renders.
 
 ## Step 03 — Panel Breakdown
 
@@ -238,7 +238,7 @@ Persist with `studio_upsert_scene_packages` (see `mixio-episode`), putting the s
 
 → `mixio-continuity`. Four passes: blocking map → checks → report → corrections. Text-only, before any pixels. Emits corrected shots and a per-shot clean/dirty verdict.
 
-**Pre-Production Token Ralph Loop:** Persist the root-cause correction, immediately rerun the audit, and loop back through reference remediation when a missing or stale look caused the break. Do not advance until continuity and reference audits both report zero blocking errors.
+**Pre-Production Token Ralph Loop:** Persist the root-cause correction and immediately rerun the audit. When a missing reference or stale look caused the break, the Phase 2 runner first reads `settings.references` and only applies a permitted correction; it never starts image generation from this loop. Do not advance until continuity and reference audits both report zero blocking errors.
 
 ## Step 05 — Shot Planning
 
@@ -287,12 +287,8 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
   step_05: "not_started", step_06: "not_started",
   anchors: { "1": "<keyframe-element-id>" },
   reference_audit: { checked: 12, blocking: 0, advisory: 1 },
-  pre_production_loop: {
-    status: "converged",
-    iterations: 2,
-    reference_audit: { checked: 12, blocking: 0, advisory: 1 },
-    continuity_audit: { total_shots: 14, breaks_auto_corrected: 2, remaining_breaks: 0 }
-  }
+  // Add `pre_production_loop` exactly as defined in
+  // references/pre-production-ralph-loop.md#persisting-loop-state.
 }}}})
 ```
 
@@ -302,7 +298,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 | Source (screenplay, synopsis, aspect ratios) | SCREENPLAY `body` (or episode `script` only as fallback), episode `summary`, `metadata.pipeline` |
 | Locations | LOCATION references + `locationDetails` (`mixio-references`) |
 | Reference audit results | episode `metadata.pipeline.reference_audit` |
-| Pre-production Ralph loop convergence | episode `metadata.pipeline.pre_production_loop` |
+| Pre-production Ralph loop state | episode `metadata.pipeline.pre_production_loop` — `running`, `blocked`, or `converged`, with the last phase, cycle, findings, and pending user action |
 | Scenes and direction | scene elements via `studio_upsert_scene_packages` |
 | Step progress | episode `metadata.pipeline` |
 | Shot plan (method/model/batch) | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
@@ -314,13 +310,14 @@ On resume, read `studio_get_project` for the locked settings and `studio_get_epi
 
 ```
 00. studio_get_project → studio_update_project(settings) → studio_update_episode(metadata.pipeline) → GATE
-┌── Pre-Production Token Ralph Loop (01 ↔ 02 ↔ 02.5 ↔ 03 ↔ 04) ────────────────────────┐
-│ 01. screenplay → studio_upsert_screenplay({ body })                                   │
-│ 02. /mixio:sheets                → character + location sheets, anchor per scene       │
-│ 02.5 /mixio:reference-audit      → auto-remediate blocking reference/look errors        │
-│ 03. /mixio:script-breakdown      → studio_upsert_scene_packages                          │
-│ 04. /mixio:continuity            → auto-correct specs, then re-audit                    │
-└─────────────────────────────────── ↺ iterate until 0 blocking errors ──────────────────┘
+01. screenplay → studio_upsert_screenplay({ body })
+02. /mixio:sheets → character + location sheets, anchor per scene → GATE (image work is separately confirmed)
+03. /mixio:script-breakdown → studio_upsert_scene_packages → relational audit
+┌── Pre-Production Token Ralph Loop (01 ↔ 02.5 ↔ 04; safe text/graph corrections only) ─┐
+│ 01. repair screenplay mentions or deterministic prose defects                           │
+│ 02.5 /mixio:reference-audit → policy-safe reference/binding corrections, then re-check │
+│ 04. /mixio:continuity → correct specs/relations, then re-audit                          │
+└────────────────────────────────────── ↺ persist every cycle until 0 errors ────────────┘
   → GATE: Pre-production converged & breakdown locked
 05. /mixio:shot-planning                           → method + model + feasibility + batches + PRODUCTION SUMMARY → GATE (cost approval)
 06. /mixio:generate per batch → studio_update_shot_state → /mixio:eval before delivery
@@ -328,8 +325,8 @@ On resume, read `studio_get_project` for the locked settings and `studio_get_epi
 
 ## Notes
 
-- Steps 01, 02.5, 03, 04, 05 cost nothing but tokens. Do not shortcut them to reach generation faster; a continuity break found in Step 04 costs a paragraph, the same break found in Step 06 costs a re-render.
-- The Ralph Loop stops after three automated correction cycles per scene. If a blocking issue persists, present a focused user decision rather than silently forcing a creative change.
+- The Ralph Loop's corrective reads and text/graph writes are token-only. Step 02 can render anchor or sheet images, so it is never entered automatically; a continuity break found in Step 04 costs a paragraph, the same break found in Step 06 costs a re-render.
+- The Ralph Loop stops after three automated correction cycles per scene. If a blocking issue persists, present a focused user decision rather than silently forcing a creative change; persist `running` or `blocked` state at each cycle boundary so a later session resumes honestly.
 - If the user jumps straight to "generate this script", still run 01→05 — just run them fast and present each gate as a short confirm rather than a discussion.
 - Re-entering an earlier step invalidates the later ones. Editing Step 03 after Step 05 means re-planning; say so instead of patching one batch.
 - Step 02.5 catches reference problems that Step 02 should have resolved. If sheets were skipped or rushed, 02.5 surfaces the gaps. It's a safety net, not a replacement for doing sheets properly.
