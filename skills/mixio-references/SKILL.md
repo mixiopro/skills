@@ -151,17 +151,7 @@ Use this to **get real reference-image URLs** before calling `studio_submit_stud
 
 ## Getting images onto a reference — the reliable path
 
-**Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. Use the validated local-download fallback documented in [mixio-workspace](../mixio-workspace/SKILL.md): create a unique `mktemp` directory, run `curl --fail --silent --show-error --location`, reject empty/unsupported MIME types, and derive the upload extension from the detected type.
-
-```sh
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/mixio-download.XXXXXX")"
-download_path="$tmp_dir/source"
-trap 'rm -rf -- "$tmp_dir"' EXIT
-curl --fail --silent --show-error --location "$external_url" -o "$download_path"
-test -s "$download_path" || { echo "download was empty" >&2; exit 1; }
-# Validate with `file --brief --mime-type`, rename to a supported MIME-derived extension,
-# then call upload_file({ path: asset_path, project_id, organization_id }).
-```
+**Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. Run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts) in `mixio-workspace`; it permits only public HTTPS redirects, bounds the download, validates MIME type, derives the extension, and removes its unique temporary directory.
 
 Call `studio_update_reference({ referenceId, attachments: [{ url: entry.publicUrl, ... }] })` only after `upload_file` succeeds. The `trap` cleans up only this run's directory on success or failure, and `--fail` prevents an HTTP error page or login HTML from becoming a reference image. Pass `project_id` and `organization_id` so the asset is scoped to the production rather than orphaned (`projectId: null`).
 

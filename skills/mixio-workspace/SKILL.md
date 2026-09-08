@@ -78,14 +78,80 @@ No params. Drops every cached mapping (does not delete remote media). Returns `{
 
 ### Ingest external media URLs (Google Drive, CDNs, third-party hosts)
 
-`studio_upload_media_from_url` often fails on external URLs (Google Drive, third-party CDNs) with `No files were uploaded` due to server-side SSRF or network policy restrictions. Use a unique, validated local download and clean up only the directory created by that run:
+`studio_upload_media_from_url` often fails on external URLs (Google Drive, third-party CDNs) with `No files were uploaded` due to server-side SSRF or network policy restrictions. Do **not** move that SSRF risk to the agent: this canonical recipe accepts only public `https` hosts, validates each redirect target before connecting, pins curl to the validated DNS answers, and bounds the download to 100 MiB. Use a unique temporary directory and clean up only that directory:
 
 ```sh
+set -euo pipefail
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/mixio-download.XXXXXX")"
 download_path="$tmp_dir/source"
 trap 'rm -rf -- "$tmp_dir"' EXIT
+max_bytes=104857600 # 100 MiB
 
-curl --fail --silent --show-error --location "$external_url" -o "$download_path"
+# Prints one curl --resolve rule, or fails. Literal-IP URLs, private/reserved addresses,
+# credentials, non-HTTPS schemes, and non-default ports are deliberately rejected.
+public_https_resolve() {
+  node --input-type=module - "$1" <<'NODE'
+import { lookup } from 'node:dns/promises';
+import net from 'node:net';
+
+const fail = message => { console.error(message); process.exit(1) };
+const url = new URL(process.argv[2]);
+if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443')) {
+  fail('external URL must be credential-free https on port 443');
+}
+if (net.isIP(url.hostname)) fail('literal-IP external URLs are not allowed');
+const records = await lookup(url.hostname, { all: true, verbatim: true });
+if (!records.length) fail('external host resolved to no addresses');
+const blocked = address => {
+  if (net.isIP(address) === 4) {
+    const [a, b, c] = address.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && (b === 0 || b === 168)) ||
+      (a === 192 && b === 0 && (c === 0 || c === 2)) || (a === 192 && b === 88 && c === 99) ||
+      (a === 198 && (b === 18 || b === 19)) || (a === 198 && b === 51 && c === 100) ||
+      (a === 203 && b === 0 && c === 113);
+  }
+  const value = address.toLowerCase();
+  return value === '::' || value === '::1' || value.startsWith('fc') || value.startsWith('fd') ||
+    /^fe[89ab]/.test(value) || value.startsWith('ff') || value.startsWith('2001:db8') ||
+    value.startsWith('::ffff:');
+};
+if (records.some(({ address }) => blocked(address))) fail('external host resolved to a private or reserved address');
+console.log(`${url.hostname}:443:${records.map(({ address }) => address).join(',')}`);
+NODE
+}
+
+# Follow no more than five redirects manually so each next URL is checked and pinned.
+next_url="$external_url"
+for hop in 0 1 2 3 4; do
+  resolve_rule="$(public_https_resolve "$next_url")"
+  header_path="$tmp_dir/headers.$hop"
+  curl --fail --silent --show-error --head --proto '=https' --proto-redir '=https' \
+    --connect-timeout 10 --max-time 20 --resolve "$resolve_rule" \
+    --dump-header "$header_path" --output /dev/null -- "$next_url"
+  status="$(awk '/^HTTP\// { status=$2 } END { print status }' "$header_path")"
+  location="$(awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }' "$header_path")"
+  if [ -z "$location" ]; then
+    [ "$status" = 200 ] || { echo "unexpected response status: $status" >&2; exit 1; }
+    break
+  fi
+  [ "$hop" -lt 4 ] || { echo 'too many redirects' >&2; exit 1; }
+  next_url="$(node --input-type=module - "$next_url" "$location" <<'NODE'
+console.log(new URL(process.argv[3], process.argv[2]).href)
+NODE
+)"
+done
+
+# `--location --max-redirs 0` fails closed if the GET changes into a redirect after validation.
+resolve_rule="$(public_https_resolve "$next_url")"
+(
+  ulimit -f 204800 # 100 MiB in 512-byte blocks; caps chunked responses too
+  curl --fail --silent --show-error --location --max-redirs 0 --proto '=https' --proto-redir '=https' \
+    --connect-timeout 10 --max-time 120 --max-filesize "$max_bytes" --resolve "$resolve_rule" \
+    --output "$download_path" -- "$next_url"
+)
+
 test -s "$download_path" || { echo "download was empty" >&2; exit 1; }
 mime_type="$(file --brief --mime-type "$download_path")"
 case "$mime_type" in
@@ -110,7 +176,8 @@ Pass entry.publicUrl to studio_update_reference or generation media slots
 
 The `trap` removes only this run's temporary directory on success or failure. `--fail` prevents
 HTTP error pages or login HTML from being uploaded as media, and the MIME-derived extension keeps
-the upload format intact.
+the upload format intact. Do not copy or weaken this recipe in another skill; link here so its
+network restrictions stay consistent.
 
 ### Re-upload after edits
 
