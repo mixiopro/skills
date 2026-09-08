@@ -42,11 +42,13 @@ A screenplay is its own per-episode `SCREENPLAY` element, distinct from the raw 
 |------|---------|
 | `studio_upsert_screenplay` | `{ projectId, episodeId, body, name? }` — creates the screenplay on first call and updates that same episode's screenplay thereafter. It always writes a **draft**; approval is a separate human action in Studio's Screenplay view. Never report it as approved. |
 
-`body` is standard screenplay text—sluglines, action, character cues, dialogue—with three optional native token forms that breakdown preserves and honors:
+`body` is standard screenplay text—sluglines, action beats, character cues, dialogue, and audio/SFX paragraphs—with core authoring conventions:
 
-- **`#name.variant[.view]`** — explicit CAST & World reference, such as `#maya.wedding.front`. First call `studio_list_references({ projectId, limit })`, then copy an exact token from each reference's `mentionableLooks`; do **not** construct one from a display name. A look with no views correctly uses the returned two-segment `#name.variant` token.
+- **Four Scene Components**: Every scene must include a slugline (`INT./EXT. — LOCATION — TIME`), action beats, character cues/dialogue, and audio/SFX paragraphs (`[SFX: ...]`, `[Ambient: ...]`).
+- **ALL CAPS Props & Settings**: Key props (`BED`, `PHONE`, `TABLET`) and prominent setting elements (`WINDOW`, `DOORWAY`) must be capitalized in `ALL CAPS` on first appearance.
+- **`#name.variant[.view]`** — explicit CAST & World reference, such as `#maya.wedding.front`. First call `studio_list_references({ projectId, limit })`, then copy an exact token from each reference's `mentionableLooks`; do **not** construct one from a display name. Validate all `#` mentions (probe via `studio_resolve_mention`) to ensure 0 unresolved entity or look tokens.
 - **`~location.landmark[.placement]`** — advisory continuity lock for a specific location point, such as `~hall.dais.center`. It is a lock, not an entity mention.
-- **`[Key: Value · Key: Value]`** — a standalone paragraph immediately before the beat it governs. These explicit overrides win over breakdown inference. The only recognized keys are `Camera`, `Camera Movement`, `Lighting`, `Mood`, `Blocking`, `Background`, `Location`, `Shot Type`, `SFX`, `Ambient`, and `Lens`; preserve their spelling and keep ordinary bracketed prose inline.
+- **`[Key: Value · Key: Value]`** — a standalone paragraph immediately before the beat it governs. These explicit overrides win over breakdown inference. The 11 recognized keys are `Camera`, `Camera Movement`, `Lighting`, `Mood`, `Blocking`, `Background`, `Location`, `Shot Type`, `SFX`, `Ambient`, and `Lens`. Preserves their exact spelling and keep ordinary bracketed prose inline.
 
 ### Scene/shot breakdown
 
@@ -92,7 +94,7 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 → { results: [...], total }
 ```
 
-**`tags` and `metadata` must be passed as real objects, not JSON-stringified strings.** The server builds the query with `Object.entries(args.tags)` — if you pass a string like `"{\"episodeId\":\"...\"}"`, `Object.entries()` iterates it character-by-character and the query breaks with `Tool execution failed: { is not allowed as a JSON query value`. Pass `tags: { episodeId: "..." }` as an actual object.
+**`tags` and `metadata` must be passed as real objects, not JSON-stringified strings.** This applies to **both `studio_query_elements` and `studio_query_relations`**. The server builds the query with `Object.entries(args.tags)` — if you pass a string like `"{\"episodeId\":\"...\"}"`, `Object.entries()` iterates it character-by-character and the query breaks with `Tool execution failed: { is not allowed as a JSON query value`. Pass `tags: { episodeId: "..." }` (and `metadata: { ... }` on relations) as actual objects, never `JSON.stringify(...)` output.
 
 ### Relations
 
@@ -100,7 +102,7 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 |------|---------|
 | `studio_create_relation` | `{ projectId, fromId, toId, relationType, role?, metadata?, mirrorBelongsTo? }` |
 | `studio_delete_relation` | `{ relationId }` |
-| `studio_query_relations` | `{ projectId, fromId?, toId?, relationType?, limit? }` |
+| `studio_query_relations` | `{ projectId, fromId?, toId?, relationType?, metadata?: object, limit? }` — `metadata` is a native object; see the canonical warning above |
 | `studio_bulk_create_relations` | `{ projectId, relations: [...] }` — same per-item shape as `create_relation` |
 | `studio_link_graph` | `{ projectId, relations: [...] }` (max 200) — near-duplicate of `bulk_create_relations`; prefer this one for breakdown work since it verifies project access up front and documents the common breakdown relation types (`appears_in`, `located_at`, `used_in`, `belongs_to`) |
 
@@ -113,12 +115,13 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 2. studio_list_references({ projectId, limit }) → copy valid `mentionableLooks`
 3. studio_upsert_screenplay({ projectId, episodeId, body })                  → persist the preferred screenplay draft
    — or, for a raw idea with no screenplay stage: studio_update_episode({ episodeId, updates: { script } })
-4. studio_upsert_scene_packages({ projectId, episodeId, scenes: [...] })     → break the selected source into scenes/shots
-5. studio_revise_shot_specs / studio_update_shot_state                       → refine and approve shots
-6. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
+4. studio_upsert_scene_packages({ projectId, episodeId, scenes: [...] })     → break the selected source into scenes/shots (with linked entity IDs)
+5. studio_link_graph({ projectId, relations: [...] })                        → bind appears_in appearanceState for each character/shot pair
+6. studio_revise_shot_specs / studio_update_shot_state                       → refine and approve shots
+7. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
 ```
 
 ## Notes
 
 - `studio_create_episode`'s `script` field maps to `metadata.fullScript` internally — pass it via `script`, not raw `metadata`. It is the raw Idea/Story fallback, not the screenplay.
-- Shot/scene elements are tagged with `episodeId` (via `tags.episodeId`) — that's what scopes `studio_query_elements`/`studio_get_production_context` to one episode.
+- Shot/scene elements are tagged with `episodeId` (via native-object `tags: { episodeId }`, never `JSON.stringify(...)`) — that's what scopes `studio_query_elements`/`studio_get_production_context` to one episode.

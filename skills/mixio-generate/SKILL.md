@@ -1,7 +1,7 @@
 ---
 name: mixio-generate
 description: "Generate images, video and audio through Mixio Studio jobs — which use cases exist, which models each supports, what each accepts as input, what it costs, and when a Studio production use case beats a Generate one."
-version: 0.4.0
+version: 0.4.1
 invoke: /mixio:generate
 ---
 
@@ -20,7 +20,7 @@ Every claim below is grounded in the `mixiopro/studio` repo and cited inline so 
 | Capability profiles / model bindings | 12 / 37 | `api/agent-api/shared_schemas/video-direction.json` |
 | Presets | attached to 9 use cases via `presetSlots` | `api/agent-api/shared_schemas/presets.json` |
 
-Re-derive before spending: `studio_get_use_case_input_schema({ useCaseId, modelId })` is generated from the same resolution path the Studio UI renders from (spec `specs/022-mcp-use-case-input-schema/spec.md`), so it cannot drift from reality the way this file can.
+Re-derive before spending: prefer `studio_get_contract`. It returns a versioned, digested contract for a direct tool (`{ target: "tool", toolName }`), generation pair (`{ target: "generation", useCaseId, modelId }`), Studio element metadata (`{ target: "element", elementType }`), or open project settings (`{ target: "project-settings" }`). For generation, `studio_get_use_case_input_schema({ useCaseId, modelId })` remains a compatible generation-only read from the same UI resolution path (spec `specs/022-mcp-use-case-input-schema/spec.md`).
 
 ## Prerequisites
 
@@ -33,15 +33,16 @@ Registrations: `apps/app-kalaasetu/src/app/api/mcp/server.ts`.
 
 | Tool | Returns | Omits / breaks |
 |---|---|---|
+| `studio_get_contract({ target, ... })` | **Preferred versioned contract read.** `target: "tool"` returns any hosted tool's input schema, examples, constraints, and applicable semantic rules; `"generation"` resolves a use case/model; `"element"` resolves Studio metadata; `"project-settings"` documents the open settings shape. Every result has `contractVersion` and `contractDigest`. | For a generation contract, pass `modelId` when the selected model is known. The digest identifies the exact contract read; fetch again when it changes rather than relying on this snapshot. |
 | `studio_list_use_cases` | `id`, `label`, `outputType`, `description`, `supportedModels`, `count` | **Always pass `outputType: "all"`.** The enum is `IMAGE \| VIDEO \| all` but the catalog also has `STUDIO` and `AUDIO`, so 18 of 38 use cases — every `production-*`, every screenplay/preproduction workflow, both audio ones — are unreachable through any narrower filter (`IMAGE` returns 13, `VIDEO` returns 7). Does **not** return `surfaces`, `media`, `parameters`, `presetSlots`, `intent`, or `studio`. `workflowId` is mapped but is always `undefined` — the field does not exist on `UseCaseDef` (server.ts:2938) |
 | `studio_list_generation_models` | with `useCaseId`: `{ id, label }` per model. Unfiltered: `{ id, label }` × 61 | **Broken — do not rely on it.** `mediaType: "image"` returns `{models:[],count:0}`, verified. It filters on `m.mediaType \|\| m.outputType`, and `ModelDef` has neither field (`packages/shared/src/schemas/generation/schema.ts:771` — only `label`, `providers`, `pricing`, `prompting`, `roleSlotPolicy`, `videoReferenceBudget`, `organizationNameIncludes`), so `provider`, `mediaType`, `outputType` and `supportedUseCases` serialize away as `undefined` and the filter matches nothing (server.ts:2887). Use `supportedModels` from `list_use_cases`, or `model.options` from `studio_get_generation_catalog_detail`, instead |
 | `studio_get_use_case_input_schema({ useCaseId, modelId })` | **The authoritative per-model contract.** JSON Schema 2020-12 for `{ prompt?, media, parameters }`, plus `supportedModels` and resolved `presets` | **Always pass `modelId`.** Omitting it resolves a different model and therefore a different schema: `image-hub` with no `modelId` yields `gpt_image_2` (auto is unsupported for `IMAGE`, so it falls back to `models[0]`), `cinematic-video` yields `ltx_2_3_quality_image_to_video` (auto rule). Throws `No model could be resolved for <id>` on the three model-less Studio use cases: `studio-lock-references`, `studio-storyboard-keyframes`, `studio-batch-image-generation`. Responses for the 9 preset-bearing use cases are large — they inline the full preset catalog |
 | `studio_get_generation_catalog_detail({ useCaseId, modelId, surface, projectId })` | Same contract flat (`media[]`, `parameters[]` with `options`), plus `supportedActions` and `configDigest` | Needs `projectId`. Use it when you need the action ids. Note `supportedActions` is not media-typed — `production-generate-video` returns `{single: "generation.image", batch: "generation.image.batch"}` |
 | `studio_cancel_studio_job({ jobId, projectId })` | `{ job: { id, status, previouslyTerminal }, message }` | **Exists** (server.ts:1951). Already-terminal jobs return their status without error. Earlier guidance in this skill that cancellation was HTTP-only was wrong |
 
-## 2. Facts you cannot discover over MCP
+## 2. Facts not exposed by the contract API
 
-This is the gap that makes agents guess. None of the following is reachable through any MCP tool. Read the repo file, or ask the user.
+`studio_get_contract` makes tool, generation, element, and project-settings contracts reachable over MCP. The operational facts below are still outside those contracts; read the repo file or ask the user.
 
 | Fact | Where it lives | What to do instead |
 |---|---|---|
@@ -183,6 +184,9 @@ Media slots take **real URLs, not Payload media IDs** — the server rejects UUI
 1. `studio_list_references({ projectId })` — names, types, and a `hasAttachments` boolean. **No URLs.** This is a directory, not a source of images.
 2. `studio_get_element({ elementId })` → `referenceVariants[].attachments[].media.url`, or `studio_get_production_context({ projectId, episodeId })` for the whole graph at once (100K+ characters — prefer the element read when you know the id). If the shot or scene has a bound look, prefer resolving through it rather than picking `referenceVariants[0]` — see §7.
 3. Anything local: `upload_file(path)` or `get_public_url(path)` for a permanent URL first. `/api/media/file/{id}` form is also accepted.
+4. **External media URLs (Google Drive, third-party CDNs)**: Don't pass external URLs directly to generation slots or rely on server-side URL fetching (risk of SSRF / `No files were uploaded` failures). Use the validated local-download fallback from `mixio-workspace`:
+   - run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts), which permits only public HTTPS redirects, bounds the download, validates MIME type, and cleans up its unique temporary directory;
+   - call `upload_file({ path: asset_path, project_id, organization_id })` and pass `entry.publicUrl` to `input.media.<slot>`.
 
 Slot ids come from the schema, not from memory. Common ones: `primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`. Each takes `{ url }` or an array of them.
 
@@ -216,6 +220,17 @@ The same failure mode applies across all other models: without prompt `@` mentio
 
 1. **Prompts MUST ALWAYS contain `@` mentions for all active assets/references** (e.g. `@asset1`, `@tony`, `@scene1`). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`) must be embedded in the prompt string where the subject acts. Plain descriptive prose without `@` tokens will fail grounding across all models.
 2. **Paired `slotTags` AND `mentionMap` are MANDATORY**: Whenever media references/assets are provided, `userInput` must always include both `slotTags` (`{ [assetKey]: "@tag" }`) and `mentionMap` (`{ "@tag": "Human Label / Description" }`).
+
+If a provider genuinely requires an active reference to remain unmentioned, recover with the semantic-only, reasoned bypass. It does not waive media, authorization, or other request validation:
+
+```json
+{
+  "validation": {
+    "bypass": true,
+    "reason": "The selected source image is provider-only guidance and must not be named in the provider prompt."
+  }
+}
+```
 
 #### Model-Specific Mention Token Grammars
 
@@ -291,7 +306,7 @@ Three ways to hit a specific look, in order of directness:
 
 1. **Pass `variantId` / `variantName` on the media reference itself** — `input.media.<slot>: { url, variantId }`. Bound exactly, no lookup, and always wins over whatever generation would otherwise resolve.
 2. **Pass `selectedElements` alongside `media`.** Each reference is linked to its element, so the backend fallback can resolve the shot-then-scene binding for you. This is the step that's easy to skip — omit `selectedElements` and a URL-only reference has no element id, so there's nothing for the fallback to key on.
-3. **Read `lookBindings` and pass that look's URL yourself.** `studio_get_production_context` returns `lookBindings: [{ ownerId, referenceId, lookRef }]` for the whole episode; `query_relations` rows expose the same thing per relation as `metadata.lookRef`.
+3. **Read `lookBindings` and pass that look's URL yourself.** `studio_get_production_context` returns `lookBindings: [{ ownerId, referenceId, lookRef }]` for the whole episode; `studio_query_relations` rows expose the same thing per relation as `metadata.lookRef`. Pass a relation `metadata` filter as a native object, never a JSON-stringified string.
 
 With none of the three, a reference resolves to the element's default variant — indistinguishable from "nothing was bound," so a rebind the user made can silently not render. Whatever you declare (1 or 2) is a snapshot taken at submit time; rebinding after submitting a running job does not change what it renders.
 

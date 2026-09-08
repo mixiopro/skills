@@ -103,9 +103,9 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 | [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — screenplay → anchors → reference audit → breakdown → continuity → shot planning → video as gated steps, with resumable progress state. Uses the native [screenplay grammar](./skills/mixio-episode/references/screenplay-grammar.md) and the shared [shot grammar](./skills/mixio-pipeline/references/shot-grammar.md). |
 | [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Character turnaround sheets, six-field location sheets, prop sheets, and one wide anchor frame per scene — the reference layer every shot is generated against. |
 | [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit Cast & World for completeness, name/image consistency, duplicates, metadata quality, and policy compliance — catch reference problems before they cost re-renders. |
-| [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Script → canonical references, scenes, and shot specs. Mirrors Studio's own breakdown workflow: same schemas, the two closed camera enums, verbatim-preservation rules, and the mapping from shot grammar onto persistable keys. |
+| [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Script → canonical scenes and shot specs with entity graph linking, appearanceState, and immediate relational audit. |
 | [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Four-pass text continuity audit before anything renders — blocking map, checks, report, corrected shots. |
-| [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot's generation method (single-frame, multi-keyframe, grid, t2v), match to best model, validate feasibility, and group into generation batches with a full production summary. |
+| [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot into 5 structural archetypes (grid, sequence, master anchor multi-shot, single/dual frame, t2v), match to best model, audit execution feasibility, and group into generation batches with a credit-costed production summary. |
 
 Tool skills are reference docs for the MCP surface and are safe to use standalone. Production skills encode the craft and the gating — start at `/mixio:pipeline` for a full episode.
 
@@ -114,7 +114,8 @@ Tool skills are reference docs for the MCP surface and are safe to use standalon
 Running a full episode — `/mixio:pipeline` drives this, gating on user confirmation between steps:
 
 ```
-Step 00  lock aspect_ratio (delivery) + anchor_aspect_ratio (wider, for anchors)
+Step 00  Preflight           → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
+                              resolution, visual style and reference policy into the project settings
 Step 01  Detailed Screenplay → /mixio:episode discovers mentions and upserts the native screenplay draft
 Step 02  Anchor Frames       → /mixio:sheets — character + location sheets, one anchor per scene
 Step 02.5 Reference Audit    → /mixio:reference-audit — completeness, consistency, duplicates, metadata

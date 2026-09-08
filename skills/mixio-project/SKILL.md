@@ -93,6 +93,10 @@ All proxied `studio_*` tools. Call `studio_describe_tools` for exact current sch
 
 **This routinely returns 100K+ characters on a real production** and will exceed your harness's inline token limit — expect the result to spill to a file with grep/paginate guidance, not fail. Don't call it expecting a small response; if you only need one entity, use a scoped read instead (`studio_get_element`, `studio_list_references`, `studio_list_episodes`) rather than the whole graph.
 
+### Element & relation query filters must be native objects
+
+`studio_query_elements` (`tags`, `metadata`) and `studio_query_relations` (`metadata`) take **objects, never JSON-stringified strings**. The server iterates filters with `Object.entries()`, which walks a string character-by-character and fails with `Tool execution failed: { is not allowed as a JSON query value`. Pass `tags: { episodeId: "..." }` (and `metadata: { ... }`) as real objects — never `JSON.stringify(...)` output.
+
 ## Workflow
 
 ```
