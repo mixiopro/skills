@@ -1,7 +1,7 @@
 ---
 name: mixio-references
 description: "Manage a Mixio Studio project's Cast & World roster — characters, locations, and props, including reference images (Looks) and structured details used for generation consistency."
-version: 0.2.0
+version: 0.3.0
 invoke: /mixio:references
 ---
 
@@ -151,13 +151,9 @@ Use this to **get real reference-image URLs** before calling `studio_submit_stud
 
 ## Getting images onto a reference — the reliable path
 
-**Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. The pattern that actually works:
+**Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. Run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts) in `mixio-workspace`; it permits only public HTTPS redirects, bounds the download, validates MIME type, derives the extension, and removes its unique temporary directory.
 
-```
-1. curl <external-url> -o /tmp/asset.png              → local file
-2. upload_file({ path: "/tmp/asset.png" })             → { entry: { url / publicUrl } }  (see mixio-workspace)
-3. studio_update_reference({ referenceId, attachments: [{ url: entry.publicUrl, ... }] })
-```
+Call `studio_update_reference({ referenceId, attachments: [{ url: entry.publicUrl, ... }] })` only after `upload_file` succeeds. The `trap` cleans up only this run's directory on success or failure, and `--fail` prevents an HTTP error page or login HTML from becoming a reference image. Pass `project_id` and `organization_id` so the asset is scoped to the production rather than orphaned (`projectId: null`).
 
 `studio_upload_media_from_url` may still work for URLs already on trusted/reachable domains — try it first for a single asset, but don't build a batch workflow around it without a local-download fallback.
 
