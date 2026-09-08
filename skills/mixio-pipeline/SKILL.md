@@ -144,11 +144,11 @@ breakdown skill owns the fields, audit checks, and `metadata.pipeline.breakdown_
 
 → `mixio-shot-planning`. Three decisions per shot, then batching:
 
-1. **Method** — classify each shot as SINGLE (one keyframe → video), DUAL_FRAME (start+end), MULTI_KF (3–12 keyframes), GRID (multi-panel), or T2V (prompt-only)
-2. **Model** — match to best available model based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.)
-3. **Feasibility** — validate duration vs model max, action density vs duration, dialogue timing, reference readiness, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. Every prompt referencing media assets must embed explicit `@tag` tokens.
+1. **Model + live contract** — select a candidate based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.) and read its live input schema, including the duration ceiling.
+2. **Archetype / Method** — classify each shot using that contract into one of 5 structural archetypes: `GRID` (multi-panel/montage), `SEQUENCE` (multi-beat sequence), `MASTER_ANCHOR_MULTI_SHOT` (coverage grounded by the wide scene-anchor reference through a derived keyframe), `SINGLE` / `DUAL_FRAME` (standard keyframe interpolation), or `T2V` (direct text-to-video).
+3. **Execution & Feasibility Audit** — validate duration vs model max, action density (`actions / duration`), dialogue speaking rate (`words / duration`), reference readiness, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. Every prompt referencing media assets must embed explicit `@tag` tokens.
 
-Then group into generation batches per model-group (different models have different ceilings). Emit a `PRODUCTION SUMMARY` with per-model costs, method distribution, keyframe/video job counts, and high-risk cross-model boundaries. Where a shot or scene has a bound look, carry the resolved `variantId`/`variantName` into the plan so Step 06 declares it directly (see `mixio-generate`).
+Then group consecutive shots only when their model, generation use case, and input contract all match; the planner's live schema limits still apply. Emit a `PRODUCTION SUMMARY` with per-model costs, archetype distribution, keyframe/video job counts, estimated credit costs, and high-risk cross-model boundaries. Preserve a bound look as relation `lookRef`; Step 06 must resolve it through `selectedElements` or pass `variantId`/`variantName` on the media reference (see `mixio-generate`), not inert plan metadata. Gate: require explicit user budget approval before Step 06.
 
 ## Step 06 — Video Generation
 
