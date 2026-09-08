@@ -9,9 +9,13 @@ forbid() { ! rg -Fq -- "$2" "$1" || { echo "forbidden: $2 in $1" >&2; exit 1; };
 require "$workspace" "public_https_resolve()"
 require "$workspace" "--proto '=https'"
 require "$workspace" "--proto-redir '=https'"
+require "$workspace" "--noproxy '*'"
 require "$workspace" '--max-filesize "$max_bytes"'
 require "$workspace" 'ulimit -f 204800'
 require "$workspace" 'curl --fail --silent --show-error --location --max-redirs 0'
+require "$workspace" 'cleanup_on_error()'
+require "$workspace" 'UPLOAD_PATH='
+require "$workspace" 'CLEANUP_DIR='
 require 'skills/mixio-references/SKILL.md' 'safe external-media recipe'
 require 'skills/mixio-generate/SKILL.md' 'safe external-media recipe'
 require 'skills/mixio-sheets/SKILL.md' 'safe external-media recipe'

@@ -84,7 +84,9 @@ No params. Drops every cached mapping (does not delete remote media). Returns `{
 set -euo pipefail
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/mixio-download.XXXXXX")"
 download_path="$tmp_dir/source"
-trap 'rm -rf -- "$tmp_dir"' EXIT
+# Keep a successful download for the following MCP upload; delete it automatically on an error.
+cleanup_on_error() { status=$?; [ "$status" -eq 0 ] || rm -rf -- "$tmp_dir"; }
+trap cleanup_on_error EXIT
 max_bytes=104857600 # 100 MiB
 
 # Prints one curl --resolve rule, or fails. Literal-IP URLs, private/reserved addresses,
@@ -127,7 +129,7 @@ next_url="$external_url"
 for hop in 0 1 2 3 4; do
   resolve_rule="$(public_https_resolve "$next_url")"
   header_path="$tmp_dir/headers.$hop"
-  curl --fail --silent --show-error --head --proto '=https' --proto-redir '=https' \
+  curl --fail --silent --show-error --head --noproxy '*' --proto '=https' --proto-redir '=https' \
     --connect-timeout 10 --max-time 20 --resolve "$resolve_rule" \
     --dump-header "$header_path" --output /dev/null -- "$next_url"
   status="$(awk '/^HTTP\// { status=$2 } END { print status }' "$header_path")"
@@ -147,7 +149,7 @@ done
 resolve_rule="$(public_https_resolve "$next_url")"
 (
   ulimit -f 204800 # 100 MiB in 512-byte blocks; caps chunked responses too
-  curl --fail --silent --show-error --location --max-redirs 0 --proto '=https' --proto-redir '=https' \
+  curl --fail --silent --show-error --location --max-redirs 0 --noproxy '*' --proto '=https' --proto-redir '=https' \
     --connect-timeout 10 --max-time 120 --max-filesize "$max_bytes" --resolve "$resolve_rule" \
     --output "$download_path" -- "$next_url"
 )
@@ -164,20 +166,25 @@ case "$mime_type" in
 esac
 asset_path="$tmp_dir/asset.$ext"
 mv "$download_path" "$asset_path"
+printf 'UPLOAD_PATH=%s\nCLEANUP_DIR=%s\n' "$asset_path" "$tmp_dir"
 ```
 
 Then upload the MIME-validated file and pass its permanent URL onward:
 
 ```
-upload_file({ path: asset_path, project_id, organization_id })
+upload_file({ path: <exact value printed after UPLOAD_PATH=>, project_id, organization_id })
   → { ok: true, entry: { publicUrl: "https://studio.mixio.pro/api/media/file/..." } }
 Pass entry.publicUrl to studio_update_reference or generation media slots
 ```
 
-The `trap` removes only this run's temporary directory on success or failure. `--fail` prevents
-HTTP error pages or login HTML from being uploaded as media, and the MIME-derived extension keeps
-the upload format intact. Do not copy or weaken this recipe in another skill; link here so its
-network restrictions stay consistent.
+After that tool returns, whether it succeeds or fails, remove **only** the exact absolute path
+printed after `CLEANUP_DIR=` (for example, `rm -rf -- /tmp/mixio-download.abc123`). Never
+substitute a parent directory, glob, home directory, or repository path.
+
+The error trap and final cleanup remove only this run's temporary directory; do not use a broader
+path. `--fail` prevents HTTP error pages or login HTML from being uploaded as media, and the
+MIME-derived extension keeps the upload format intact. Do not copy or weaken this recipe in
+another skill; link here so its network restrictions stay consistent.
 
 ### Re-upload after edits
 
