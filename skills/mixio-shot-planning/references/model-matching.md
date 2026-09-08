@@ -1,6 +1,8 @@
 # Model matching
 
-Read this when assigning a model to a classified shot. For the classification step itself and feasibility checks, see the main `SKILL.md`.
+Read this before classification when a model-dependent duration ceiling could decide the
+archetype, then use it again to refine the assignment after classification. For the full order
+and feasibility checks, see the main `SKILL.md`.
 
 Match each shot to the best available model based on what it needs. This is a recommendation, not a hard constraint — the user may override.
 
@@ -27,7 +29,7 @@ This is the craft layer — which model tends to produce better results for whic
 | **Fast action / fights** | Seedance, Kling | Better temporal coherence under rapid motion |
 | **Slow / cinematic camera** | Veo, Sora | Smooth, intentional camera choreography |
 | **Static holds / reactions** | Any (`SINGLE`) — cheapest option wins | Low complexity, all models handle simple holds |
-| **Master Anchor crops** | Veo, Seedance (`MASTER_ANCHOR_MULTI_SHOT`) | Strong spatial grounding against the wide scene anchor |
+| **Master Anchor reference** | Veo, Seedance (`MASTER_ANCHOR_MULTI_SHOT`) | Strong spatial grounding against the wide scene anchor |
 | **Character consistency** | Models with strong `character_ref` / multi-image support | Maintaining identity across frames |
 | **Establishing / landscape** | Sora, Veo (`T2V` or `SINGLE`) | Superior scale, depth, and atmospheric coherence |
 | **Multi-panel / Montage** | Gemini Image, GPT Image (`GRID`) | Multi-cell layout composition and style adherence |

@@ -14,6 +14,7 @@ Fixed-ceiling batching assumed one model and one method. Shot planning acknowled
 ## Prerequisites
 
 - An audited breakdown (Step 04) — plan the **corrected** shots
+- Resolved project and episode scope (from numbered Studio lists); use persisted scene/shot IDs only — never infer a label
 - Every shot has `duration`, `camera_movement`, `action`, `audio` fields populated
 - `studio_list_use_cases({ outputType: "all" })` + `studio_get_use_case_input_schema({ useCaseId, modelId })` reachable (live catalog)
 - Project settings locked in Step 00 (`settings.generation`, `settings.studio`)
@@ -41,8 +42,8 @@ project settings.
 | Archetype | Code | Target Studio Use Case / Shape | When to use |
 |-----------|------|--------------------------------|-------------|
 | **Grid / Montage** | `GRID` | `production-generate-shot-keyframe-grid` (multi-panel) | Turnaround sheets, montages, multi-angle grids, comic/storyboard panels |
-| **Sequence** | `SEQUENCE` | `production-generate-shot-keyframe-sequence` (3–12 keyframe sequence) | Long or complex shots: multiple distinct beats, multi-marker choreographies, extended camera moves |
-| **Master Anchor Multi-Shot** | `MASTER_ANCHOR_MULTI_SHOT` | Scene anchor crop → `production-generate-shot-keyframes` | Coverage (CU, MCU, OTS) derived directly from the wide scene anchor frame |
+| **Sequence** | `SEQUENCE` | `production-generate-shot-keyframe-sequence` (one of `4`/`6`/`8`/`10`/`12` frames) | Long or complex shots: multiple distinct beats, multi-marker choreographies, extended camera moves |
+| **Master Anchor Multi-Shot** | `MASTER_ANCHOR_MULTI_SHOT` | Scene anchor as a reference → one derived `production-generate-shot-keyframes` job → video | Coverage (CU, MCU, OTS) spatially grounded by the wide scene anchor |
 | **Single-frame i2v** | `SINGLE` | 1 keyframe image → video (`production-generate-shot-keyframes` / `-video`) | Static/simple shots: holds, reactions, gentle camera moves (static, pan, tilt), single continuous action |
 | **Start+End i2v** | `DUAL_FRAME` | Start + end frame → video (`production-generate-shot-keyframes` / `-video`) | Complex transitions: significant blocking change, subject enters/exits, major camera framing change |
 | **Text-to-video** | `T2V` | Prompt only, no start frame (`production-generate-video`) | Abstract, establishing shots with no prior frame, mood pieces |
@@ -96,14 +97,15 @@ Read `projects.settings` through `studio_get_project` before selecting a fallbac
 ## 2. Model matching
 
 Match each shot to the best available model based on what it needs. This is a recommendation, not a hard constraint — the user may override. Read the real per-model contract with `studio_get_use_case_input_schema({ useCaseId, modelId })` — that is the only authoritative source. Do **not** call `studio_list_generation_models` for this: it returns `{ id, label }` and nothing else (see `mixio-generate`).
-
 Full capability profiles, strength-area matching guidance, and the conflicting-needs pattern: `references/model-matching.md`.
 
 ---
 
 ## 3. Execution audit & feasibility validation
 
-For each shot × method × model, run the execution audit against model capabilities:
+For each shot × method × model, use the live schema for model-specific duration and input
+constraints. Studio's action and dialogue pacing checks are universal heuristics, not per-model
+ceilings, so they are advisory.
 
 ### Duration feasibility
 
@@ -137,9 +139,9 @@ Count distinct action clauses in the `action` field:
 action_count = count_distinct_action_beats(shot.action)
 action_density = action_count / shot.duration  # actions per second
 
-if action_density > 1.5:
+if action_density > 1.5:  # Studio planner's universal pacing heuristic, not a model limit
     FINDING: ACTION_DENSITY_HIGH — 5 actions in 3s exceeds physical motion pacing
-    → BLOCKING: Extend duration, reduce action complexity, or upgrade to SEQUENCE
+    → ADVISORY: Extend duration, reduce action complexity, or upgrade to SEQUENCE
 
 if action_density > 0.8 and method == SINGLE:
     FINDING: ACTION_TOO_COMPLEX_FOR_SINGLE — multiple movements in a single keyframe pass
@@ -154,9 +156,9 @@ For shots with `audio.dialogue`:
 word_count = len(shot.audio.dialogue.split())
 speaking_rate = word_count / shot.duration  # words per second
 
-if speaking_rate > 3.5:
+if speaking_rate > 4.0:  # Studio planner's universal pacing heuristic, not a model limit
     FINDING: DIALOGUE_TOO_FAST — 22 words in 4s (5.5 wps) is rushed and unintelligible
-    → BLOCKING: Extend shot duration or trim dialogue lines
+    → ADVISORY: Extend shot duration or trim dialogue lines
 
 if speaking_rate > 0 and shot.duration < 2.5:
     FINDING: DIALOGUE_IN_SHORT_SHOT — spoken dialogue requires minimum 2.5s screen time
@@ -195,9 +197,9 @@ location_ref, enhancer_context, and every other schema-declared media slot):
         → BLOCKING: create one slotTags + mentionMap pair for every asset
     for each assetKey, asset in assets:
         tag = slotTags[assetKey]
-        if tag is missing OR prompt contains tag zero times or more than once:
-            FINDING: PROMPT_MENTION_MISSING — asset has no unique prompt @tag
-            → BLOCKING: embed exactly one @tag where that asset acts
+        if tag is missing OR prompt contains tag zero times:
+            FINDING: PROMPT_MENTION_MISSING — asset has no prompt @tag
+            → BLOCKING: embed @tag where that asset acts
         if mentionMap[tag] is missing:
             FINDING: MENTION_MAP_UNPAIRED — slot tag has no label binding
             → BLOCKING: add mentionMap[tag] with the asset's human-readable label
@@ -219,10 +221,8 @@ if shot is first in a new batch AND previous batch exists:
 
 ## Feasibility report
 
-Report the archetype and model distribution, every finding with its remediation, and separate
-blocking from advisory work. Use the worked
-[feasibility-report format](references/execution-audit.md#feasibility-report) as the shape; the
-report may advance only when every blocking finding is resolved.
+Report archetype/model distribution and every finding with remediation, separating blocking from
+advisory work. Use the [worked format](references/execution-audit.md#feasibility-report); resolve every blocker before advancing.
 
 ---
 
@@ -232,10 +232,8 @@ After archetype/model assignment and feasibility resolution, group shots into **
 
 ### Batch rules (per model)
 
-**Confirm per-shot limits from `studio_get_use_case_input_schema({ useCaseId, modelId })`** —
-the schema is authoritative. The historical model-family profile is lookup material in
-[`references/execution-audit.md#batch-profiles`](references/execution-audit.md#batch-profiles),
-not a substitute for the live contract.
+**Confirm per-shot limits from `studio_get_use_case_input_schema({ useCaseId, modelId })`**;
+historical [batch profiles](references/execution-audit.md#batch-profiles) are lookup material, not a live contract.
 
 ### Batch formation algorithm
 
@@ -260,10 +258,9 @@ shape. Do not submit a generation job until the user approves this estimate.
 
 ## Persisting the plan
 
-Persist each shot's model, `generation_use_case`, and input contract with
-`studio_revise_shot_specs`, then write the completed Step 05 summary to
-`episode.metadata.pipeline`. The required field shape and worked writes are in
-[`references/execution-audit.md#plan-persistence`](references/execution-audit.md#plan-persistence).
+Persist each shot's model, `generation_use_case`, and input contract with `studio_revise_shot_specs`,
+then write an **awaiting-approval** Step 05 summary to `episode.metadata.pipeline`. Explicit approval
+alone may change it to `step_05: "complete"`; see the [field shape and writes](references/execution-audit.md#plan-persistence).
 
 ---
 
@@ -271,8 +268,13 @@ Persist each shot's model, `generation_use_case`, and input contract with
 
 **Step 06 cannot proceed without explicit user approval of the Production Summary and credit budget.**
 
-Announce the close with the credit estimate:
-`Step 05 — Shot Planning complete. 13 shots / 7 batches / 52.5s runtime. Estimated cost: 2,920 credits across veo_3_1, seedance_image_to_video_v2, and sora_2. Please confirm budget approval to proceed to Step 06 Video Generation.`
+Before asking, persist `step_05: "awaiting_approval"` plus the presented estimate and a
+`budget_approval.status: "awaiting_approval"` record. On an explicit approval, write the same
+amount and an approval timestamp with `budget_approval.status: "approved"`, then change
+`step_05` to `"complete"`. On resume, do not enter Step 06 unless that approved record exists.
+
+Announce the close with the exact, current credit estimate, for example:
+`Step 05 — Shot Planning awaits budget approval. 13 shots / 7 planning batches / 53.0s rendered runtime. Estimated cost: 2,159 credits across gpt_image_2, veo_3_1, seedance_image_to_video_v2, sora_2, and seedance_text_to_video_pro. Please confirm budget approval to proceed to Step 06 Video Generation.`
 
 ---
 
@@ -286,12 +288,11 @@ Announce the close with the credit estimate:
 5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions & pair mentionMap)
 6. group into contiguous batches per model-specific ceilings
 7. emit PRODUCTION SUMMARY with archetype distribution, model assignments, and credit cost estimate
-8. studio_revise_shot_specs → persist plan in shot metadata and episode metadata.pipeline
-9. GATE — user approves production plan & credit spend → Step 06 Video Generation
+8. studio_revise_shot_specs → persist plan in shot metadata; persist `step_05: "awaiting_approval"` and the presented cost in episode metadata.pipeline
+9. GATE — user explicitly approves production plan & credit spend → persist approved amount/timestamp and `step_05: "complete"` → Step 06 Video Generation
 ```
 
 ## Notes
-
 - **Always query the live catalog.** Model capabilities change. Use `studio_get_use_case_input_schema` for the authoritative duration contract and parameter support.
 - Archetype classification is a recommendation. The user may override any assignment — record overrides in shot metadata.
 - Cross-model batch boundaries are where `mixio-eval` should focus its post-generation checks.

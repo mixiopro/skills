@@ -38,11 +38,11 @@ Execution audit findings:
   ❌ DURATION_OUT_OF_RANGE:     Shot 9 (18s) > veo_3_1 max (8s) → split into 3 segments
   ❌ PROMPT_MENTIONS_MISSING:   Shot 7 (Gary Player ref attached but 0 @ tags) → embed @asset1
   ❌ MENTION_MAP_UNPAIRED:      Shot 7 (slotTags has @asset1 but mentionMap missing) → pair mentionMap
-  ❌ ACTION_DENSITY_HIGH:       Shot 5 (5 actions in 3s = 1.67 a/s) → extend or simplify
-  ❌ DIALOGUE_TOO_FAST:         Shot 11 (22 words in 4s = 5.5 wps) → extend to 6.5s
+  ⚠️  ACTION_DENSITY_HIGH:      Shot 5 (5 actions in 3s = 1.67 a/s) → extend or simplify
+  ⚠️  DIALOGUE_TOO_FAST:        Shot 11 (22 words in 4s = 5.5 wps) → extend to 6.5s
 
-Blocking: 5 (must resolve)
-Advisory: 0
+Blocking: 3 (must resolve)
+Advisory: 2 (Studio's universal pacing heuristics; not per-model limits)
 ```
 
 ## Batch profiles
@@ -66,28 +66,33 @@ PRODUCTION SUMMARY
 
 Total shots:                    13
 Total batches:                   7
-Total runtime:               52.5s
-Estimated generation jobs:      17  (10 keyframe jobs + 7 video jobs)
+Rendered runtime:            53.0s
+Planning batches:                7  (contiguous orchestration groups)
+Generation submissions:         28  (15 keyframe submissions + 13 shot-scoped video submissions)
 
 Per-model breakdown:
-  veo_3_1:                    5 shots / 3 batches / 22.0s / 2,160 credits
-  seedance_image_to_video_v2: 6 shots / 3 batches / 24.5s / 540 credits
-  sora_2:                     1 shot  / 1 batch  /  6.0s / 120 credits
+  veo_3_1 (fast, 4s):          5 shots / 20.0s /   900 credits
+  seedance_image_to_video_v2 (720p, 4s):
+                                6 shots / 24.0s /   792 credits
+  sora_2 (4s):                 1 shot  /  4.0s /    40 credits
+  seedance_text_to_video_pro (5s):
+                                1 shot  /  5.0s /    67 credits
 
 Archetype breakdown:
   SINGLE (1 keyframe → video):         6 shots
   DUAL_FRAME (start+end → video):      3 shots  (3 extra keyframe jobs)
-  MASTER_ANCHOR_MULTI_SHOT:            2 shots  (anchored to Scene 1 wide)
-  SEQUENCE (3+ keyframes → video):     1 shot   (1 keyframe-sequence job)
+  MASTER_ANCHOR_MULTI_SHOT:            2 shots  (scene-anchor reference → derived keyframe)
+  SEQUENCE (4 keyframes → video):      1 shot   (1 keyframe-sequence parent job)
   T2V (prompt only):                   1 shot
 
-Keyframe generation needed:           10 images (6 single + 3×2 dual - 2 anchor crops)
-Video generation jobs:                 7 (one per resolved batch)
+Keyframe submissions:                 15 (6 single + 3×2 dual + 2 master-derived + 1 sequence parent)
+Keyframe outputs:                     18 (the sequence parent orchestrates 4 child frame jobs)
+Video generation jobs:                13 (one scoped video submission per shot; batches do not replace them)
 
 Credit cost estimate:
-  Keyframes (image gen):    10 × 10 credits (gpt_image_2) =  100 credits
-  Video gen:                3 × veo_3_1 (720) + 3 × seedance (180) + 1 × sora (120) = 2,820 credits
-  Total estimate:                                          2,920 credits
+  Keyframes (gpt_image_2, medium): 18 outputs × 20 credits = 360 credits
+  Video (declared model/duration/resolution above):                       1,799 credits
+  Total estimate:                                                         2,159 credits
 
 High-risk boundaries:
   Batch 3→4: cross-model (Seedance→Veo) — continuity frame critical
@@ -100,8 +105,10 @@ Rapid pacing sections:
 ## Plan persistence
 
 Write per-shot planning metadata alongside the batch assignment. Keep `chunk_index` as an alias
-for `batch_index` for backwards compatibility. Persist `look_variant_id` / `look_variant_name`
-when non-default looks are resolved so Step 06 inherits them without re-evaluating the cascade.
+for `batch_index` for backwards compatibility. Keep a bound look on the existing relation's
+`lookRef`; Step 06 either supplies that reference through `selectedElements` so Studio resolves
+the cascade, or passes `variantId` / `variantName` on its media reference. Do not invent
+`look_variant_id` / `look_variant_name` plan metadata: generation does not read it.
 
 ```
 studio_revise_shot_specs({ shots: [
@@ -120,25 +127,72 @@ studio_revise_shot_specs({ shots: [
     generation_method: "MASTER_ANCHOR_MULTI_SHOT",
     generation_model: "veo_3_1",
     generation_use_case: "production-generate-video",
-    generation_input_contract: "scene-anchor-frame",
+    generation_input_contract: "scene-anchor-reference-to-derived-keyframe",
+    keyframe_generation_use_case: "production-generate-shot-keyframes",
     batch_index: 2,
     batch_position: 1,
     batch_duration: 8.0,
     keyframe_count: 1,
-    continuity_input: "scene_1_anchor"
+    continuity_input: "scene.anchorRef resolved by the Studio production path"
   }}
 ]})
 
-studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+// Read-modify-write protects the rest of the pipeline state.
+const episode = await studio_get_episode({ episodeId })
+const pipeline = episode.metadata?.pipeline ?? {}
+const presentedPlanDigest = calculate_plan_digest(plannedShots) // stable hash of the planned shot contracts
+
+// Before asking for approval: this state must block Step 06, including on resume.
+await studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+  ...pipeline,
+  step_05: "awaiting_approval",
+  shot_plan: {
+    ...pipeline.shot_plan,
+    total_batches: 7,
+    total_runtime: 53.0,
+    estimated_credits: 2159,
+    models_used: ["gpt_image_2", "veo_3_1", "seedance_image_to_video_v2", "sora_2", "seedance_text_to_video_pro"],
+    archetypes: { SINGLE: 6, DUAL_FRAME: 3, MASTER_ANCHOR_MULTI_SHOT: 2, SEQUENCE: 1, T2V: 1 },
+    keyframe_submissions: 15,
+    keyframe_outputs: 18,
+    video_jobs: 13,
+    plan_digest: presentedPlanDigest,
+    budget_approval: {
+      status: "awaiting_approval",
+      presented_credits: 2159,
+      presented_at: new Date().toISOString()
+    }
+  }
+}}}})
+
+// Only after the user explicitly approves the presented budget, read again in case another
+// pipeline step wrote state while the approval was pending.
+const approvedEpisode = await studio_get_episode({ episodeId })
+const approvedPipeline = approvedEpisode.metadata?.pipeline ?? {}
+const approvedPlan = approvedPipeline.shot_plan ?? {}
+if (approvedPipeline.step_05 !== "awaiting_approval" ||
+    approvedPlan.budget_approval?.status !== "awaiting_approval" ||
+    approvedPlan.budget_approval?.presented_credits !== 2159 ||
+    approvedPlan.plan_digest !== presentedPlanDigest) {
+  throw new Error("plan changed while approval was pending; re-present the current plan and await new approval")
+}
+await studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+  ...approvedPipeline,
   step_05: "complete",
   shot_plan: {
-    total_batches: 7,
-    total_runtime: 52.5,
-    estimated_credits: 2920,
-    models_used: ["veo_3_1", "seedance_image_to_video_v2", "sora_2"],
-    archetypes: { SINGLE: 6, DUAL_FRAME: 3, MASTER_ANCHOR_MULTI_SHOT: 2, SEQUENCE: 1, T2V: 1 },
-    keyframe_jobs: 10,
-    video_jobs: 7
+    ...approvedPipeline.shot_plan,
+    budget_approval: {
+      ...approvedPlan.budget_approval,
+      status: "approved",
+      approved_credits: 2159,
+      approved_at: new Date().toISOString()
+    }
   }
 }}}})
 ```
+
+The example uses the documented pricing snapshot: `gpt_image_2` at medium quality (20 credits
+per output), Veo fast at 4 seconds (180), Seedance I2V at 720p for 4 seconds (132), Sora at 4
+seconds (40), and Seedance T2V Pro at 5 seconds (67). Pricing and schemas change, so recompute
+the exact itemization from the current catalog and selected parameters before presenting a real
+approval request.
