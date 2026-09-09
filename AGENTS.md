@@ -35,6 +35,13 @@ the name differs. When in doubt, `search_tools`/`describe_tools` (or
 `mixio list-tools`/`mixio call <tool> --help`) always reflect what your current
 transport actually exposes.
 
+Evaluation tools form their own alias family rather than folding into `studio_*`. The hosted
+eval surface exposes `eval_list_projects`, which lists the eval pipeline's review projects —
+it is a **different tool** from `studio_list_projects` (which lists Studio production
+projects): they hit different backends and return different data, so never swap one for the
+other. Same rule as above: `search_tools`/`describe_tools` on your current transport shows
+which one is actually exposed.
+
 ## Data model
 
 A **project** holds episodes and a Cast & World roster. An **episode** owns a raw Idea/Story fallback (`script`), an optional native `SCREENPLAY` element, scenes and shots. A non-empty screenplay body (even draft) is the source breakdown prefers; raw `script`/`metadata.fullScript` is only the fallback. Cast & World (characters, locations, props) is **project**-scoped and feeds generation for consistency, so it outlives any one episode.
@@ -110,7 +117,7 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 }
 ```
 
-`studio_*` tools are proxied from the Studio server. `upload_file`, `get_public_url`, `list_cached_files`, `forget_path`, and `clear_cache` are local to `@mixio-pro/mcp`; evaluation uses the hosted `studio_run_eval` tool.
+`studio_*` tools are proxied from the Studio server. `upload_file`, `get_public_url`, `list_cached_files`, `forget_path`, and `clear_cache` are local to `@mixio-pro/mcp`; evaluation uses the hosted eval surface — `studio_run_eval` (runs) and `eval_list_projects` (listing eval projects).
 
 ## Scope
 
