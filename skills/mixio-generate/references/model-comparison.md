@@ -1,6 +1,6 @@
 # Model Comparison
 
-Snapshot of `api/agent-api/shared_schemas/models.json` + `video-direction.json` + `use-cases.json` in `mixiopro/studio@8999961f`, as of **2026-08-05**. Every column here is a catalog field that **no MCP tool returns** — that is why it is written down. Re-derive with `studio_get_use_case_input_schema({ useCaseId, modelId })` before spending; if that disagrees with this file, it wins.
+Snapshot of `api/agent-api/shared_schemas/models.json` + `video-direction.json` + `use-cases.json` in the checked-in `mixiopro/studio` catalogs, verified **2026-09-10**. Every column here is a catalog field that **no MCP tool returns** — that is why it is written down. Re-derive with `studio_get_use_case_input_schema({ useCaseId, modelId })` before spending; if that disagrees with this file, it wins.
 
 The catalog contains **no** fps field, **no** max-resolution field, and **no** quality ranking or benchmark. If asked which model is "best", the honest answer is that the catalog does not say — give `autoSelection` order, credits, and input capability instead.
 
@@ -70,7 +70,7 @@ The spread from `nano_banana_2` (5) to `veo_3_1` (360) is ~70×. Swapping a mode
 
 ## 3. Input capability — what a model accepts and refuses
 
-`video-direction.json` → `capabilityProfiles` (12) and `modelBindings` (37). A binding names a `profileId` and may override the profile's roles; when it does not, the profile's roles apply (`resolveGenerationDirectionInputPolicy`). `promptMode: none` means the model ignores prompt text entirely.
+`video-direction.json` → `capabilityProfiles` (12, including `safe-unknown`) and `modelBindings` (42). A binding names a `profileId` and may override the profile's roles; when it does not, the profile's roles apply (`resolveGenerationDirectionInputPolicy`). `promptMode: none` means the model ignores prompt text entirely.
 
 | Profile | Prompt | Accepts | Refuses |
 |---|---|---|---|
@@ -114,4 +114,4 @@ Practical consequences:
 
 ## 4. Prompt ceilings
 
-`models.json` → `prompting.promptMaxCharacters`, present on 13 of 61 models: nine of the ten Kling models at 2500 (`kling_lipsync_audio_to_video` declares none), `hailuo_v3_reference_to_video` 2000, `grok_imagine_video` 4096, `svara-1-0` and `ltx_2_3_quality_image_to_video` 5000. The rest declare no ceiling — which means unknown, not unlimited.
+`models.json` → `prompting.promptMaxCharacters`, present on 15 of 75 models: nine Kling routes at 2500, four Svara/LTX routes at 5000, `grok_imagine_video` at 4096, and `elevenlabs-sound-effects-v2` at 450. MiniMax H3 has no Mixio ceiling; all other models without the field have no declared ceiling, which means unknown, not unlimited.
