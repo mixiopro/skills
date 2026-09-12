@@ -5,7 +5,11 @@
 #   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/mixiopro/skills/main/install.ps1 | iex"
 
 [CmdletBinding()]
-param()
+param(
+    [switch]$RenderPublicAgentsDoc,
+    [string]$SourcePath,
+    [string]$DestinationPath
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -40,6 +44,159 @@ function Write-WarnMsg($msg) {
 function Write-ErrMsg($msg) {
     Write-Host "[ERR] " -ForegroundColor Red -NoNewline
     Write-Host $msg -ForegroundColor Red
+}
+
+function Render-PublicAgentsDocument {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourcePath,
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath
+    )
+
+    $rendererErrorKey = "MixioPublicAgentsRenderer"
+    $tempPath = $null
+
+    try {
+        $sourceFullPath = [System.IO.Path]::GetFullPath($SourcePath)
+        $destinationFullPath = [System.IO.Path]::GetFullPath($DestinationPath)
+        if (-not [System.IO.File]::Exists($sourceFullPath)) {
+            throw "AGENTS.md source not found: $SourcePath"
+        }
+
+        $sourceBytes = [System.IO.File]::ReadAllBytes($sourceFullPath)
+        $hasUtf8Bom = $sourceBytes.Length -ge 3 -and `
+            $sourceBytes[0] -eq 0xEF -and $sourceBytes[1] -eq 0xBB -and $sourceBytes[2] -eq 0xBF
+        $bodyOffset = if ($hasUtf8Bom) { 3 } else { 0 }
+
+        $utf8Strict = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList @($false, $true)
+        try {
+            $sourceText = $utf8Strict.GetString($sourceBytes, $bodyOffset, $sourceBytes.Length - $bodyOffset)
+        } catch {
+            throw "AGENTS.md source is not valid UTF-8: $SourcePath"
+        }
+
+        $beginPattern = '\A<!-- BEGIN MIXIO TRACKING v[0-9]{4}-[0-9]{2}-[0-9]{2}\.[0-9]+ -->\z'
+        $endMarker = '<!-- END MIXIO TRACKING -->'
+        $markerPattern = '<!-- (BEGIN|END) MIXIO TRACKING'
+        $lineMatches = [System.Text.RegularExpressions.Regex]::Matches(
+            $sourceText,
+            '(?s).*?(?:\r\n|\n|\r|\z)'
+        )
+        $renderedText = New-Object -TypeName System.Text.StringBuilder
+        $insideManagedBlock = $false
+        $blockCount = 0
+        $lineNumber = 0
+
+        foreach ($lineMatch in $lineMatches) {
+            $lineText = $lineMatch.Value
+            if ($lineText.Length -eq 0) {
+                continue
+            }
+            $lineNumber++
+
+            $lineBody = $lineText
+            if ($lineText.EndsWith("`r`n")) {
+                $lineBody = $lineText.Substring(0, $lineText.Length - 2)
+            } elseif ($lineText.EndsWith("`n") -or $lineText.EndsWith("`r")) {
+                $lineBody = $lineText.Substring(0, $lineText.Length - 1)
+            }
+
+            $markerLike = $lineBody -cmatch $markerPattern
+            if ($insideManagedBlock) {
+                if ($lineBody -ceq $endMarker) {
+                    $insideManagedBlock = $false
+                } elseif ($markerLike) {
+                    throw "malformed MIXIO TRACKING marker inside managed block (line $lineNumber)"
+                }
+                continue
+            }
+
+            if ($markerLike) {
+                if ($lineBody -cmatch $beginPattern) {
+                    $blockCount++
+                    if ($blockCount -gt 1) {
+                        throw "multiple MIXIO TRACKING blocks are not allowed (line $lineNumber)"
+                    }
+                    $insideManagedBlock = $true
+                } else {
+                    throw "malformed MIXIO TRACKING marker (line $lineNumber)"
+                }
+                continue
+            }
+
+            [void]$renderedText.Append($lineText)
+        }
+
+        if ($insideManagedBlock) {
+            throw "MIXIO TRACKING block is missing its end marker"
+        }
+
+        if ($blockCount -eq 0) {
+            $renderedBytes = $sourceBytes
+        } else {
+            $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList @($false)
+            $renderedBodyBytes = $utf8NoBom.GetBytes($renderedText.ToString())
+            if ($hasUtf8Bom) {
+                $renderedBytes = New-Object -TypeName System.Byte[] -ArgumentList ($renderedBodyBytes.Length + 3)
+                $renderedBytes[0] = 0xEF
+                $renderedBytes[1] = 0xBB
+                $renderedBytes[2] = 0xBF
+                [System.Array]::Copy($renderedBodyBytes, 0, $renderedBytes, 3, $renderedBodyBytes.Length)
+            } else {
+                $renderedBytes = $renderedBodyBytes
+            }
+        }
+
+        $destinationParent = [System.IO.Path]::GetDirectoryName($destinationFullPath)
+        if ([string]::IsNullOrEmpty($destinationParent)) {
+            $destinationParent = (Get-Location).Path
+        }
+        [System.IO.Directory]::CreateDirectory($destinationParent) | Out-Null
+        $tempName = ".{0}.{1}.tmp" -f ([System.IO.Path]::GetFileName($destinationFullPath)), ([System.IO.Path]::GetRandomFileName())
+        $tempPath = Join-Path $destinationParent $tempName
+        [System.IO.File]::WriteAllBytes($tempPath, [byte[]]$renderedBytes)
+
+        if ([System.IO.File]::Exists($destinationFullPath)) {
+            # Invoke the exact overload so PowerShell does not coerce the
+            # null backup path into an empty string on either engine.
+            $replaceMethod = [System.IO.File].GetMethod(
+                "Replace",
+                [type[]] @([string], [string], [string], [bool])
+            )
+            if (-not $replaceMethod) {
+                throw "atomic AGENTS.md replacement is unavailable on this PowerShell runtime"
+            }
+            $replaceArguments = New-Object object[] 4
+            $replaceArguments[0] = [string]$tempPath
+            $replaceArguments[1] = [string]$destinationFullPath
+            $replaceArguments[2] = $null
+            $replaceArguments[3] = [bool]$true
+            [void]$replaceMethod.Invoke($null, $replaceArguments)
+        } else {
+            [System.IO.File]::Move($tempPath, $destinationFullPath)
+        }
+        $tempPath = $null
+    } catch {
+        try {
+            $_.Exception.Data[$rendererErrorKey] = $true
+        } catch {}
+        if ($tempPath -and [System.IO.File]::Exists($tempPath)) {
+            try {
+                [System.IO.File]::Delete($tempPath)
+            } catch {}
+        }
+        throw
+    }
+}
+
+if ($RenderPublicAgentsDoc) {
+    if ([string]::IsNullOrWhiteSpace($SourcePath) -or [string]::IsNullOrWhiteSpace($DestinationPath)) {
+        throw "usage: install.ps1 -RenderPublicAgentsDoc -SourcePath SOURCE -DestinationPath DESTINATION"
+    }
+    Render-PublicAgentsDocument -SourcePath $SourcePath -DestinationPath $DestinationPath
+    return
 }
 
 Write-MixioHeader
@@ -139,8 +296,8 @@ $localScriptDir = if (Test-Path variable:PSScriptRoot) { $PSScriptRoot } else { 
 if ($localScriptDir -and (Test-Path (Join-Path $localScriptDir "skills")) -and (Test-Path (Join-Path $localScriptDir "AGENTS.md"))) {
     Get-ChildItem -Path $MixioSkillsDir -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     Copy-Item -Path (Join-Path $localScriptDir "skills\*") -Destination $MixioSkillsDir -Recurse -Force
-    Copy-Item -Path (Join-Path $localScriptDir "AGENTS.md") -Destination (Join-Path $MixioDir "AGENTS.md") -Force
-    Copy-Item -Path (Join-Path $localScriptDir "AGENTS.md") -Destination $AgentsMdPath -Force
+    Render-PublicAgentsDocument -SourcePath (Join-Path $localScriptDir "AGENTS.md") -DestinationPath (Join-Path $MixioDir "AGENTS.md")
+    Render-PublicAgentsDocument -SourcePath (Join-Path $localScriptDir "AGENTS.md") -DestinationPath $AgentsMdPath
     $downloadSuccess = $true
 } else {
     if ($hasGit) {
@@ -152,12 +309,16 @@ if ($localScriptDir -and (Test-Path (Join-Path $localScriptDir "skills")) -and (
                 Get-ChildItem -Path $MixioSkillsDir -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
                 Copy-Item -Path "$sourceSkillsDir\*" -Destination $MixioSkillsDir -Recurse -Force
                 if (Test-Path $sourceAgentsMd) {
-                    Copy-Item -Path $sourceAgentsMd -Destination (Join-Path $MixioDir "AGENTS.md") -Force
-                    Copy-Item -Path $sourceAgentsMd -Destination $AgentsMdPath -Force
+                    Render-PublicAgentsDocument -SourcePath $sourceAgentsMd -DestinationPath (Join-Path $MixioDir "AGENTS.md")
+                    Render-PublicAgentsDocument -SourcePath $sourceAgentsMd -DestinationPath $AgentsMdPath
                 }
                 $downloadSuccess = $true
             }
-        } catch {}
+        } catch {
+            if ($_.Exception.Data["MixioPublicAgentsRenderer"] -eq $true) {
+                throw
+            }
+        }
     }
 
     if (-not $downloadSuccess) {
@@ -174,12 +335,15 @@ if ($localScriptDir -and (Test-Path (Join-Path $localScriptDir "skills")) -and (
                 Get-ChildItem -Path $MixioSkillsDir -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
                 Copy-Item -Path "$extractedSkillsDir\*" -Destination $MixioSkillsDir -Recurse -Force
                 if (Test-Path $extractedAgentsMd) {
-                    Copy-Item -Path $extractedAgentsMd -Destination (Join-Path $MixioDir "AGENTS.md") -Force
-                    Copy-Item -Path $extractedAgentsMd -Destination $AgentsMdPath -Force
+                    Render-PublicAgentsDocument -SourcePath $extractedAgentsMd -DestinationPath (Join-Path $MixioDir "AGENTS.md")
+                    Render-PublicAgentsDocument -SourcePath $extractedAgentsMd -DestinationPath $AgentsMdPath
                 }
                 $downloadSuccess = $true
             }
         } catch {
+            if ($_.Exception.Data["MixioPublicAgentsRenderer"] -eq $true) {
+                throw
+            }
             Write-ErrMsg "Failed to download skills archive: $_"
         }
     }
@@ -258,11 +422,14 @@ function Link-Or-Copy-Skills {
         if ($TargetAgentsDoc -and (Test-Path (Join-Path $MixioDir "AGENTS.md"))) {
             $docParent = Split-Path -Path $TargetAgentsDoc -Parent
             New-Item -ItemType Directory -Force -Path $docParent | Out-Null
-            Copy-Item -Path (Join-Path $MixioDir "AGENTS.md") -Destination $TargetAgentsDoc -Force
+            Render-PublicAgentsDocument -SourcePath (Join-Path $MixioDir "AGENTS.md") -DestinationPath $TargetAgentsDoc
         }
 
         Write-Success "Configured $AgentName ($installed skills linked)"
     } catch {
+        if ($_.Exception.Data["MixioPublicAgentsRenderer"] -eq $true) {
+            throw
+        }
         Write-WarnMsg "Could not configure $AgentName`: $_"
     }
 }
