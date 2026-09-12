@@ -1,4 +1,4 @@
-# Mixio Skills & Agents Universal Installer for Windows PowerShell
+﻿# Mixio Skills & Agents Universal Installer for Windows PowerShell
 # Usage:
 #   irm https://raw.githubusercontent.com/mixiopro/skills/main/install.ps1 | iex
 #   or:
