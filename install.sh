@@ -21,6 +21,170 @@ success() { echo "${GREEN}✓${RESET} $*"; }
 warn() { echo "${YELLOW}⚠${RESET} $*"; }
 error() { echo "${RED}✗${RESET} $*" >&2; }
 
+render_public_agents_doc() {
+    if [ "$#" -ne 2 ]; then
+        error "render_public_agents_doc requires a source and destination"
+        return 2
+    fi
+
+    local source_path="$1"
+    local destination_path="$2"
+    local destination_dir
+    local snapshot_path
+    local rendered_path=""
+    local final_path
+    local validation_output=""
+    local validation_status=0
+    local block_count begin_offset end_offset
+
+    if [ ! -f "$source_path" ]; then
+        error "AGENTS.md source not found: $source_path"
+        return 1
+    fi
+
+    if [ -d "$destination_path" ]; then
+        error "AGENTS.md destination is a directory: $destination_path"
+        return 1
+    fi
+
+    destination_dir="$(dirname "$destination_path")"
+    if ! mkdir -p "$destination_dir"; then
+        error "cannot create AGENTS.md destination directory: $destination_dir"
+        return 1
+    fi
+
+    if ! snapshot_path="$(mktemp "$destination_path.tmp.XXXXXX")"; then
+        error "cannot create temporary AGENTS.md output next to: $destination_path"
+        return 1
+    fi
+
+    if ! cp -p "$source_path" "$snapshot_path"; then
+        rm -f "$snapshot_path"
+        error "cannot read AGENTS.md source: $source_path"
+        return 1
+    fi
+
+    if validation_output="$(
+        LC_ALL=C awk '
+            BEGIN {
+                begin_re = "^<!-- BEGIN MIXIO TRACKING v[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][.][0-9][0-9]* -->$"
+                marker_re = "<!-- (BEGIN|END) MIXIO TRACKING"
+                end_marker = "<!-- END MIXIO TRACKING -->"
+                inside = 0
+                begin_count = 0
+                invalid = 0
+                byte_offset = 0
+            }
+            function reject(message) {
+                print "install.sh: " message " (line " FNR ")" > "/dev/stderr"
+                invalid = 1
+            }
+            {
+                line = $0
+                line_start = byte_offset
+                byte_offset += length($0) + 1
+                sub(/\r$/, "", line)
+
+                if (inside) {
+                    if (line == end_marker) {
+                        end_offset = byte_offset
+                        inside = 0
+                    } else if (line ~ marker_re) {
+                        reject("malformed MIXIO TRACKING marker inside managed block")
+                    }
+                    next
+                }
+
+                if (line ~ marker_re) {
+                    if (line ~ begin_re) {
+                        begin_count++
+                        if (begin_count > 1) {
+                            reject("multiple MIXIO TRACKING blocks are not allowed")
+                        } else {
+                            begin_offset = line_start
+                            inside = 1
+                        }
+                    } else {
+                        reject("malformed MIXIO TRACKING marker")
+                    }
+                    next
+                }
+            }
+            END {
+                if (inside) {
+                    print "install.sh: MIXIO TRACKING block is missing its end marker" > "/dev/stderr"
+                    invalid = 1
+                }
+                if (invalid) {
+                    exit 2
+                }
+                printf "%d %d %d\n", begin_count, begin_offset, end_offset
+            }
+        ' "$snapshot_path"
+    )"; then
+        validation_status=0
+    else
+        validation_status=$?
+    fi
+
+    if [ "$validation_status" -ne 0 ]; then
+        rm -f "$snapshot_path"
+        return 1
+    fi
+
+    read -r block_count begin_offset end_offset <<< "$validation_output"
+    case "$block_count" in
+        0)
+            final_path="$snapshot_path"
+            ;;
+        1)
+            if ! rendered_path="$(mktemp "$destination_path.tmp.XXXXXX")"; then
+                rm -f "$snapshot_path"
+                error "cannot create rendered AGENTS.md output next to: $destination_path"
+                return 1
+            fi
+            if ! cp -p "$snapshot_path" "$rendered_path"; then
+                rm -f "$snapshot_path" "$rendered_path"
+                error "cannot prepare rendered AGENTS.md output: $destination_path"
+                return 1
+            fi
+            # Copy byte ranges, preserving CRLF, UTF-8 and a missing final
+            # newline on both BSD and GNU systems. Text filters may normalize it.
+            if ! dd if="$snapshot_path" bs=1 count="$begin_offset" > "$rendered_path" 2>/dev/null ||
+                ! dd if="$snapshot_path" bs=1 skip="$end_offset" >> "$rendered_path" 2>/dev/null; then
+                rm -f "$snapshot_path" "$rendered_path"
+                error "cannot render public AGENTS.md output: $destination_path"
+                return 1
+            fi
+            rm -f "$snapshot_path"
+            final_path="$rendered_path"
+            ;;
+        *)
+            rm -f "$snapshot_path"
+            error "unexpected AGENTS.md marker validation result"
+            return 1
+            ;;
+    esac
+
+    if ! mv -f "$final_path" "$destination_path"; then
+        rm -f "$final_path"
+        error "cannot install rendered AGENTS.md: $destination_path"
+        return 1
+    fi
+}
+
+if [ "${1:-}" = "--render-public-agents-doc" ]; then
+    if [ "$#" -ne 3 ]; then
+        error "usage: install.sh --render-public-agents-doc SOURCE DESTINATION"
+        exit 2
+    fi
+    if render_public_agents_doc "$2" "$3"; then
+        exit 0
+    else
+        exit $?
+    fi
+fi
+
 echo ""
 echo "${BOLD}${CYAN}  __  __ _      _         ____  _     _ _ _      ${RESET}"
 echo "${BOLD}${CYAN} |  \/  (_)_  _(_) ___   / ___|| | __(_) | |___  ${RESET}"
@@ -146,8 +310,8 @@ fi
 
 if [ -n "$SCRIPT_PARENT_DIR" ] && [ -d "$SCRIPT_PARENT_DIR/skills" ] && [ -f "$SCRIPT_PARENT_DIR/AGENTS.md" ]; then
     cp -R "$SCRIPT_PARENT_DIR/skills/." "$MIXIO_SKILLS_DIR/"
-    cp "$SCRIPT_PARENT_DIR/AGENTS.md" "$MIXIO_DIR/AGENTS.md"
-    cp "$SCRIPT_PARENT_DIR/AGENTS.md" "$AGENTS_MD_PATH"
+    render_public_agents_doc "$SCRIPT_PARENT_DIR/AGENTS.md" "$MIXIO_DIR/AGENTS.md"
+    render_public_agents_doc "$SCRIPT_PARENT_DIR/AGENTS.md" "$AGENTS_MD_PATH"
 else
     if [ "$HAS_GIT" -eq 1 ]; then
         git clone --depth 1 "$REPO_URL" "$TMP_DIR/repo" 2>/dev/null || {
@@ -159,8 +323,10 @@ else
         # Clean existing skills in ~/.mixio/skills to remove obsolete skills
         rm -rf "$MIXIO_SKILLS_DIR"/* 2>/dev/null || true
         cp -R "$TMP_DIR/repo/skills/." "$MIXIO_SKILLS_DIR/"
-        [ -f "$TMP_DIR/repo/AGENTS.md" ] && cp "$TMP_DIR/repo/AGENTS.md" "$MIXIO_DIR/AGENTS.md"
-        [ -f "$TMP_DIR/repo/AGENTS.md" ] && cp "$TMP_DIR/repo/AGENTS.md" "$AGENTS_MD_PATH"
+        if [ -f "$TMP_DIR/repo/AGENTS.md" ]; then
+            render_public_agents_doc "$TMP_DIR/repo/AGENTS.md" "$MIXIO_DIR/AGENTS.md"
+            render_public_agents_doc "$TMP_DIR/repo/AGENTS.md" "$AGENTS_MD_PATH"
+        fi
     else
         # Fallback to tarball or curl
         info "Fetching release bundle from GitHub..."
@@ -176,8 +342,10 @@ else
             if [ -d "$EXTRACTED_DIR/skills" ]; then
                 rm -rf "$MIXIO_SKILLS_DIR"/* 2>/dev/null || true
                 cp -R "$EXTRACTED_DIR/skills/." "$MIXIO_SKILLS_DIR/"
-                [ -f "$EXTRACTED_DIR/AGENTS.md" ] && cp "$EXTRACTED_DIR/AGENTS.md" "$MIXIO_DIR/AGENTS.md"
-                [ -f "$EXTRACTED_DIR/AGENTS.md" ] && cp "$EXTRACTED_DIR/AGENTS.md" "$AGENTS_MD_PATH"
+                if [ -f "$EXTRACTED_DIR/AGENTS.md" ]; then
+                    render_public_agents_doc "$EXTRACTED_DIR/AGENTS.md" "$MIXIO_DIR/AGENTS.md"
+                    render_public_agents_doc "$EXTRACTED_DIR/AGENTS.md" "$AGENTS_MD_PATH"
+                fi
             fi
         fi
     fi
@@ -250,8 +418,7 @@ register_agent_skills() {
 
     # Place AGENTS.md if target path provided
     if [ -n "$agents_doc_path" ] && [ -f "$MIXIO_DIR/AGENTS.md" ]; then
-        mkdir -p "$(dirname "$agents_doc_path")"
-        cp "$MIXIO_DIR/AGENTS.md" "$agents_doc_path" 2>/dev/null || true
+        render_public_agents_doc "$MIXIO_DIR/AGENTS.md" "$agents_doc_path" || return 1
     fi
 
     success "Configured $agent_label ($count skills linked)"
