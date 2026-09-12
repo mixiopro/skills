@@ -74,6 +74,12 @@ studio_update_element({ elementId: referenceId, updates: { metadata: {
 }}})
 ```
 
+## Reference Enrichment
+
+Everything in this step that writes structured detail — the character sheet's `characterDetails`, the location sheet's `locationDetails`, the prop sheet's `propDetails` — is collectively the **Reference Enrichment** phase of `mixio-pipeline` Step 02. It is where shallow screenplay stubs become generation-ready references: the breakdown (Step 03) emits references as `{ name, description, attributes? }` and never writes `characterDetails`/`locationDetails`, so if this phase is skipped those fields stay empty for the whole episode.
+
+Write every enrichment via `studio_update_reference` (on an older Studio, mirror load-bearing fields to top-level metadata — see `references/location-fields.md`). The required load-bearing fields are `build`, `hair`, `skin` and **`visualAnchor`** for characters, and `setting`, `lighting`, `spatialLayout` and `depthAxes` for locations — Step 02.5 (`mixio-reference-audit`) gates on the HIGH-severity ones (`visualAnchor`, `setting`, `lighting`) before Step 03 may start.
+
 ## Character sheet
 
 A turnaround: one image (or an image set) showing the character from the angles a shot might need, in neutral conditions so the sheet carries **identity, not mood**.
@@ -288,6 +294,7 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
    studio_update_element({ metadata: { aliases } })                → record script-name aliases
 6. per character: render turnaround → studio_update_reference({ attachments, characterDetails })
    per location:  write the 6-field sheet → studio_update_reference({ locationDetails, referenceVariants })
+   → this is the Reference Enrichment phase — Step 02.5 gates on visualAnchor/setting/lighting before Step 03
 7. per scene: render anchor at anchor_aspect_ratio with location_ref + character_ref
    (pick the location variant matching the scene's timeOfDay)
    → studio_create_element({ type: "KEYFRAME" }) → record id in metadata.pipeline.anchors
