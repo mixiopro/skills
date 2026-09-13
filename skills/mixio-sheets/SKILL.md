@@ -90,7 +90,7 @@ Render spec:
 - **Lighting**: flat, even, neutral. No dramatic key. A sheet lit at golden hour poisons every shot that references it.
 - **Pose**: neutral standing, arms relaxed and clear of the body, expression neutral.
 - **Wardrobe**: the character's default costume. One sheet per costume — see variants below.
-- **Aspect ratio**: `16:9` or `4:3` regardless of delivery ratio; a turnaround needs horizontal room.
+- **Aspect ratio**: always `16:9`; the approved contact-sheet template requires this horizontal canvas.
 
 Then persist the structured identity alongside it — one schema owns these fields for every surface. Write it like this:
 
