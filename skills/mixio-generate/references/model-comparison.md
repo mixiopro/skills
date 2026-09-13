@@ -38,7 +38,7 @@ Image:
 | `gpt_image_2` | 20 | 10 | quality: low ×0.5 / medium ×1 / high ×1.5 |
 | `avgc-ryan-defrates-v1` | 50 | 50 | — |
 | `avgc-ibible-colorize-2` | 100 | 100 | — |
-| `qwen_multiple_angles`, `character_sheet`, `character_locking` | *(inherits 15)* | — | — |
+| `character_locking` | *(inherits 15)* | — | — |
 
 Video (floors, since most are modifier-driven):
 
