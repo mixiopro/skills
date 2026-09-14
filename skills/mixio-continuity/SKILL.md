@@ -150,7 +150,7 @@ Rules:
 
 ```
 # 1. Apply content fixes
-studio_revise_shot_specs({ shots: [{ shotId, metadata: { action, camera_movement, ... } }] })
+studio_revise_shot_specs({ projectId, shots: [{ shotId, metadata: { action, camera_movement, ... } }] })
 
 # 2. Update per-character appearance facts the corrections established
 studio_link_graph({ projectId, relations: [{
@@ -159,7 +159,7 @@ studio_link_graph({ projectId, relations: [{
 }]})
 
 # 3. Re-run audit to confirm 0 breaks, then record verdict + audit trail
-studio_update_shot_state({ shots: [
+studio_update_shot_state({ projectId, shots: [
   { shotId: cleanId,     state: "approved" },
   { shotId: correctedId, state: "approved",
     continuity: { pass: 4, issues: [], resolved: ["PROP — phone disappeared; put-down action added and verified"] } }
@@ -175,7 +175,7 @@ Keep them separate calls, in that order: `revise_shot_specs` for creative conten
 When the Ralph loop converges (0 blocking continuity breaks and 0 blocking reference errors), close the step. The complete `pre_production_loop` object is canonical in `mixio-pipeline/references/pre-production-ralph-loop.md`:
 
 ```
-studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   step_04: "complete",
   pre_production_loop: { status: "converged" }
 } } } })
@@ -193,7 +193,7 @@ studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
 5. Pass 4 — change log + full corrected shots
 6. studio_revise_shot_specs + studio_link_graph
 7. ↺ Auto-Audit Loop: re-run Passes 1–3 until 0 breaks remain
-8. studio_update_shot_state({ state: "approved" }) → GATE → Step 05 Shot Planning
+8. studio_update_shot_state({ projectId, shots: [{ shotId, state: "approved" }] }) → GATE → Step 05 Shot Planning
 ```
 
 ## Notes

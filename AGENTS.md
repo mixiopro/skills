@@ -4,7 +4,7 @@ Agent guidance for this repository. You have access to Mixio Studio through the 
 
 ## Resolve scope before doing anything (required)
 
-Every Mixio tool is stateless — there is no "current project" on the server, so whatever id you pass *is* the scope. Most element-level write tools (`update_element`, `revise_shot_specs`, `update_shot_state`, `update_reference`, `bulk_update_elements`) take no `projectId` and verify no project scope, so a stale or invented id writes to the wrong production silently.
+Every Mixio tool is stateless — there is no "current project" on the server. Every project-scoped mutation must receive the resolved `projectId` (in `context.projectId` for generation submissions). Hosted 1.1.0 preflights project access and target ownership before any mutation, including every target in a bulk call; a missing or foreign target rejects the call before writes begin. This includes `update_element`, `revise_shot_specs`, `update_shot_state`, `update_reference`, and `bulk_update_elements`. Never omit scope or substitute an unconfirmed project ID to bypass a rejection.
 
 ```
 projectId unknown?  studio_list_projects()              → show numbered list → ASK

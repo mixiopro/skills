@@ -27,8 +27,8 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 
 | # | Step | Owned by | Output locked into |
 |---|------|----------|--------------------|
-| 00 | **Preflight & Settings Lock** | this skill | `studio_update_project({ updates.settings })` + `studio_update_episode({ metadata.pipeline })` |
-| 01 | **Detailed Screenplay** | this skill | `studio_upsert_screenplay({ projectId, episodeId, body })` (+ `studio_update_episode({ updates: { summary } })` for the logline) |
+| 00 | **Preflight & Settings Lock** | this skill | `studio_update_project({ projectId, updates: { settings } })` + `studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline } } })` |
+| 01 | **Detailed Screenplay** | this skill | `studio_upsert_screenplay({ projectId, episodeId, body })` (+ `studio_update_episode({ projectId, episodeId, updates: { summary } })` for the logline) |
 | 02 | **Anchor Frames** | `mixio-sheets` | CHARACTER/LOCATION refs + one anchor KEYFRAME per scene |
 | 02.5 | **Reference Audit** | `mixio-reference-audit` | episode `metadata.pipeline.reference_audit` |
 | 03 | **Deterministic Breakdown & Relational Audit** | `mixio-script-breakdown` | `studio_upsert_scene_packages` + `studio_link_graph` + episode `metadata.pipeline.breakdown_audit` |
@@ -109,7 +109,7 @@ Before writing, call `studio_list_references({ projectId, limit })` and build th
 
 For explicit director intent that must override inference, place a standalone `[Key: Value · Key: Value]` paragraph immediately before the beat it governs. The 11 recognized keys are `Camera`, `Camera Movement`, `Lighting`, `Mood`, `Blocking`, `Background`, `Location`, `Shot Type`, `SFX`, `Ambient`, and `Lens`.
 
-Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not** `studio_update_episode({ script })`. A screenplay is its own per-episode element and a non-empty body—draft included—wins over raw Idea/Story `script`/`fullScript` in Step 03. `upsert_screenplay` is idempotent and always writes a draft; Studio's human Screenplay view performs approval separately. Persist only the logline with `studio_update_episode({ episodeId, updates: { summary } })` when needed.
+Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not** `studio_update_episode({ projectId, episodeId, updates: { script } })`. A screenplay is its own per-episode element and a non-empty body—draft included—wins over raw Idea/Story `script`/`fullScript` in Step 03. `upsert_screenplay` is idempotent and always writes a draft; Studio's human Screenplay view performs approval separately. Persist only the logline with `studio_update_episode({ projectId, episodeId, updates: { summary } })` when needed.
 
 ## Step 02 — Anchor Frames
 
@@ -200,7 +200,7 @@ After each batch, set shot state (`approved` / `needs_revision`) with `studio_up
 Mixio has no dedicated shared-memory store, so pipeline state lives in existing metadata. Write it at every step close:
 
 ```
-studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   aspect_ratio, anchor_aspect_ratio,
   step_00: "complete", step_01: "complete", step_02: "complete", step_02_5: "complete",
   step_03: "complete", step_04: "complete",
@@ -235,7 +235,7 @@ exists; avoid `studio_get_production_context` until its graph detail is actually
 ## Workflow
 
 ```
-00. studio_get_project → studio_update_project(settings) → studio_update_episode(metadata.pipeline) → GATE
+00. studio_get_project → studio_update_project({ projectId, updates: { settings } }) → studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline } } }) → GATE
 01. screenplay → studio_upsert_screenplay({ body })
 02. /mixio:sheets → character + location sheets, anchor per scene → GATE (image work is separately confirmed)
 03. /mixio:script-breakdown → studio_upsert_scene_packages + studio_link_graph → relational audit

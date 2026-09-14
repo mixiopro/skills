@@ -111,7 +111,7 @@ the cascade, or passes `variantId` / `variantName` on its media reference. Do no
 `look_variant_id` / `look_variant_name` plan metadata: generation does not read it.
 
 ```
-studio_revise_shot_specs({ shots: [
+studio_revise_shot_specs({ projectId, shots: [
   { shotId: s1, metadata: {
     generation_method: "SINGLE",
     generation_model: "seedance_image_to_video_v2",
@@ -143,7 +143,7 @@ const pipeline = episode.metadata?.pipeline ?? {}
 const presentedPlanDigest = calculate_plan_digest(plannedShots) // stable hash of the planned shot contracts
 
 // Before asking for approval: this state must block Step 06, including on resume.
-await studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   ...pipeline,
   step_05: "awaiting_approval",
   shot_plan: {
@@ -176,7 +176,7 @@ if (approvedPipeline.step_05 !== "awaiting_approval" ||
     approvedPlan.plan_digest !== presentedPlanDigest) {
   throw new Error("plan changed while approval was pending; re-present the current plan and await new approval")
 }
-await studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   ...approvedPipeline,
   step_05: "complete",
   shot_plan: {

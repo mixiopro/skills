@@ -67,7 +67,7 @@ await studio_update_project({ projectId, updates: { settings: {
   references: { ...settings.references, ...confirmed.references }
 }}})
 
-await studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   aspect_ratio: confirmed.deliveryAspectRatio,
   anchor_aspect_ratio: confirmed.anchorAspectRatio,
   step_00: "complete"

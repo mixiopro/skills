@@ -257,7 +257,7 @@ if (canonicalFieldFailures.length || graphFailures.length || appearanceFailures.
 }
 
 await studio_update_episode({
-  episodeId,
+  projectId, episodeId,
   updates: {
     metadata: {
       pipeline: {
