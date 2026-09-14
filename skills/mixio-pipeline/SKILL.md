@@ -236,7 +236,7 @@ exists; avoid `studio_get_production_context` until its graph detail is actually
 
 ```
 00. studio_get_project → studio_update_project({ projectId, updates: { settings } }) → studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline } } }) → GATE
-01. screenplay → studio_upsert_screenplay({ body })
+01. screenplay → studio_upsert_screenplay({ projectId, episodeId, body })
 02. /mixio:sheets → character + location sheets, anchor per scene → GATE (image work is separately confirmed)
 03. /mixio:script-breakdown → studio_upsert_scene_packages + studio_link_graph → relational audit
 ┌── Pre-Production Token Ralph Loop (01 ↔ 02.5 ↔ 04; safe text/graph corrections only) ─┐

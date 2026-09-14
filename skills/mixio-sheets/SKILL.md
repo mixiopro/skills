@@ -297,7 +297,7 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
    → this is the Reference Enrichment phase — Step 02.5 gates on visualAnchor/setting/lighting before Step 03
 7. per scene: render anchor at anchor_aspect_ratio with location_ref + character_ref
    (pick the location variant matching the scene's timeOfDay)
-   → studio_create_element({ type: "KEYFRAME" }) → record id in metadata.pipeline.anchors
+   → studio_create_element({ projectId, type: "KEYFRAME", name: anchorName }) → record id in metadata.pipeline.anchors
 8. show every sheet and anchor for approval → GATE → Step 03 Panel Breakdown
 ```
 

@@ -284,8 +284,8 @@ passes. Its canonical payload and executable example are in
 5. refresh production context → resolve every final linked ID and canonical name
 6. design shots per scene — 7 canonical fields with zero placeholders; author per-shot appearanceState
 7. self-check against the repair criteria; fix rather than emitting "TBD"
-8. studio_upsert_scene_packages({ scenes })                  → persist scenes and shots with linked_*_ids
-9. studio_link_graph({ relations })                          → attach appears_in relations with appearanceState
+8. studio_upsert_scene_packages({ projectId, episodeId, scenes })                  → persist scenes and shots with linked_*_ids
+9. studio_link_graph({ projectId, relations })                          → attach appears_in relations with appearanceState
 10. read persisted records; audit fields, IDs, appearances, and screenplay-beat scope → lock metadata
 11. → /mixio:continuity for the continuity audit, then /mixio:shot-planning
 ```
