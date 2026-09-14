@@ -2,9 +2,12 @@
   "mcpServers": {
     "mixio": {
       "command": "npx",
-      "args": ["-y", "@mixio-pro/mcp"],
+      "args": [
+        "--yes",
+        "--allow-scripts=better-sqlite3",
+        "@mixio-pro/mcp@0.6.0"
+      ],
       "env": {
-        "MIXIO_API_KEY": "${user_config.mixio_api_key}",
         "MIXIO_BASE_URL": "${user_config.mixio_base_url}"
       }
     }
