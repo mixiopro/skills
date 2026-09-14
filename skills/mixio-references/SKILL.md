@@ -60,12 +60,12 @@ customAttributes: [{ key: "alias"|..., value }]
 ```
 
 `studio_update_reference` has **no `metadata` parameter** (its params are
-`name`, `description`, `characterDetails`, `locationDetails`, `propDetails`,
+`projectId`, `referenceId`, `name`, `description`, `characterDetails`, `locationDetails`, `propDetails`,
 `attachments`, `referenceVariants`, `tags`, `workflow`), so aliases go in
 through the generic element tool, which merges metadata:
 
 ```
-studio_update_element({ elementId: referenceId, updates: { metadata: {
+studio_update_element({ projectId, elementId: referenceId, updates: { metadata: {
   aliases: ["Tony Russo", "Antonia", "Ton"]
 }}})
 ```
@@ -92,12 +92,12 @@ Internally, `attachments` is sugar that auto-builds/merges into a `"default"` `r
 ```
 // Add images (merges with whatever's already there)
 studio_update_reference({
-  referenceId, attachments: [{ url, label: "Front", isPrimary: true }, { url, label: "Back" }]
+  projectId, referenceId, attachments: [{ url, label: "Front", isPrimary: true }, { url, label: "Back" }]
 })
 
 // Replace all images / define named looks (wrong images already attached → fix with this, not attachments)
 studio_update_reference({
-  referenceId,
+  projectId, referenceId,
   referenceVariants: [{ name: "Default Look", isDefault: true, images: [{ url, isPrimary: true }] }]
 })
 ```
@@ -153,7 +153,7 @@ Use this to **get real reference-image URLs** before calling `studio_submit_stud
 
 **Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. Run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts) in `mixio-workspace`; it permits only public HTTPS redirects, bounds the download, validates MIME type, derives the extension, and removes its unique temporary directory.
 
-Call `studio_update_reference({ referenceId, attachments: [{ url: entry.publicUrl, ... }] })` only after `upload_file` succeeds. The `trap` cleans up only this run's directory on success or failure, and `--fail` prevents an HTTP error page or login HTML from becoming a reference image. Pass `project_id` and `organization_id` so the asset is scoped to the production rather than orphaned (`projectId: null`).
+Call `studio_update_reference({ projectId, referenceId, attachments: [{ url: entry.publicUrl, ... }] })` only after `upload_file` succeeds. The `trap` cleans up only this run's directory on success or failure, and `--fail` prevents an HTTP error page or login HTML from becoming a reference image. Pass `project_id` and `organization_id` so the asset is scoped to the production rather than orphaned (`projectId: null`).
 
 `studio_upload_media_from_url` may still work for URLs already on trusted/reachable domains — try it first for a single asset, but don't build a batch workflow around it without a local-download fallback.
 
@@ -162,7 +162,7 @@ Call `studio_update_reference({ referenceId, attachments: [{ url: entry.publicUr
 ```
 1. studio_list_references({ projectId, type, limit }) → find existing references and collect exact `mentionableLooks` before authoring a screenplay
 2. studio_register_reference_entities({ projectId, references: [...] })   → create/upsert by name
-3. upload_file(local_path) → studio_update_reference({ referenceId, attachments/referenceVariants, characterDetails/locationDetails/propDetails })
+3. upload_file(local_path) → studio_update_reference({ projectId, referenceId, attachments/referenceVariants, characterDetails/locationDetails/propDetails })
    → populate images + structured details
 4. → mixio-generate: pull reference URLs into character_ref/location_ref/style_ref for consistent generation
 ```

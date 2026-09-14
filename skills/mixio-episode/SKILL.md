@@ -24,14 +24,16 @@ An episode lives inside a project (see `mixio-project`) and owns everything down
 
 All proxied `studio_*` tools. Call `studio_describe_tools` for exact current schemas.
 
+Every project-scoped mutation requires the resolved `projectId`. Hosted 1.1.0 checks project access and target ownership before any mutation, including all targets in bulk calls. Missing or foreign targets reject the whole call before writes begin; shot mutations also reject non-SHOT targets during preflight. These contracts are owned by the tool schemas and `preflightMcpMutation` in Studio's `apps/app-kalaasetu/src/app/api/mcp/server.ts`.
+
 ### Episode CRUD
 
 | Tool | Purpose |
 |------|---------|
 | `studio_create_episode` | `{ projectId, title, sequenceNumber, summary?, script?, metadata?, tags? }` |
 | `studio_get_episode` | `{ episodeId }` |
-| `studio_update_episode` | `{ episodeId, updates: { title?, sequenceNumber?, summary?, script?, metadata?, tags? } }` — `script` is the episode's raw Idea/Story text (`metadata.fullScript`), **not** the screenplay. Use `studio_upsert_screenplay` below for a real screenplay; breakdown prefers it when it has a non-empty body |
-| `studio_delete_episode` | `{ episodeId }` |
+| `studio_update_episode` | `{ projectId, episodeId, updates: { title?, sequenceNumber?, summary?, script?, metadata?, tags? } }` — `script` is the episode's raw Idea/Story text (`metadata.fullScript`), **not** the screenplay. Use `studio_upsert_screenplay` below for a real screenplay; breakdown prefers it when it has a non-empty body |
+| `studio_delete_episode` | `{ projectId, episodeId }` |
 | `studio_list_episodes` | `{ projectId, limit? }` — sorted by `metadata.sequenceNumber` |
 
 ### Screenplay
@@ -71,7 +73,7 @@ A screenplay is its own per-episode `SCREENPLAY` element, distinct from the raw 
 ```
 Include `linked_character_ids`/`linked_location_ids`/`linked_prop_ids` in shot metadata to auto-create relations to the project's Cast & World elements — this replaces manually calling `create_element` + `create_relation` yourself.
 
-**`studio_revise_shot_specs`** / **`studio_update_shot_state`** both take `{ shots: [{ shotId, ... }] }` (max 100) and validate each target is a `SHOT`-type element, skipping (with an inline error) anything that isn't. Use `revise_shot_specs` for content changes, `update_shot_state` for approval/review workflow — they're separate tools because state changes shouldn't silently overwrite creative metadata and vice versa.
+**`studio_revise_shot_specs`** / **`studio_update_shot_state`** both take `{ projectId, shots: [{ shotId, ... }] }` (max 100). Every target must be a `SHOT` in that project; an invalid target rejects the whole call during preflight. Use `revise_shot_specs` for content changes, `update_shot_state` for approval/review workflow — they're separate tools because state changes shouldn't silently overwrite creative metadata and vice versa.
 
 ### Generic element primitives
 
@@ -81,9 +83,9 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 |------|---------|
 | `studio_create_element` | `{ projectId, type, name, subtype?, metadata?, tags?, thumbnailUrl?, previewUrl? }` — type enum includes `SCREENPLAY` as well as `SCENE`, `SHOT`, `CHARACTER`, `LOCATION`, `PROP`, `REFERENCE`, `SCALING_SHEET`, `KEYFRAME`, `VIDEO`, `SELECTION`, `WORKFLOW`; use `studio_upsert_screenplay` rather than raw creation for screenplays |
 | `studio_get_element` | `{ elementId }` |
-| `studio_update_element` | `{ elementId, updates: { name?, subtype?, metadata?, tags?, thumbnailUrl?, previewUrl? } }` — metadata/tags are merged, not replaced |
-| `studio_delete_element` | `{ elementId }` |
-| `studio_tag_element` | `{ elementId, tags }` — merges into existing tags only |
+| `studio_update_element` | `{ projectId, elementId, updates: { name?, subtype?, metadata?, tags?, thumbnailUrl?, previewUrl? } }` — metadata/tags are merged, not replaced |
+| `studio_delete_element` | `{ projectId, elementId }` |
+| `studio_tag_element` | `{ projectId, elementId, tags }` — merges into existing tags only |
 | `studio_bulk_create_elements` | `{ projectId, elements: [...] }` — same per-item shape as `create_element` |
 | `studio_query_elements` | see below |
 
@@ -101,7 +103,7 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 | Tool | Purpose |
 |------|---------|
 | `studio_create_relation` | `{ projectId, fromId, toId, relationType, role?, metadata?, mirrorBelongsTo? }` |
-| `studio_delete_relation` | `{ relationId }` |
+| `studio_delete_relation` | `{ projectId, relationId }` |
 | `studio_query_relations` | `{ projectId, fromId?, toId?, relationType?, metadata?: object, limit? }` — `metadata` is a native object; see the canonical warning above |
 | `studio_bulk_create_relations` | `{ projectId, relations: [...] }` — same per-item shape as `create_relation` |
 | `studio_link_graph` | `{ projectId, relations: [...] }` (max 200) — near-duplicate of `bulk_create_relations`; prefer this one for breakdown work since it verifies project access up front and documents the common breakdown relation types (`appears_in`, `located_at`, `used_in`, `belongs_to`) |
@@ -114,7 +116,7 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 1. studio_create_episode({ projectId, title, sequenceNumber })
 2. studio_list_references({ projectId, limit }) → copy valid `mentionableLooks`
 3. studio_upsert_screenplay({ projectId, episodeId, body })                  → persist the preferred screenplay draft
-   — or, for a raw idea with no screenplay stage: studio_update_episode({ episodeId, updates: { script } })
+   — or, for a raw idea with no screenplay stage: studio_update_episode({ projectId, episodeId, updates: { script } })
 4. studio_upsert_scene_packages({ projectId, episodeId, scenes: [...] })     → break the selected source into scenes/shots (with linked entity IDs)
 5. studio_link_graph({ projectId, relations: [...] })                        → bind appears_in appearanceState for each character/shot pair
 6. studio_revise_shot_specs / studio_update_shot_state                       → refine and approve shots

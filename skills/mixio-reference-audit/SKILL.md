@@ -230,18 +230,18 @@ Fix: HALLWAY DOORWAY — MISSING_REF
   Then: upload or generate a reference image via /mixio:sheets
 
 Fix: TONY — missing visualAnchor
-→ studio_update_reference({ referenceId: "<tony-id>",
+→ studio_update_reference({ projectId, referenceId: "<tony-id>",
     characterDetails: { visualAnchor: "Athletic Italian-American woman, late 20s, loose dark curls, warm olive skin" }
   })
 
 Fix: TONY ↔ TONY RUSSO — LIKELY_DUPLICATE
-→ studio_update_element({ elementId: "<tony-id>", updates: { metadata: {
+→ studio_update_element({ projectId, elementId: "<tony-id>", updates: { metadata: {
     aliases: ["Tony Russo", "Antonia"]
   }}})
   Then: archive or delete the duplicate reference
 
 Fix: STALE_LOOK_REF — TONY'S APARTMENT:night
-→ studio_update_reference({ referenceId: "<apartment-id>", referenceVariants: [
+→ studio_update_reference({ projectId, referenceId: "<apartment-id>", referenceVariants: [
     ...existingVariants,
     { name: "night", kind: "look", images: [{ url: nightUrl, isPrimary: true }] }
   ]})
@@ -252,7 +252,7 @@ After the pipeline runner applies a permitted fix, **re-run the audit immediatel
 ## Persisting the result
 
 ```
-studio_update_episode({ episodeId, updates: { metadata: { pipeline: {
+studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   step_02_5: "complete",
   reference_audit: {
     checked: 12,

@@ -69,7 +69,7 @@ Before creating anything, read `settings.references` with `studio_get_project` �
 Record aliases for every reference whose script name differs from its canonical name. This is what stops episode 2 creating a second `Tony Russo` beside episode 1's `TONY`:
 
 ```
-studio_update_element({ elementId: referenceId, updates: { metadata: {
+studio_update_element({ projectId, elementId: referenceId, updates: { metadata: {
   aliases: ["Tony Russo", "Antonia"]
 }}})
 ```
@@ -96,7 +96,7 @@ Then persist the structured identity alongside it — one schema owns these fiel
 
 ```
 studio_update_reference({
-  referenceId,
+  projectId, referenceId,
   attachments: [{ url: sheetUrl, label: "Turnaround", isPrimary: true }],
   characterDetails: {
     role: "protagonist",              // enum: protagonist|antagonist|supporting|background
@@ -291,13 +291,13 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
 3. studio_list_references({ projectId })            → what already exists
 4. ask the user for reference images; confirm image→location mapping; note skips as TEXT-ONLY
 5. studio_register_reference_entities({ projectId, references })   → upsert by name (respect createPolicy)
-   studio_update_element({ metadata: { aliases } })                → record script-name aliases
-6. per character: render turnaround → studio_update_reference({ attachments, characterDetails })
-   per location:  write the 6-field sheet → studio_update_reference({ locationDetails, referenceVariants })
+   studio_update_element({ projectId, elementId: referenceId, updates: { metadata: { aliases } } }) → record script-name aliases
+6. per character: render turnaround → studio_update_reference({ projectId, referenceId, attachments, characterDetails })
+   per location:  write the 6-field sheet → studio_update_reference({ projectId, referenceId, locationDetails, referenceVariants })
    → this is the Reference Enrichment phase — Step 02.5 gates on visualAnchor/setting/lighting before Step 03
 7. per scene: render anchor at anchor_aspect_ratio with location_ref + character_ref
    (pick the location variant matching the scene's timeOfDay)
-   → studio_create_element({ type: "KEYFRAME" }) → record id in metadata.pipeline.anchors
+   → studio_create_element({ projectId, type: "KEYFRAME", name: anchorName }) → record id in metadata.pipeline.anchors
 8. show every sheet and anchor for approval → GATE → Step 03 Panel Breakdown
 ```
 

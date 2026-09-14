@@ -23,7 +23,7 @@ The sheet has real fields, not prose blobs. Map the sheet like this:
 Note the two pairs that are easy to collapse and shouldn't be: `lightSources` lists the *fixtures* while `lighting` describes the *setup they produce*; `surfaces` carries material and decor while `palette` is colour alone. Before these fields existed both halves ended up jammed into one free-text note.
 
 ```
-studio_update_reference({ referenceId, locationDetails: {
+studio_update_reference({ projectId, referenceId, locationDetails: {
   setting: "interior", timePeriod: "present day",
   spatialLayout: "Open studio room. BED against the left wall (window side), COUCH centered facing the staircase wall…",
   accessPoints: ["BEDROOM DOOR — dark wood, left wall beside the BED",

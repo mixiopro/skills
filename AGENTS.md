@@ -4,7 +4,7 @@ Agent guidance for this repository. You have access to Mixio Studio through the 
 
 ## Resolve scope before doing anything (required)
 
-Every Mixio tool is stateless — there is no "current project" on the server, so whatever id you pass *is* the scope. Most element-level write tools (`update_element`, `revise_shot_specs`, `update_shot_state`, `update_reference`, `bulk_update_elements`) take no `projectId` and verify no project scope, so a stale or invented id writes to the wrong production silently.
+Every Mixio tool is stateless — there is no "current project" on the server. Every project-scoped mutation must receive the resolved `projectId` (in `context.projectId` for generation submissions). Hosted 1.1.0 preflights project access and target ownership before any mutation, including every target in a bulk call; a missing or foreign target rejects the call before writes begin. This includes `update_element`, `revise_shot_specs`, `update_shot_state`, `update_reference`, and `bulk_update_elements`. Never omit scope or substitute an unconfirmed project ID to bypass a rejection.
 
 ```
 projectId unknown?  studio_list_projects()              → show numbered list → ASK
@@ -35,12 +35,11 @@ the name differs. When in doubt, `search_tools`/`describe_tools` (or
 `mixio list-tools`/`mixio call <tool> --help`) always reflect what your current
 transport actually exposes.
 
-Evaluation tools form their own alias family rather than folding into `studio_*`. The hosted
-eval surface exposes `eval_list_projects`, which lists the eval pipeline's review projects —
-it is a **different tool** from `studio_list_projects` (which lists Studio production
-projects): they hit different backends and return different data, so never swap one for the
-other. Same rule as above: `search_tools`/`describe_tools` on your current transport shows
-which one is actually exposed.
+Hosted evaluation uses `evals_list_evaluation_catalog`, `evals_evaluate_media`,
+and `evals_get_evaluation_result`, all scoped to the confirmed Studio `projectId`.
+The local bridge prefixes these names with `studio_`. Resolve scope using Studio
+`list_projects` (or `studio_list_projects` over stdio). Read `mixio-eval` for the
+canonical contract and aliases retained through hosted 1.1.x.
 
 ## Data model
 
@@ -100,7 +99,7 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 - Shot metadata keys are `snake_case`; scene metadata keys are `camelCase`. Mixing them up is not rejected — the write boundary is permissive, so a mixed-up key is remapped or warned-and-passed-through, not thrown. It still lands in the wrong place (passthrough, unread by anything) and fails silently rather than loudly, which is worse: check by reading back what you wrote.
 - Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
 - **Mandatory prompt `@` mentions & paired mention maps (Universal across all generations & models)**: Prompts MUST ALWAYS contain `@` mentions for all active media assets/references (e.g. `@asset1`, `@tony`, `@scene1`). This applies universally to all generation types (image, keyframe, video, storyboard) and all models (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX, etc.). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`) must be embedded in the prompt string where the subject acts. Paired `slotTags` (`{ [assetKey]: '@tag' }`) AND `mentionMap` (`{ '@tag': 'Human Label / Description' }`) are MANDATORY whenever media references are provided. Without both paired maps and prompt `@` tokens, the prompt materializer and provider compilers cannot ground assets to model-specific tokens or resolve subject identity, causing models to guess identity and waste generation credits. Validate prompt `@` mentions and mention maps in Step 05 (`mixio-shot-planning`) and Step 06 (`mixio-generate`) preflight before submitting billable jobs.
-- Upload final outputs with `upload_file` for permanent URLs, and run `studio_run_eval` before delivering to a client.
+- Upload final outputs with `upload_file` for permanent URLs, and use `studio_evals_evaluate_media` plus `studio_evals_get_evaluation_result` before delivering to a client.
 - Generation is billable. Ask before video unless the user has said otherwise.
 
 ## MCP server
@@ -110,14 +109,14 @@ Sheets come **before** the breakdown because the breakdown emits references as s
   "mcpServers": {
     "mixio": {
       "command": "npx",
-      "args": ["-y", "@mixio-pro/mcp"],
+      "args": ["-y", "@mixio-pro/mcp@0.6.0"],
       "env": { "MIXIO_API_KEY": "your-key" }
     }
   }
 }
 ```
 
-`studio_*` tools are proxied from the Studio server. `upload_file`, `get_public_url`, `list_cached_files`, `forget_path`, and `clear_cache` are local to `@mixio-pro/mcp`; evaluation uses the hosted eval surface — `studio_run_eval` (runs) and `eval_list_projects` (listing eval projects).
+`studio_*` tools are proxied from the Studio server. `upload_file`, `get_public_url`, `list_cached_files`, `forget_path`, and `clear_cache` are local to `@mixio-pro/mcp`; evaluation uses the hosted `evals_*` tools under the bridge's `studio_` prefix.
 
 ## Scope
 

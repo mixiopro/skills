@@ -1,57 +1,118 @@
 ---
 name: mixio-eval
-description: "Run visual continuity and consistency evaluations on generated media via Mixio Studio's evaluation pipeline before delivery."
-version: 0.1.0
+description: "Run visual continuity and consistency evaluations on generated media through the hosted Studio evaluator gateway before delivery."
+version: 0.2.0
 invoke: /mixio:eval
 ---
 
 # Mixio Eval
 
-Run visual continuity / consistency evaluation jobs through the hosted Studio MCP surface. Use as a quality gate before delivering outputs to clients.
+Evaluate rendered media before delivery. This skill uses the hosted Studio
+gateway and its Studio project scope. For text-only pre-render continuity audits,
+use `mixio-continuity`.
 
-## Prerequisites
+## Prerequisites and transport
 
-- MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- **Resolved scope — required.** You must be working against a project that the user has
-  explicitly confirmed. If it is not established in this session, **fetch the list and show
-  it, numbered, in the same message as the question** (`eval_list_projects` — the eval
-  pipeline's own project listing) so the answer is one character. Asking "which project?"
-  without the list is a failure — it hands the lookup back to the user. Resolve this *before*
-  any expensive read; never guess an id, infer one from a title, or create something to avoid
-  asking. See `mixio-project`.
+- Resolve the Studio project before evaluation. If none is established, call
+  `studio_list_projects`, show the numbered list in the same message as the
+  question, and ask the user to choose. With exactly one project, name it and
+  continue. Never invent a project ID or create a project to avoid asking.
+- Local stdio clients use `@mixio-pro/mcp@0.6.0`. This bridge prefixes hosted
+  tools with `studio_`; direct hosted `/api/mcp` clients use bare names.
+- Evaluation submission is billable. Confirm the planned evaluation unless the
+  session already authorizes it; catalog and result reads do not submit work.
+- Read the current contract before calling an unfamiliar tool. Examples below
+  use stdio names; strip only the leading `studio_` for direct hosted calls.
 
-## MCP Tool
+| Direct hosted tool | Local stdio tool | Purpose |
+| --- | --- | --- |
+| `evals_list_evaluation_catalog` | `studio_evals_list_evaluation_catalog` | Read available evaluation profiles and configuration for a confirmed `projectId`. |
+| `evals_evaluate_media` | `studio_evals_evaluate_media` | Submit one background evaluation. |
+| `evals_get_evaluation_result` | `studio_evals_get_evaluation_result` | Read the existing run using `projectId` and `runId`. |
 
-Use the proxied hosted `studio_run_eval` tool. It requires the confirmed Studio `projectId`; read its current schema with `studio_get_contract({ target: "tool", toolName: "run_eval" })` before calling it.
+The bridge's five unprefixed tools are `upload_file`, `get_public_url`,
+`list_cached_files`, `forget_path`, and `clear_cache`. Upload local media through
+`mixio-workspace`, passing the known project and organization scope, then supply
+the resulting permanent public URL to the hosted evaluator. Evaluation does not
+have a separate local project listing or local execution tool.
 
-| Param | Required | Notes |
-|-------|----------|-------|
-| `projectId` | yes | confirmed Studio project UUID |
-| `capability` | yes | see enum below |
-| `prompt` | yes | instructions, e.g. `"Verify the visual flow of @video"` |
-| `imageUrls` | no | array, for checking keyframe images directly |
-| `videoUrl` | no | for evaluating a video |
-| `algorithm` | no | defaults to `gemini_review` |
-| `threshold` | no | 0.0-1.0, defaults to `0.80` |
-| `background` | no | defaults to `true` (async — returns a `runId` starting with `resp_`) |
+## Discover the contract
 
-`capability` enum: `identity_consistency`, `style_consistency`, `composition_consistency`, `color_consistency`, `background_consistency`, `lighting_consistency`, `temporal_consistency`, `wardrobe_consistency`, `scene_consistency`, `object_consistency`, `prompt_consistency`, `location_consistency`, `prop_consistency`, `voice_identity_consistency`, `audio_continuity`, `lip_sync_consistency`, `subtitle_alignment`, `timeline_diff`, `brand_consistency`, `story_continuity`.
-
-### `eval_list_projects`
-
-No params. Lists the eval pipeline's review projects — the eval surface's own project scope. This is a **different tool** from `studio_list_projects` (which lists Studio production projects): they hit different backends and return different data. When you need to resolve the project for an evaluation, list with `eval_list_projects`, never `studio_list_projects`.
-
-## Workflow
-
-```
-1. eval_list_projects()                       → resolve the eval project (numbered list → ASK)
-2. studio_get_contract({ target: "tool", toolName: "run_eval" }) → current hosted schema
-3. studio_run_eval({ projectId, capability, prompt, videoUrl or imageUrls }) → runId (resp_...)
-4. Read the hosted response or the Studio job surface for the evaluation result
+```text
+studio_get_contract({ target: "tool", toolName: "evals_evaluate_media" })
+studio_get_contract({ target: "tool", toolName: "evals_get_evaluation_result" })
+studio_evals_list_evaluation_catalog({ projectId })
 ```
 
-## Tips
+`toolName` selects the bare hosted name even when `get_contract` itself is
+prefixed. Choose profile, metrics, and skills from the live evaluation catalog;
+do not reuse an old capability enum as the canonical request contract.
 
-- Evaluate before delivering to clients — catches continuity/consistency issues early
-- Pick the `capability` that matches what actually changed (e.g. `wardrobe_consistency` after a costume edit) rather than defaulting to `story_continuity` for everything
-- `eval_list_projects` (the eval surface's project listing) is not the same tool as `studio_list_projects` (Studio production projects); they hit different backends and return different data — don't swap them. When in doubt, `search_tools`/`describe_tools` on your transport shows which one is actually exposed.
+## Submit and poll
+
+Canonical submission requires `projectId`, a nonempty `inputs` array, and an
+explicit `threshold` from 0 to 1. Each input requires `input-alias`, `role`,
+`type`, and exactly one source: `source-url`, `asset-id`, or `reference-id`.
+Public media URLs must use HTTP(S) and must not target private or loopback hosts.
+Read the live contract for accepted roles, media types, views, profiles, and
+optional planning fields. Background mode is enforced by Studio.
+
+Example video submission (replace project and URL with resolved production data):
+
+```json
+{
+  "projectId": "confirmed-studio-project-id",
+  "profile": "video-general",
+  "inputs": [
+    {
+      "input-alias": "candidate",
+      "role": "candidate",
+      "type": "video",
+      "source-url": "https://media.example.com/approved-shot.mp4"
+    }
+  ],
+  "prompt": "Review @candidate for continuity and consistency against the approved shot intent.",
+  "threshold": 0.8,
+  "background": true
+}
+```
+
+Send that object to `studio_evals_evaluate_media` once. Keep its returned `runId`
+and poll `studio_evals_get_evaluation_result({ projectId, runId })` until
+`terminal` is true. Do not resubmit while waiting or after an uncertain receipt;
+reconcile the existing run first.
+
+Successful submission and result calls share the envelope
+`{ ok, runId, status, terminal, threshold, evaluation }`. Status is `queued`,
+`in_progress`, `completed`, `failed`, or `cancelled`; the last three are terminal.
+`ok: true` means the call succeeded, including a read of a failed run. It does
+not mean the quality gate passed. Inspect the evaluator's decision under
+`evaluation` before approving delivery. Native receipt fields remain in that
+object. Pending result reads can have `threshold: null`; a terminal receipt
+must report its applied threshold. Treat `runId` as opaque, with no assumed prefix.
+
+## Compatibility aliases
+
+Hosted `run_eval` and `run_evaluation` delegate to `evals_evaluate_media`;
+`get_evaluation_result` delegates to `evals_get_evaluation_result`. Their stdio
+names are `studio_run_eval`, `studio_run_evaluation`, and
+`studio_get_evaluation_result`. They remain deprecated aliases through hosted
+1.1.x, with removal scheduled for hosted 2.0.0. Discovery metadata names each
+replacement and removal version. Every alias returns the same success envelope
+and delegates once; never call both an alias and its replacement for one run.
+
+Legacy submission input differs from canonical input: it requires `projectId`,
+`capability`, and `prompt`, plus exactly one `videoUrl` or an `imageUrls` array
+with at least two images. Read the alias contract for the supported capability
+values. To migrate a video, use the candidate binding above. For comparison
+images, use `profile: "image-general"`, first image as candidate, and subsequent
+images as references. Supply the canonical threshold explicitly; legacy aliases
+default it to 0.8. Poll with the same project and run IDs using the canonical tool.
+
+## Contract ownership
+
+Studio's `app/api/mcp/evaluation-mcp-proxy.ts` owns canonical request validation
+and gateway forwarding. `evaluation-response.ts` owns the normalized envelope;
+`evaluation-contract.ts` owns compatibility inputs. `get_contract` and
+`tools/list` expose these published contracts, including safety and deprecation
+metadata. Refresh discovery when changing transport or server version.

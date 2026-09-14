@@ -98,7 +98,7 @@ After a screenplay, relation, or shot-spec correction, re-run the affected Step 
 2. **Apply shot spec fix via `studio_revise_shot_specs`:**
    ```javascript
    studio_revise_shot_specs({
-     shots: [{
+     projectId, shots: [{
        shotId: "shot_7_id",
        metadata: {
          action: "TONY drops her PHONE onto the bedding beside her, then reaches with her right hand to take the TABLET from POPPY [M2]."
@@ -145,7 +145,7 @@ After a screenplay, relation, or shot-spec correction, re-run the affected Step 
        // Persist `blocked`; ask for a permitted name instead of writing.
      } else {
      studio_update_reference({
-       referenceId: tonyRefId,
+       projectId, referenceId: tonyRefId,
        referenceVariants: [
          ...currentVariants,
          { name: "wet_coat", kind: "look", images: [{ url: wetCoatImageUrl, isPrimary: true }] }
@@ -190,7 +190,7 @@ At the start and end of **every** cycle, write a resumable record to episode met
 
 ```javascript
 studio_update_episode({
-  episodeId,
+  projectId, episodeId,
   updates: { metadata: { pipeline: {
     pre_production_loop: {
       status: "running", // "running" | "blocked" | "converged"
@@ -211,12 +211,12 @@ When both audits pass with 0 blocking errors, lock the breakdown and replace tha
 ```javascript
 // 1. Lock shot states
 studio_update_shot_state({
-  shots: cleanShotIds.map(shotId => ({ shotId, state: "approved" }))
+  projectId, shots: cleanShotIds.map(shotId => ({ shotId, state: "approved" }))
 })
 
 // 2. Persist Ralph loop convergence state
 studio_update_episode({
-  episodeId,
+  projectId, episodeId,
   updates: {
     metadata: {
       pipeline: {
