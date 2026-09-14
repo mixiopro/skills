@@ -34,7 +34,7 @@ Add `@mixio-pro/mcp` to your agent's MCP config (e.g. `~/.claude/claude_desktop_
   "mcpServers": {
     "mixio": {
       "command": "npx",
-      "args": ["-y", "@mixio-pro/mcp"],
+      "args": ["-y", "@mixio-pro/mcp@0.6.0"],
       "env": { "MIXIO_API_KEY": "your-key-here" }
     }
   }
