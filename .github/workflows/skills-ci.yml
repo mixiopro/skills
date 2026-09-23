@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -42,8 +44,25 @@ jobs:
           bash -n scripts/check-screenplay-integration.sh
           bash -n scripts/check-npx-install.sh
 
-      - name: Check whitespace errors
-        run: git diff --check
+      - name: Check whitespace errors in first-party changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_SHA: ${{ github.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE_SHA"
+            head="$EVENT_SHA"
+          elif [ -n "$EVENT_BEFORE" ] && [ "$EVENT_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            base="$EVENT_BEFORE"
+            head="$EVENT_SHA"
+          else
+            base="$(git rev-parse "$EVENT_SHA^" 2>/dev/null || git rev-list --max-parents=0 "$EVENT_SHA")"
+            head="$EVENT_SHA"
+          fi
+
+          git diff --check "$base" "$head" -- . ':(exclude)skills/how-to-make-script/**'
 
       - name: Check Mixio skill tables
         run: bash scripts/check-skill-count.sh
@@ -100,77 +119,111 @@ jobs:
         run: |
           $package = "skills@$env:SKILLS_CLI_VERSION"
           $root = (Get-Location).Path
-          $auditHome = Join-Path $env:RUNNER_TEMP "mixio-skills-audit"
+          $auditHome = Join-Path $env:RUNNER_TEMP ("mixio-skills-audit-" + [System.Guid]::NewGuid().ToString("N"))
           New-Item -ItemType Directory -Force -Path $auditHome | Out-Null
 
           $env:HOME = $auditHome
           $env:USERPROFILE = $auditHome
-          $env:CODEX_HOME = Join-Path $auditHome ".codex"
-          $env:XDG_CONFIG_HOME = Join-Path $auditHome ".config"
-          $env:NPM_CONFIG_CACHE = Join-Path $auditHome ".npm"
+          $env:CODEX_HOME = (Join-Path $auditHome ".codex")
+          $env:XDG_CONFIG_HOME = (Join-Path $auditHome ".config")
+          $env:NPM_CONFIG_CACHE = (Join-Path $auditHome ".npm")
 
-          $rootListing = npx --yes $package add $root --list 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { throw "Root npx discovery failed`n$rootListing" }
-          foreach ($skill in @("how-to-make-script", "mixio-screenwriting")) {
-            if ($rootListing -notmatch [regex]::Escape($skill)) {
-              throw "Root npx discovery is missing $skill"
+          function Get-SkillNames {
+            param([string]$Directory)
+
+            @(
+              Get-ChildItem -LiteralPath $Directory -Directory |
+                Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "SKILL.md") } |
+                Select-Object -ExpandProperty Name |
+                Sort-Object
+            )
+          }
+
+          function Get-PackageFiles {
+            param([string]$Directory)
+
+            $prefix = (Resolve-Path -LiteralPath $Directory).Path.TrimEnd("\") + "\"
+            @(
+              Get-ChildItem -LiteralPath $Directory -Recurse -File -Force |
+                Where-Object {
+                  $_.FullName -notmatch '[\\/](?:\.git|\.pytest_cache|__pycache__)([\\/]|$)'
+                } |
+                ForEach-Object { $_.FullName.Substring($prefix.Length) } |
+                Sort-Object
+            )
+          }
+
+          function Get-DiscoveredSkillNames {
+            param([string]$Listing)
+
+            $cleanListing = $Listing -replace "\x1B\[[0-9;?]*[ -/]*[@-~]", ""
+            @(
+              $cleanListing -split "`r?`n" |
+                ForEach-Object {
+                  $line = $_.TrimEnd()
+                  if ($line -match '^│    ([a-z0-9-]+)$') { $Matches[1] }
+                } |
+                Sort-Object -Unique
+            )
+          }
+
+          function Assert-SameList {
+            param(
+              [string]$Label,
+              [string[]]$Expected,
+              [string[]]$Actual
+            )
+
+            $difference = Compare-Object -ReferenceObject @($Expected) -DifferenceObject @($Actual)
+            if ($null -ne $difference) {
+              $details = $difference | Out-String
+              throw "$Label differs:`n$details"
             }
           }
 
+          $rootListing = npx --yes $package add $root --list 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "Root npx discovery failed`n$rootListing" }
+          $sourceSkillsRoot = Join-Path $root "skills"
+          $sourceScreenplayRoot = Join-Path $sourceSkillsRoot "how-to-make-script"
+          $expectedRootSkills = @(Get-SkillNames $sourceSkillsRoot)
+          $discoveredRootSkills = @(Get-DiscoveredSkillNames $rootListing)
+          Assert-SameList "Root npx discovery" $expectedRootSkills $discoveredRootSkills
+
           $fullListing = npx --yes $package add $root --full-depth --list 2>&1 | Out-String
           if ($LASTEXITCODE -ne 0) { throw "Full-depth npx discovery failed`n$fullListing" }
-          foreach ($route in @(
-            "idea-discovery",
-            "logline-premise",
-            "character-world",
-            "structure-beat",
-            "scene-writing",
-            "dialogue-subtext",
-            "rewrite-doctor",
-            "quality-gating"
-          )) {
-            if ($fullListing -notmatch [regex]::Escape($route)) {
-              throw "Full-depth npx discovery is missing $route"
+          $discoveredFullSkills = @(Get-DiscoveredSkillNames $fullListing)
+          $expectedRoutes = @(Get-SkillNames (Join-Path $sourceScreenplayRoot "skills"))
+          foreach ($route in $expectedRoutes) {
+            if ($discoveredFullSkills -notcontains $route) {
+              throw "Full-depth npx discovery is missing exact route entry $route"
             }
           }
 
           npx --yes $package add $root --global --yes --agent codex --copy
           if ($LASTEXITCODE -ne 0) { throw "Clean npx install failed" }
 
-          $installedRoot = Join-Path $auditHome ".agents\skills\how-to-make-script"
+          $installedSkillsRoot = Join-Path $auditHome ".agents\skills"
+          $installedRoot = Join-Path $installedSkillsRoot "how-to-make-script"
           foreach ($file in @("SKILL.md", "UPSTREAM.md", "LICENSE")) {
             if (-not (Test-Path (Join-Path $installedRoot $file))) {
               throw "Clean npx install is missing $file"
             }
           }
-
-          foreach ($route in @(
-            "idea-discovery",
-            "logline-premise",
-            "character-world",
-            "structure-beat",
-            "scene-writing",
-            "dialogue-subtext",
-            "rewrite-doctor",
-            "quality-gating"
-          )) {
-            $routeSkill = Join-Path $installedRoot "skills\$route\SKILL.md"
-            if (-not (Test-Path $routeSkill)) {
-              throw "Clean npx install is missing $routeSkill"
-            }
+          if (-not (Test-Path (Join-Path $installedSkillsRoot "mixio-screenwriting\SKILL.md"))) {
+            throw "Clean npx install is missing mixio-screenwriting/SKILL.md"
           }
 
-          foreach ($directory in @(
-            "knowledge\20-workflows",
-            "knowledge\60-rubrics",
-            "references",
-            "schemas",
-            "examples",
-            "tests"
-          )) {
-            $installedDirectory = Join-Path $installedRoot $directory
-            if (-not (Test-Path $installedDirectory -PathType Container)) {
-              throw "Clean npx install is missing $installedDirectory"
+          $installedRootSkills = @(Get-SkillNames $installedSkillsRoot)
+          Assert-SameList "Installed root skill set" $expectedRootSkills $installedRootSkills
+
+          $sourceFiles = @(Get-PackageFiles $sourceScreenplayRoot)
+          $installedFiles = @(Get-PackageFiles $installedRoot)
+          Assert-SameList "Installed screenplay file set" $sourceFiles $installedFiles
+          foreach ($relativePath in $sourceFiles) {
+            $sourceHash = (Get-FileHash -LiteralPath (Join-Path $sourceScreenplayRoot $relativePath) -Algorithm SHA256).Hash
+            $installedHash = (Get-FileHash -LiteralPath (Join-Path $installedRoot $relativePath) -Algorithm SHA256).Hash
+            if ($sourceHash -ne $installedHash) {
+              throw "Clean npx install differs from source: $relativePath"
             }
           }
 

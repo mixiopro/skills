@@ -64,6 +64,7 @@ bash scripts/check-npx-install.sh
   python3 -m pytest -q tests)
 ```
 
-The npx check uses `skills@1.7.0` by default, scans both the package root and
-the nested screenplay routes, and installs into a temporary home so it cannot
+The npx check uses `skills@1.7.0` by default, scans every root and nested
+screenplay route, compares the installed root skill set and screenplay file
+hashes against the source tree, and installs into a temporary home so it cannot
 overwrite the developer's agent skills.
