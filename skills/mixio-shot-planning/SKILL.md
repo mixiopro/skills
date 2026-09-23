@@ -1,7 +1,7 @@
 ---
 name: mixio-shot-planning
-description: "Classify each shot into 5 structural archetypes, match to model capabilities, execute action density and dialogue feasibility audit, and group into generation batches with a credit-costed production summary — the model-aware layer between continuity and video generation. Classification and batching only — submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
-version: 0.3.0
+description: "Classify each shot into 5 structural archetypes, match to model capabilities, validate duration and action density, verify prompt @ mentions and paired mention maps, and group into generation batches with a credit-costed production summary — the model-aware layer between continuity and video generation. Classification and batching only — submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
+version: 0.3.1
 invoke: /mixio:shot-planning
 ---
 
@@ -184,12 +184,19 @@ for each character_link / location_link / prop_link with a bound lookRef:
         → BLOCKING: Re-bind variant or fix in Step 02.5 (STALE_LOOK_REF)
 ```
 
-### Prompt mention & mention map validation
+Pull bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. A resolved binding is worth carrying forward: record its `variantId`/`variantName` in the persisted plan (below) so Step 06 declares it directly on the media reference instead of re-resolving it (see `mixio-generate` §7; check `get_production_context` for a `lookBindings` key to confirm your Studio resolves it).
+
+### Prompt mention & mention map validation (Universal Invariant across all models & methods)
+
+Regardless of the model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX) or generation method (SINGLE, DUAL_FRAME, MULTI_KF, GRID, T2V), the prompt materializer and provider compilers require prompt text to contain explicit `@` mention tokens to map media references to model-specific tokens (`Image 1`, `@Image1`, `@tag`) or perform subject grounding. Failure to include `@` tokens or omitting `mentionMap` causes models to guess identity and waste generation credits (e.g. incident `b463831e-ac6f-4a40-a2b2-0ebde2527c92`). Run this check before batching and carry zero blocking findings into the Step 05 gate:
 
 ```
 for each shot with media references (primary, endFrame, references, character_ref,
-location_ref, enhancer_context, and every other schema-declared media slot):
-    assets = flatten_media_slots(input.media)  # stable key: slot or slot[index]
+location_ref, style_ref, asset_ref, clothing_ref, image_urls, motionRef, audioRef,
+enhancer_context, and every other schema-declared media slot):
+    assets = flatten_media_slots(input.media)  # stable key: elementId/mediaId/url;
+                                               # retain slot/index for diagnostics
+    effective_prompt = prompt if prompt is present else materialized_prompt(sequence_notes, shot_spec)
     if assets.length == 0:
         continue
     if slotTags is missing OR mentionMap is missing:
@@ -197,16 +204,21 @@ location_ref, enhancer_context, and every other schema-declared media slot):
         → BLOCKING: create one slotTags + mentionMap pair for every asset
     for each assetKey, asset in assets:
         tag = slotTags[assetKey]
-        if tag is missing OR prompt contains tag zero times:
+        if tag is missing OR tag does not start with '@' OR effective_prompt contains tag zero times:
             FINDING: PROMPT_MENTION_MISSING — asset has no prompt @tag
             → BLOCKING: embed @tag where that asset acts
-        if mentionMap[tag] is missing:
+        if mentionMap[tag] is missing or blank:
             FINDING: MENTION_MAP_UNPAIRED — slot tag has no label binding
             → BLOCKING: add mentionMap[tag] with the asset's human-readable label
+    if any tag value is assigned to more than one asset:
+        FINDING: MENTION_TAG_COLLISION — one @tag points at multiple assets
+        → BLOCKING: assign a unique tag and label to each asset
     if any slotTags key has no asset OR any mentionMap key is not used by slotTags:
         FINDING: MENTION_MAP_ORPHANED — maps do not match active media
         → BLOCKING: remove orphan entries or bind them to a real asset
 ```
+
+For a sequence use case that intentionally leaves the caller `prompt` unset, validate the effective materialized prompt (`sequence_notes` plus the shot-spec prompt); an omitted caller field is not a grounding bypass. Descriptive prose may supplement a tag, never replace it. Any `PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or `MENTION_MAP_ORPHANED` finding blocks the production summary and Step 06 approval until corrected.
 
 ### Continuity handoff feasibility
 
@@ -222,7 +234,10 @@ if shot is first in a new batch AND previous batch exists:
 ## Feasibility report
 
 Report archetype/model distribution and every finding with remediation, separating blocking from
-advisory work. Use the [worked format](references/execution-audit.md#feasibility-report); resolve every blocker before advancing.
+advisory work. Use the [worked format](references/execution-audit.md#feasibility-report); the report
+must include any `PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or
+`MENTION_MAP_ORPHANED` finding with its asset, tag, and remediation. Resolve every blocker before
+advancing.
 
 ---
 
@@ -285,7 +300,7 @@ Announce the close with the exact, current credit estimate, for example:
 2. match each shot to the best model based on characteristics; read its live input schema and duration ceiling
 3. classify each shot into one of 5 archetype families (GRID / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V), using the selected model ceiling
 4. run execution audit (duration limits, action density, speaking rate, references, prompt @ mentions + mentionMap)
-5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions & pair mentionMap)
+5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions, pair slotTags + mentionMap, remove orphans)
 6. group into contiguous batches per model-specific ceilings
 7. emit PRODUCTION SUMMARY with archetype distribution, model assignments, and credit cost estimate
 8. studio_revise_shot_specs → persist plan in shot metadata; persist `step_05: "awaiting_approval"` and the presented cost in episode metadata.pipeline
