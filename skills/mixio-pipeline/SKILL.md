@@ -1,7 +1,7 @@
 ---
 name: mixio-pipeline
 description: "Run an episode from screenplay to delivered video as gated steps — detailed screenplay, anchor frames, reference audit, panel breakdown, continuity audit, shot planning, video generation — persisting progress and locking each step before the next. The entry point for a full episode, and the fallback whenever it's unclear which production skill applies — the others (mixio-sheets, mixio-reference-audit, mixio-script-breakdown, mixio-continuity, mixio-shot-planning) each assume you already know that's the one step you need."
-version: 0.4.0
+version: 0.4.1
 invoke: /mixio:pipeline
 ---
 
@@ -166,7 +166,7 @@ breakdown skill owns the fields, audit checks, and `metadata.pipeline.breakdown_
 
 1. **Model + live contract** — select a candidate based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.) and read its live input schema, including the duration ceiling.
 2. **Archetype / Method** — classify each shot using that contract into one of 5 structural archetypes: `GRID` (multi-panel/montage), `SEQUENCE` (multi-beat sequence), `MASTER_ANCHOR_MULTI_SHOT` (coverage grounded by the wide scene-anchor reference through a derived keyframe), `SINGLE` / `DUAL_FRAME` (standard keyframe interpolation), or `T2V` (direct text-to-video).
-3. **Execution & Feasibility Audit** — validate duration vs model max, action density (`actions / duration`), dialogue speaking rate (`words / duration`), reference readiness, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. Every prompt referencing media assets must embed explicit `@tag` tokens.
+3. **Execution & Feasibility Audit** — validate duration vs model max, action density (`actions / duration`), dialogue speaking rate (`words / duration`), reference readiness, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. Every active media slot (`primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`, or a schema-added slot) must have exactly one mapped `@tag` in the effective prompt; reject missing pairs, collisions, and orphan map entries.
 
 Then group consecutive shots only when their model, generation use case, and input contract all match; the planner's live schema limits still apply. Emit a `PRODUCTION SUMMARY` with per-model costs, archetype distribution, keyframe/video job counts, estimated credit costs, and high-risk cross-model boundaries. Preserve a bound look as relation `lookRef`; Step 06 must resolve it through `selectedElements` or pass `variantId`/`variantName` on the media reference (see `mixio-generate`), not inert plan metadata. Gate: require explicit user budget approval before Step 06.
 
@@ -179,8 +179,10 @@ Then group consecutive shots only when their model, generation use case, and inp
 - **Always ask** — confirm every job.
 
 **Preflight Gating (Mandatory Invariant across all models before submit):**
-- Verify that every prompt string explicitly embeds `@tag` tokens (e.g. `@asset1`, `@tony`, `@scene1`) for all active media assets in `input.media` (`primary`, `enhancer_context`, `character_ref`, `location_ref`). This applies to all generation jobs (keyframes, storyboard grids, video renders) across all model families (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, etc.).
-- Verify that `slotTags` and `mentionMap` are present and paired. Plain descriptive prose without `@` tags prevents the prompt materializer and provider compilers from mapping assets to model tokens (`Image 1`, `@Image1`, `@tag`) or performing subject grounding, causing models to guess identity. Never submit ungrounded media jobs.
+- Flatten every active `input.media` slot, including references inherited from the scene anchor and a resolved look. For each asset, verify exactly one unique `slotTags` entry and a non-empty `mentionMap` label for its tag; reject missing pairs, collisions, and orphan map entries.
+- Verify that the effective prompt explicitly embeds every mapped `@tag` where that asset acts. For `production-generate-shot-keyframe-sequence`, validate `sequence_notes` plus the materialized shot prompt when the caller leaves `prompt` unset; omission is not a bypass.
+- Block the job on `PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or `MENTION_MAP_ORPHANED`. Plain descriptive prose without `@` tags prevents the prompt materializer and provider compilers from mapping assets to model tokens (`Image 1`, `@Image1`, `@tag`) or performing subject grounding, causing models to guess identity. Never submit an ungrounded media job.
+- Re-run this gate immediately before every billable `studio_submit_studio_job` call, even when Step 05 already reported clean; inherited anchors, variants, or batch edits can change the active media set.
 
 **Use case IDs for this step:**
 - Keyframes, shot already locked by Step 04: `production-generate-shot-keyframes` with `keyframe_count: 1`, **one job per beat**. Our prompt is used verbatim, nothing re-plans it, and the sequence planner's diversity gate cannot reject a deliberate hold. Pass the previous beat's keyframe as a reference to chain continuity forward.

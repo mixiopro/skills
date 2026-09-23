@@ -123,13 +123,13 @@ The three voice fields are structured, not strings: `voiceProfile` takes `{ prov
 
 The name you give a reference here becomes its `@tag` at generation time — `Tony` resolves `@tony`, a look variant resolves `@tony.casual`. That token is what binds this sheet's image to this character in a multi-reference prompt; without it the model receives several faces and guesses (see incident `b463831e-ac6f-4a40-a2b2-0ebde2527c92` in `mixio-generate`).
 
-**Mandatory Invariant (Universal across all generations & models)**: Prompts MUST ALWAYS contain `@` mentions for all active assets/references (e.g. `@asset1`, `@tony`, `@scene1`). Any asset passed via `media` (`primary`, `character_ref`, `location_ref`, `enhancer_context`) must be embedded in the prompt string where the subject acts across all image and video models.
+**Mandatory Invariant (Universal across all generations & models)**: Prompts MUST ALWAYS contain `@` mentions for all active assets/references (e.g. `@asset1`, `@tony`, `@scene1`). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `enhancer_context`, or another schema-declared slot) must be embedded in the prompt string where the subject acts across all image and video models.
 
 So decide the tag **once, here**, and record it in pipeline state next to the reference id, so the breakdown, the audit and the generation step all emit the same vocabulary. Two rules that save a re-render:
 
 - Keep the reference name short and unambiguous. `Tony` is a good tag; `Tony Russo (protagonist, ep1)` slugifies into something nobody will type consistently.
 - Do not name two references so they collapse to the same slug. `TONY'S APARTMENT` and `Tonys Apartment` are one tag, and whichever image loses the race silently stops binding.
-- Pair every tag in `slotTags` with an entry in `mentionMap` (`{ "@tony": "Tony Russo" }`) when submitting generation payloads.
+- Pair every tag in `slotTags` with exactly one non-empty `mentionMap` entry (`{ "@tony": "Tony Russo" }`) when submitting generation payloads. Record the asset key, tag, and human label together; an asset with no pair is not ready for Step 05.
 
 **Do not put per-shot state here.** Hair state, condition/damage, and carried props are properties of an *appearance*, not of the character, and belong on the `appears_in` relation's `appearanceState` — see `mixio-script-breakdown`. A soaked-hair value on the character is one global truth that is only correct in a few shots.
 
@@ -266,20 +266,22 @@ Also record it in `metadata.pipeline.anchors` if you want a resumable index — 
 When an anchor frame is passed in `input.media` (for instance as `enhancer_context` or `location_ref`), the generation prompt MUST explicitly bind it using its `@` mention tag (e.g. `@scene1` or `@anchor1`) alongside character tags (`@tony`, `@asset1`).
 
 Pair the anchor asset in `slotTags` and `mentionMap`:
+The keys below are the exact URL-only `input.media` asset keys; when `slotReferences` supplies an `elementId` or `mediaId`, use that exact provenance key instead.
+
 ```json
 {
   "slotTags": {
-    "elem_anchor_scene_1": "@scene1",
-    "elem_tony_ref": "@char1"
+    "https://studio.mixio.pro/api/media/file/scene1_anchor.png": "@scene1",
+    "https://studio.mixio.pro/api/media/file/tony_ref.png": "@tony"
   },
   "mentionMap": {
     "@scene1": "Scene 1 Apartment Anchor",
-    "@char1": "Tony"
+    "@tony": "Tony"
   }
 }
 ```
 And embed in the prompt:
-`"@char1 sits at the edge of the bed under @scene1 lighting and layout, looking up toward the doorway."`
+`"@tony sits at the edge of the bed under @scene1 lighting and layout, looking up toward the doorway."`
 
 Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, provider compilers cannot map the anchor to model tokens (`Image 2`, `@Element1`), causing the model to ignore the spatial truth and invent arbitrary room geometry.
 
