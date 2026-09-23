@@ -1,0 +1,288 @@
+{
+  "project-id": "confirmed-studio-project-id",
+  "profile": "keyframe-continuity",
+  "inputs": [
+    {
+      "input-alias": "shot-01-end",
+      "role": "candidate",
+      "type": "image",
+      "source-url": "https://media.example.com/episode/shot-01-end.png",
+      "view": "wide"
+    },
+    {
+      "input-alias": "shot-02-start",
+      "role": "candidate",
+      "type": "image",
+      "source-url": "https://media.example.com/episode/shot-02-start.png",
+      "view": "three-quarter-right"
+    },
+    {
+      "input-alias": "shot-02-video",
+      "role": "candidate",
+      "type": "video",
+      "source-url": "https://media.example.com/episode/shot-02.mp4"
+    },
+    {
+      "input-alias": "expected-state",
+      "role": "expected-state",
+      "type": "text",
+      "source-url": "https://media.example.com/episode/shot-01-to-shot-02.expected.json"
+    }
+  ],
+  "shots": [
+    {
+      "id": "shot-01",
+      "description": "Wide master: Maya is frame-left; the door is background-left and the table is foreground-right."
+    },
+    {
+      "id": "shot-02",
+      "description": "Right over-shoulder: Maya remains on the established axis and keeps the red cup in her right hand."
+    }
+  ],
+  "keyframe-continuity": {
+    "frames": [
+      {
+        "id": "shot-01-end-frame",
+        "input-alias": "shot-01-end",
+        "shot-id": "shot-01",
+        "frame-index": 0,
+        "expected-state": {
+          "subject-position": "Maya is frame-left, left of the table",
+          "prop-position": "red cup is in Maya's right hand",
+          "screen-direction": "Maya travels left-to-right on the established axis",
+          "spatial-geography": "door is background-left; table is foreground-right",
+          "identity": "same Maya look and facial identity",
+          "pose": "right hand is raised toward the table",
+          "wardrobe": "blue jacket and silver watch",
+          "prop-state": "red cup remains in the right hand",
+          "palette": "cool blue room with a warm red-cup accent",
+          "lighting": "soft daylight from camera-left; exposure holds",
+          "camera": "wide master with the established eyeline",
+          "motion": "no flicker, geometry warp, ghosting, or frame jump"
+        }
+      },
+      {
+        "id": "shot-02-start-frame",
+        "input-alias": "shot-02-start",
+        "shot-id": "shot-02",
+        "frame-index": 0,
+        "expected-state": {
+          "subject-position": "Maya remains frame-left, left of the table",
+          "prop-position": "red cup remains in Maya's right hand",
+          "screen-direction": "Maya continues left-to-right on the established axis",
+          "spatial-geography": "door remains background-left; table remains foreground-right",
+          "identity": "same Maya look and facial identity",
+          "pose": "right hand remains raised toward the table",
+          "wardrobe": "blue jacket and silver watch remain unchanged",
+          "prop-state": "red cup remains in the right hand",
+          "palette": "cool blue room with a warm red-cup accent",
+          "lighting": "soft daylight from camera-left; exposure holds",
+          "camera": "right over-shoulder; preserve eyeline and geography",
+          "motion": "no flicker, geometry warp, ghosting, or frame jump"
+        }
+      }
+    ],
+    "relations": [
+      {
+        "id": "shot-01-to-shot-02",
+        "from": "shot-01-end-frame",
+        "to": "shot-02-start-frame",
+        "kind": "cut",
+        "intended-changes": [
+          "camera"
+        ]
+      }
+    ]
+  },
+  "shot-plan": {
+    "sequence": [
+      "shot-01",
+      "shot-02"
+    ],
+    "transitions": [
+      {
+        "id": "shot-01-to-shot-02",
+        "from": "shot-01",
+        "to": "shot-02",
+        "expectedState": {
+          "screenDirection": "Maya travels left-to-right; preserve the established axis",
+          "spatialGeography": "door is background-left; table is foreground-right",
+          "identity": "same Maya look and facial identity",
+          "pose": "right hand remains raised toward the table",
+          "wardrobe": "blue jacket and silver watch remain unchanged",
+          "propState": "red cup remains in the right hand",
+          "palette": "cool blue room with a warm red-cup accent",
+          "lighting": "soft daylight from camera-left; exposure holds",
+          "camera": "wide to right over-shoulder; preserve eyeline and geography",
+          "temporalArtifacts": "no flicker, geometry warp, ghosting, or frame jump"
+        },
+        "intentionalChanges": [
+          {
+            "kind": "editorial-cut",
+            "description": "wide shot cuts to an over-shoulder angle"
+          }
+        ]
+      }
+    ]
+  },
+  "prompt": "Review the ordered evidence from @shot-01-end to @shot-02-start and the candidate @shot-02-video against @expected-state. Localize every adjacent-transition finding; treat the declared editorial cut as intended, but gate accidental drift in geography, screen direction, identity, pose, wardrobe, prop state, palette, lighting, camera continuity, and temporal artifacts.",
+  "output-schema": {
+    "mode": "extend",
+    "namespace": "continuity-review",
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "MixioStrictContinuityResult",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review-verdict",
+        "worst-transition",
+        "blocking-findings",
+        "transitions"
+      ],
+      "properties": {
+        "review-verdict": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail",
+            "blocked"
+          ]
+        },
+        "worst-transition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "transition-id",
+            "transition-status"
+          ],
+          "properties": {
+            "transition-id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "transition-status": {
+              "type": "string",
+              "enum": [
+                "pass",
+                "fail",
+                "blocked",
+                "not-evaluated"
+              ]
+            },
+            "related-findings": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "blocking-findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/finding"
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "transition-id",
+              "transition-status",
+              "transition-findings"
+            ],
+            "properties": {
+              "transition-id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "from-shot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "to-shot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "transition-status": {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "fail",
+                  "blocked",
+                "not-evaluated"
+                ]
+              },
+              "transition-findings": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/finding"
+                }
+              }
+            }
+          }
+        }
+      },
+      "$defs": {
+        "finding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finding-id",
+            "transition-id",
+            "dimension",
+            "classification",
+            "blocking",
+            "message"
+          ],
+          "properties": {
+            "finding-id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "transition-id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dimension": {
+              "type": "string",
+              "minLength": 1
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "intended_change",
+                "accidental_drift",
+                "technical_artifact",
+                "unlocalized"
+              ]
+            },
+            "blocking": {
+              "type": "boolean"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  },
+  "threshold": 0.8,
+  "background": true,
+  "metadata": {
+    "episodeId": "confirmed-episode-id",
+    "sceneId": "confirmed-scene-id",
+    "shotIds": [
+      "shot-01",
+      "shot-02"
+    ],
+    "contract": "mixio-eval-modern-continuity-v1"
+  }
+}
