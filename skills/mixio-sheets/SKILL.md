@@ -24,7 +24,7 @@ Vocabulary: `mixio-pipeline/references/shot-grammar.md`.
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- A script from Step 01 — the cast and location lists come from its sluglines and CAPS tokens. It need not be locked: Step 01 loops back through this skill for every mention it could not resolve (`mixio-pipeline/references/screenplay-reference-loop.md`), so being called mid-draft against a partial cast list is normal, not a sign the previous step was skipped
+- A script from Step 01 — the cast and location lists come from its sluglines and CAPS tokens. Load the named approved `TEXT_ONLY` dispositions from `metadata.pipeline.screenplay_loop` and do not create sheets for those entries. The script need not be locked: Step 01 loops back through this skill for every reference-backed mention it could not resolve (`mixio-pipeline/references/screenplay-reference-loop.md`), so being called mid-draft against a partial cast list is normal, not a sign the previous step was skipped
 - `aspect_ratio` and `anchor_aspect_ratio` locked on the episode
 
 ## MCP tools used
@@ -49,8 +49,9 @@ Locations found — drop a reference image for each and tell me which is which.
   • INT/EXT. TONY'S FRONT DOOR — doorway, BENTLEY visible behind
 
 Reply like: TONY'S BEDROOM = [Image 1], FRONT DOOR = [Image 3]
-For any location without a reference, say "skip <location>" — it will be
-grounded in script text only and marked TEXT-ONLY.
+For any location without a reference, request an existing link, a supplied image,
+or explicit permission to generate one. If the user explicitly approves
+TEXT-ONLY, keep the location plain prose and do not author a # location token.
 ```
 
 Two supplied images may be two angles of one space. Say what you inferred and get it confirmed (`Both [Image 1] and [Image 2] = TONY'S APARTMENT — two angles`) rather than registering two locations that will drift apart.
@@ -187,7 +188,7 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
 
 - **`Depth & axes` is the field that prevents crossing the line.** Name the long axis and which direction each reference image looks along it, and left/right stays stable between a wide and a reverse.
 - Every element named here in CAPS becomes a prop-continuity token for Step 04.
-- No reference image → header gets `(TEXT-ONLY)`, unknown fields get `UNKNOWN`. Do not fill `Layout: UNKNOWN` with a plausible invention; the audit needs to know it is unverified.
+- An explicitly approved `TEXT_ONLY` location with no reference image → header gets `(TEXT-ONLY)` and unverified fields remain unfilled. Do not infer this from a missing image or invent a placeholder for `Layout`; the audit needs to know it is an approved unverified disposition.
 
 ### Persisting the sheet
 
@@ -228,7 +229,7 @@ One clause per character keeps the columns recoverable by the next audit pass, a
 
 ## Prop sheet
 
-Only for props that carry story weight or change hands — the ones prop-continuity checks track. A single clean image on neutral background, plus `propDetails`: `category` (enum: `handheld` | `furniture` | `vehicle` | `costume` | `weapon` | `food` | `technology` | `other`), `material`, `sizeScale`, `significance`, and `customAttributes`. Background dressing named in the location sheet does not need its own sheet.
+Only for props that carry story weight or change hands — the ones prop-continuity checks track. A single clean image on neutral background, plus `propDetails`: `category` (enum: `handheld` | `furniture` | `vehicle` | `costume` | `weapon` | `food` | `technology` | `other`), `material`, `sizeScale`, `significance`, and `customAttributes`. Set `workflow.status: "in_review"`, obtain user approval, then return the exact prop `mentionableLooks` token to Step 01 before closing the loop. Background dressing named in the location sheet does not need its own sheet only when it has a named approved `TEXT_ONLY` disposition.
 
 `sizeScale` is the prop's own scale label (`"fits one hand"`, `"waist height"`) and feeds the same scale-constraint path as a character's `scalingLabel` — set it for anything whose size a model could get wrong.
 
@@ -291,11 +292,12 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
 1. parse script → cast list + location list + story-critical props
 2. studio_get_project({ projectId })                → settings.references policy (createPolicy, variantPolicy, vocabulary)
 3. studio_list_references({ projectId })            → what already exists
-4. ask the user for reference images; confirm image→location mapping; note skips as TEXT-ONLY
+4. ask the user for reference images; confirm image→location mapping; record explicit user-approved `TEXT-ONLY` dispositions and load the approved incidental-prop dispositions
 5. studio_register_reference_entities({ projectId, references })   → upsert by name (respect createPolicy)
    studio_update_element({ projectId, elementId: referenceId, updates: { metadata: { aliases } } }) → record script-name aliases
 6. per character: render turnaround → studio_update_reference({ projectId, referenceId, attachments, characterDetails })
    per location:  write the 6-field sheet → studio_update_reference({ projectId, referenceId, locationDetails, referenceVariants })
+   per story-critical prop: render or attach supplied prop sheet → studio_update_reference({ projectId, referenceId, propDetails, attachments/referenceVariants, workflow: { status: "in_review" } }) → approve → return exact token to Step 01
    → this is the Reference Enrichment phase — Step 02.5 gates on visualAnchor/setting/lighting before Step 03
 7. per scene: render anchor at anchor_aspect_ratio with location_ref + character_ref
    (pick the location variant matching the scene's timeOfDay)
@@ -306,7 +308,7 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
 ## Notes
 
 - Sheets are the cheapest place to fix a look. Re-rendering one sheet is one job; re-rendering the 12 shots that referenced a wrong sheet is twelve.
-- A sheet rendered to satisfy an unresolved screenplay mention isn't finished when the image is attached — the new look's exact `mentionableLooks` token has to go back into the screenplay body and be re-upserted, or the mention that triggered the render still resolves to nothing. Hand the token back to Step 01; see `mixio-pipeline/references/screenplay-reference-loop.md`.
+- A sheet rendered to satisfy an unresolved screenplay mention isn't finished when the image is attached — the new look's exact `mentionableLooks` token has to go back into the screenplay body and be re-upserted, and the reference must reach `workflow.status: "approved"`. Hand the token back to Step 01; see `mixio-pipeline/references/screenplay-reference-loop.md`.
 - Wrong images already attached? Fix with `referenceVariants` (replaces), not `attachments` (merges) — and never with `thumbnailUrl`, which only changes the card preview. See `mixio-references`.
 - External URLs (Drive, Dropbox, third-party CDNs) frequently fail through `studio_upload_media_from_url` with `No files were uploaded`. Use the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts), then `upload_file({ path: asset_path, project_id, organization_id })` and update the reference/slot with `entry.publicUrl`.
 - Set `workflow.status` honestly (`draft` → `in_review` → `approved`). Downstream steps should treat a non-approved sheet as provisional.

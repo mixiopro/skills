@@ -169,6 +169,10 @@ Two results that read as success and are not. A bare `#maya` returns `resolved: 
 
 Registering a name with `studio_register_reference_entities` and no image produces **no mentionable look at all** — `mentionableLooks` is derived from the reference's variants, and a reference with no variant, no attachment and no legacy look returns an empty array. The mention starts resolving once a look is attached, not once the name exists. Where images arrived as flat `attachments` rather than named variants, the derived variant is named after the reference itself, so its mention is the doubled-looking `#maya.maya` — copy it as returned rather than "correcting" it.
 
+### Approval before closing a screenplay loop
+
+Registering or enriching a reference starts it as provisional (`workflow.status: "draft"` or `"in_review"`). The user must review newly created references, variants, and sheets and move each one to `workflow.status: "approved"` before Step 01 closes. A resolved mention is not sufficient while its backing look is still provisional. This reference approval gate is separate from the screenplay's draft write and the human Screenplay approval performed in Studio.
+
 ## Getting images onto a reference — the reliable path
 
 **Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. Run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts) in `mixio-workspace`; it permits only public HTTPS redirects, bounds the download, validates MIME type, derives the extension, and removes its unique temporary directory.

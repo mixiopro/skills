@@ -201,7 +201,20 @@ const canonicalFieldFailures = persistedShots.flatMap(shot =>
     .map(field => `${shot.id}:${field}`)
 )
 
+const episode = await studio_get_episode({ episodeId })
 const validReferenceIds = new Set(allReferences.map(item => item.id))
+const approvedTextOnly = new Set(
+  (episode.metadata?.pipeline?.screenplay_loop?.dispositions ?? [])
+    .filter(item => typeof item?.name === "string"
+      && item.name.trim() !== ""
+      && item?.mode === "TEXT_ONLY"
+      && item?.status === "approved"
+      && typeof item?.reason === "string"
+      && item.reason.trim() !== ""
+      && ((item.type === "LOCATION" && item.classification === "LOCATION_TEXT_ONLY")
+        || (item.type === "PROP" && item.classification === "INCIDENTAL_SET_DRESSING")))
+    .map(item => keyFor({ type: item.type, name: item.name }))
+)
 const linkSpecs = [
   ["CHARACTER", "character_links", "linked_character_ids"],
   ["LOCATION", "location_links", "linked_location_ids"],
@@ -211,6 +224,7 @@ const graphFailures = persistedShots.flatMap(shot => linkSpecs.flatMap(([type, n
   const names = Array.isArray(shot.metadata?.[namesKey]) ? shot.metadata[namesKey] : []
   const ids = Array.isArray(shot.metadata?.[idsKey]) ? shot.metadata[idsKey] : []
   const nameFailures = names.flatMap(name => {
+    if (approvedTextOnly.has(keyFor({ type, name }))) return []
     const expectedId = referenceIdByName.get(keyFor({ type, name }))
     return expectedId && ids.includes(expectedId) ? [] : [`${shot.id}:${namesKey}:${name}`]
   })
