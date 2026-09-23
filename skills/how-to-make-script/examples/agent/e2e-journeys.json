@@ -1,0 +1,226 @@
+[
+  {
+    "id": "e2e.narrative-film",
+    "name": "Feature Film Ideation to Scene Draft",
+    "description": "End-to-end creation chain: raw idea -> premise -> character -> outline -> scene draft",
+    "steps": [
+      {
+        "step": 1,
+        "query": "我有一个关于退役消防员重返火场的想法",
+        "expected_route": {
+          "intent": "discover",
+          "medium": "feature_film",
+          "stage": "ideation",
+          "output": "premise",
+          "skill_id": "skill.idea-discovery",
+          "protocol_id": "wp.idea-discovery",
+          "rubric_id": "rb.logline"
+        },
+        "handoff": {
+          "locked_facts": ["protagonist = retired firefighter", "core pressure = return to fire"],
+          "open_questions": ["specific stakes", "genre"]
+        }
+      },
+      {
+        "step": 2,
+        "query": "基于上一步的 premise，帮我把核心冲突做清晰",
+        "expected_route": {
+          "intent": "design",
+          "medium": "feature_film",
+          "stage": "premise",
+          "output": "logline",
+          "skill_id": "skill.logline-premise",
+          "protocol_id": "wp.logline-premise",
+          "rubric_id": "rb.logline"
+        },
+        "handoff": {
+          "locked_facts": ["logline with clear conflict"],
+          "open_questions": ["character flaw"]
+        }
+      },
+      {
+        "step": 3,
+        "query": "设计主角的内心裂痕和外部压力",
+        "expected_route": {
+          "intent": "design",
+          "medium": "feature_film",
+          "stage": "character",
+          "output": "synopsis",
+          "skill_id": "skill.character-world",
+          "protocol_id": "wp.character-world",
+          "rubric_id": "rb.character-world"
+        },
+        "handoff": {
+          "locked_facts": ["character arc", "world rules"],
+          "open_questions": ["structure"]
+        }
+      },
+      {
+        "step": 4,
+        "query": "做成 beat sheet",
+        "expected_route": {
+          "intent": "design",
+          "medium": "feature_film",
+          "stage": "structure",
+          "output": "beat_sheet",
+          "skill_id": "skill.structure-beat",
+          "protocol_id": "wp.structure-beat-outline",
+          "rubric_id": "rb.outline"
+        },
+        "handoff": {
+          "locked_facts": ["beat escalation pattern", "ending closure"],
+          "open_questions": ["specific scenes"]
+        }
+      },
+      {
+        "step": 5,
+        "query": "写主角重返火场那场戏",
+        "expected_route": {
+          "intent": "draft",
+          "medium": "feature_film",
+          "stage": "scene",
+          "output": "scene_draft",
+          "skill_id": "skill.scene-writing",
+          "protocol_id": "wp.scene-writing",
+          "rubric_id": "rb.scene-draft"
+        },
+        "handoff": {
+          "locked_facts": ["scene function", "conflict", "change point"],
+          "open_questions": []
+        }
+      }
+    ],
+    "key_checks": [
+      "each step should carry forward locked facts from previous step",
+      "no information should be lost between protocol transitions",
+      "final scene_draft should be traceable to the original premise"
+    ]
+  },
+  {
+    "id": "e2e.commercial-video",
+    "name": "Short Video Commercial Brief to Script",
+    "description": "End-to-end commercial chain: idea -> audience fit -> commercial script",
+    "steps": [
+      {
+        "step": 1,
+        "query": "帮我把这款跑鞋的卖点收束成一个广告 premise",
+        "expected_route": {
+          "intent": "discover",
+          "medium": "commercial",
+          "stage": "ideation",
+          "output": "premise",
+          "skill_id": "skill.idea-discovery",
+          "protocol_id": "wp.idea-discovery",
+          "rubric_id": "rb.logline"
+        },
+        "handoff": {
+          "locked_facts": ["product = running shoes", "core message"],
+          "open_questions": ["target audience", "platform"]
+        }
+      },
+      {
+        "step": 2,
+        "query": "先判断一下这个 premise 对都市年轻跑者是否成立",
+        "expected_route": {
+          "intent": "design",
+          "medium": "shortform_video",
+          "stage": "premise",
+          "output": "audience_fit_note",
+          "skill_id": "skill.audience-insight",
+          "protocol_id": "wp.audience-fit-note",
+          "rubric_id": "rb.audience-fit"
+        },
+        "handoff": {
+          "locked_facts": ["audience = urban young runners", "need state"],
+          "open_questions": ["script"]
+        }
+      },
+      {
+        "step": 3,
+        "query": "基于 audience fit 写 15 秒抖音脚本",
+        "expected_route": {
+          "intent": "draft",
+          "medium": "shortform_video",
+          "stage": "scene",
+          "output": "commercial_script",
+          "skill_id": "skill.commercial-script",
+          "protocol_id": "wp.commercial-script",
+          "rubric_id": "rb.commercial-script"
+        },
+        "handoff": {
+          "locked_facts": ["single message", "hook timing", "cta"],
+          "open_questions": []
+        }
+      }
+    ],
+    "key_checks": [
+      "audience fit should inform script tone",
+      "commercial script should reflect audience need state",
+      "handoff between insight and script should preserve audience constraints"
+    ]
+  },
+  {
+    "id": "e2e.medium-change-interactive",
+    "name": "Feature Film to Interactive Game Medium Change",
+    "description": "Cross-medium chain: wuxia idea -> outline -> adapt to interactive game with branch map",
+    "steps": [
+      {
+        "step": 1,
+        "query": "我想写一个武侠故事，主角是一个被逐出师门的剑客",
+        "expected_route": {
+          "intent": "discover",
+          "medium": "feature_film",
+          "stage": "ideation",
+          "output": "premise",
+          "skill_id": "skill.idea-discovery",
+          "protocol_id": "wp.idea-discovery",
+          "rubric_id": "rb.logline"
+        },
+        "handoff": {
+          "locked_facts": ["genre = wuxia", "protagonist = exiled swordsman"],
+          "open_questions": ["specific stakes", "antagonist"]
+        }
+      },
+      {
+        "step": 2,
+        "query": "帮我写大纲",
+        "expected_route": {
+          "intent": "design",
+          "medium": "feature_film",
+          "stage": "outline",
+          "output": "outline",
+          "skill_id": "skill.structure-beat",
+          "protocol_id": "wp.structure-beat-outline",
+          "rubric_id": "rb.outline"
+        },
+        "handoff": {
+          "locked_facts": ["wuxia outline", "scene sequence", "emotional arc"],
+          "open_questions": ["interactive design viability"]
+        }
+      },
+      {
+        "step": 3,
+        "query": "改成互动游戏吧，帮我设计分支图",
+        "expected_route": {
+          "intent": "adapt",
+          "medium": "game_narrative",
+          "stage": "adaptation",
+          "output": "interactive_branch_map",
+          "skill_id": "skill.genre-adaptation",
+          "protocol_id": "wp.genre-adaptation",
+          "rubric_id": "rb.adaptation"
+        },
+        "handoff": {
+          "locked_facts": ["wuxia world", "exiled swordsman arc", "branching decision points"],
+          "open_questions": ["player agency model"]
+        }
+      }
+    ],
+    "key_checks": [
+      "medium change (feature_film -> game_narrative) should trigger route upgrade per routing-policy",
+      "character and world state should be preserved across medium change",
+      "protocol should handle the adaptation-specific output (interactive_branch_map)",
+      "step 3 should use the now-fixed wp.genre-adaptation protocol which lists interactive_branch_map in output_contract"
+    ]
+  }
+]

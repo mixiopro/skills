@@ -1,0 +1,56 @@
+---
+{
+  "id": "wp.pattern-reference-pack",
+  "type": "workflow_protocol",
+  "title": "范式参考包协议",
+  "goal": "针对一个明确的剧本创作问题，返回一份 pattern_reference_pack，给出场景分类、强样本、失败对照、成功/失败机制解释和非教条使用说明。",
+  "input_contract": [
+    "creative problem",
+    "medium",
+    "stage",
+    "constraints",
+    "none"
+  ],
+  "output_contract": [
+    "pattern_reference_pack"
+  ],
+  "preconditions": [
+    "用户需要参考范式、成功样本、失败对照或比较性教学",
+    "至少可以锁定一个创作问题、媒介或阶段"
+  ],
+  "steps": [
+    "先用场景分类法锁定当前问题属于哪类创作场景，而不是直接给样本。",
+    "选择最相关的成功范式样本，并明确该样本主要解决的创作问题。",
+    "给出一个失败或较弱的对照写法，确保差异不是只停留在风格喜好层。",
+    "解释为什么强样本更有效、弱样本为什么失效，并写出适用条件与失效边界。",
+    "补一段 non-dogma note，说明这只是高概率参考而不是唯一范式。"
+  ],
+  "fallbacks": [
+    "若用户问题过宽，先压缩成一个最小创作问题再给参考包。",
+    "若没有单一最佳范式，应返回 2-3 个同级参考方向，而不是伪装成单一答案。"
+  ],
+  "stop_conditions": [
+    "成功样本、失败对照和差异解释同时存在",
+    "至少写明一个适用条件和一个失效边界",
+    "明确声明样本是参考而非唯一模板"
+  ],
+  "rubrics": [
+    "rb.pattern-reference-pack"
+  ],
+  "linked_atoms": [
+    "ka.creative-pluralism",
+    "ka.cross-protocol-referral-edges",
+    "ka.false-universal-warning",
+    "ka.reference-pattern-usage",
+    "ka.scenario-factorization"
+  ],
+  "budget_class": "M",
+  "mandatory_atom_count": 5,
+  "expansion_allowed": true
+}
+---
+# 范式参考包协议
+
+这个协议不是为了把仓库变成”最佳片段大全”，而是为了让范式参考变成一种可控的教学输出。重点不是”给你看一个好例子”，而是”让你看懂它为什么在这个问题上更强”。
+
+真正好的 reference pack 一定要带失败对照。因为没有对照，成功很容易被误解成纯天赋、纯风格，或者更糟——“只要长得像这样就对了”。对照一出来，创作判断点才会变清楚。

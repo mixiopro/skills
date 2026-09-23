@@ -204,6 +204,7 @@ AGENTS_SKILLS_DIR="$AGENTS_DIR/skills"
 AGENTS_MD_PATH="$AGENTS_DIR/AGENTS.md"
 
 REPO_URL="https://github.com/mixiopro/skills.git"
+SCREENPLAY_SKILL_NAME="how-to-make-script"
 
 # Step 1: Pre-flight checks
 info "Checking environment and prerequisites..."
@@ -388,8 +389,8 @@ register_agent_skills() {
     mkdir -p "$agent_skills_dir"
     local count=0
 
-    # Clean obsolete mixio-* skills from agent dir
-    for existing in "$agent_skills_dir"/mixio-*; do
+    # Clean obsolete Mixio and screenplay skills from agent dir
+    for existing in "$agent_skills_dir"/mixio-* "$agent_skills_dir/$SCREENPLAY_SKILL_NAME"; do
         if [ -e "$existing" ] || [ -L "$existing" ]; then
             local existing_name="$(basename "$existing")"
             if [ ! -d "$MIXIO_SKILLS_DIR/$existing_name" ]; then
@@ -398,7 +399,7 @@ register_agent_skills() {
         fi
     done
 
-    for skill_path in "$MIXIO_SKILLS_DIR"/mixio-*; do
+    for skill_path in "$MIXIO_SKILLS_DIR"/mixio-* "$MIXIO_SKILLS_DIR/$SCREENPLAY_SKILL_NAME"; do
         if [ -d "$skill_path" ] && [ -f "$skill_path/SKILL.md" ]; then
             local skill_name
             skill_name="$(basename "$skill_path")"

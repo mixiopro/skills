@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](./VERSION)
-[![Skills](https://img.shields.io/badge/skills-12-blueviolet.svg)](#skills)
+[![Skills](https://img.shields.io/badge/skills-13-blueviolet.svg)](#skills)
 
 AI agent skills for media generation, workspace management, and creative workflows via [Mixio Studio](https://mixio.pro). Works with Claude Code, Cursor, Codex, and other AI coding agents that load Markdown-based skills.
 
@@ -40,7 +40,7 @@ Useful flags: `-y` skips the scope prompt, `-g` forces a global install, `-a <ag
 
 **To update, re-run `add`** — it overwrites in place and picks up skills added since your last install.
 
-This copies **skill directories only** — each folder under `skills/` that contains a `SKILL.md`, along with its `references/` and any scripts. Repo-root files are not copied, so [`AGENTS.md`](./AGENTS.md) and the MCP config below do not come with it. Clone the repo (see [Manual](#manual-any-agent)) if you want the repo-level guidance too.
+This copies **skill directories only** — each folder under `skills/` that contains a `SKILL.md`, recursively with its supporting files. That includes the Mixio-owned `how-to-make-script` root skill and its nested screenplay routes. Repo-root files are not copied, so [`AGENTS.md`](./AGENTS.md) and the MCP config below do not come with it. Clone the repo (see [Manual](#manual-any-agent)) if you want the repo-level guidance too.
 
 Then configure the MCP server (see [Manual](#manual-any-agent) below) — the skills are documentation and cannot call anything without it.
 
@@ -96,6 +96,18 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 | [`mixio-workspace`](./skills/mixio-workspace) | `/mixio:workspace` | Upload local files to Mixio Studio, get permanent public URLs, manage cached assets. SHA-256 deduplication. |
 | [`mixio-eval`](./skills/mixio-eval) | `/mixio:eval` | Run visual continuity / consistency evaluation jobs on generated or uploaded media before delivery. |
 
+**Screenplay development bridge** — what to call before production:
+
+| Skill | Invoke | Description |
+|-------|--------|-------------|
+| [`mixio-screenwriting`](./skills/mixio-screenwriting) | `/mixio:screenwriting` | Story development bridge to the Mixio-owned `how-to-make-script` screenplay system. |
+
+**Owned screenplay system** — installed alongside the Mixio skills:
+
+| Skill | Invoke | Description |
+|-------|--------|-------------|
+| [`how-to-make-script`](./skills/how-to-make-script) | root router | Mixio-owned screenplay router, eight requested writing routes, shared protocols, rubrics, knowledge, schemas, examples, and provenance. |
+
 **Production skills** — what order, what schema, what gate:
 
 | Skill | Invoke | Description |
@@ -112,6 +124,8 @@ Tool skills are reference docs for the MCP surface and are safe to use standalon
 ## Typical Workflow
 
 Running a full episode — `/mixio:pipeline` drives this, gating on user confirmation between steps:
+
+Optional pre-production: use `/mixio:screenwriting` and the owned `how-to-make-script` routes for idea discovery, premise, character/world, structure, scene/dialogue, rewrite diagnosis, and screenplay quality gating. Hand off the resulting screenplay package before Step 00/01.
 
 ```
 Step 00  Preflight           → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,

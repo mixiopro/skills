@@ -1,0 +1,51 @@
+{
+  "id": "skill.rewrite-doctor",
+  "name": "rewrite-doctor",
+  "description": "Diagnose screenplay problems and prioritize rewrite actions by leverage.",
+  "entrypoint": "skills/rewrite-doctor/SKILL.md",
+  "supports": {
+    "intents": [
+      "diagnose",
+      "polish"
+    ],
+    "mediums": [
+      "feature_film",
+      "episodic",
+      "short_drama",
+      "animation"
+    ],
+    "stages": [
+      "rewrite"
+    ],
+    "outputs": [
+      "rewrite_report"
+    ]
+  },
+  "protocol_id": "wp.rewrite-doctor",
+  "rubric_ids": [
+    "rb.rewrite-report"
+  ],
+  "default_loading_mode": "focus_pack",
+  "linked_atoms": [
+    "ka.causality-chain",
+    "ka.cross-protocol-referral-edges",
+    "ka.dialogue-subtext",
+    "ka.dual-track-rhythm",
+    "ka.feedback-subjectivity-management",
+    "ka.pacing-rhythm",
+    "ka.rewrite-diagnosis",
+    "ka.scene-function",
+    "ka.setup-and-payoff",
+    "ka.act-two-diagnosis",
+    "ka.weak-opening-diagnosis"
+  ],
+  "adjunct_bundles": {
+    "subtractive-pass": {
+      "trigger": "overwriting_detected",
+      "mode": "smallest_adjunct",
+      "protocol_id": "wp.subtractive-pass"
+    }
+  },
+  "fallback_to_skill_id": null,
+  "fallback_behavior": "Report uncertainty and return only the highest-confidence risks if the sample is too small."
+}

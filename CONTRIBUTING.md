@@ -46,3 +46,24 @@ grep -rn "old_tool_name" --include="*.md" .
 ```
 
 This is how a stale `tools_search`/`tools_describe` example survived a real rename once already (PR #9 vs #12) — the rename PR touched the skill files; the root docs mentioning the same tools were a separate, unrelated PR that had already been opened before the rename landed and didn't get re-checked against it.
+
+## Run the repository checks locally
+
+Run these before opening a PR:
+
+```bash
+bash scripts/check-skill-count.sh
+bash scripts/check-screenplay-integration.sh
+bash scripts/check-npx-install.sh
+
+(cd skills/how-to-make-script && \
+  python3 scripts/check_links.py . && \
+  python3 scripts/validate_assets.py . && \
+  python3 scripts/check_routes.py . && \
+  python3 scripts/check_loading_budget.py . && \
+  python3 -m pytest -q tests)
+```
+
+The npx check uses `skills@1.7.0` by default, scans both the package root and
+the nested screenplay routes, and installs into a temporary home so it cannot
+overwrite the developer's agent skills.

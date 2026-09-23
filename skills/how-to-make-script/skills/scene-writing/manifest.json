@@ -1,0 +1,64 @@
+{
+  "id": "skill.scene-writing",
+  "name": "scene-writing",
+  "description": "Draft or design scenes with clear function, conflict, and change.",
+  "entrypoint": "skills/scene-writing/SKILL.md",
+  "supports": {
+    "intents": [
+      "draft"
+    ],
+    "mediums": [
+      "feature_film",
+      "episodic",
+      "short_drama",
+      "animation"
+    ],
+    "stages": [
+      "scene"
+    ],
+    "outputs": [
+      "scene_card",
+      "scene_draft",
+      "screenplay_draft"
+    ]
+  },
+  "protocol_id": "wp.scene-writing",
+  "rubric_ids": [
+    "rb.scene-draft",
+    "rb.screenplay-draft",
+    "rb.subtractive-pass"
+  ],
+  "linked_atoms": [
+    "ka.character-voice-consistency",
+    "ka.cinematic-prose-register",
+    "ka.collision-prompts",
+    "ka.conflict-pressure",
+    "ka.cross-protocol-referral-edges",
+    "ka.embodied-text-pressure",
+    "ka.exposition-control",
+    "ka.medium-animation",
+    "ka.reactive-comedy-loop",
+    "ka.scene-function",
+    "ka.setup-and-payoff",
+    "ka.verbal-rhythm"
+  ],
+  "fallback_behavior": "Merge, delete, or redesign the scene if it does not change the situation, or rebuild the beat carriers if the draft slips into bare dialogue or writerly prose.",
+  "default_loading_mode": "focus_pack",
+  "adjunct_bundles": {
+    "expression-lens": {
+      "trigger": "voice_target",
+      "mode": "smallest_adjunct"
+    },
+    "emergence-conditioner": {
+      "trigger": "creative_emergence",
+      "mode": "smallest_adjunct",
+      "protocol_id": "wp.emergence-conditioner"
+    },
+    "iterative-draft-pipeline": {
+      "trigger": "iterative_refinement",
+      "mode": "smallest_adjunct",
+      "protocol_id": "wp.iterative-draft-pipeline"
+    }
+  },
+  "fallback_to_skill_id": null
+}

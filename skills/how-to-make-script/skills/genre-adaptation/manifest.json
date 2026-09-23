@@ -1,0 +1,61 @@
+{
+  "id": "skill.genre-adaptation",
+  "name": "genre-adaptation",
+  "description": "Retune a story engine for a target genre or medium without breaking the core.",
+  "entrypoint": "skills/genre-adaptation/SKILL.md",
+  "supports": {
+    "intents": [
+      "adapt"
+    ],
+    "mediums": [
+      "feature_film",
+      "episodic",
+      "short_drama",
+      "animation",
+      "commercial",
+      "branded_film",
+      "shortform_video",
+      "game_narrative",
+      "branching_interactive"
+    ],
+    "stages": [
+      "adaptation"
+    ],
+    "outputs": [
+      "premise",
+      "treatment",
+      "outline",
+      "scene_draft",
+      "interactive_branch_map"
+    ]
+  },
+  "protocol_id": "wp.genre-adaptation",
+  "rubric_ids": [
+    "rb.adaptation"
+  ],
+  "linked_atoms": [
+    "ka.cross-protocol-referral-edges",
+    "ka.genre-action",
+    "ka.genre-comedy",
+    "ka.genre-family",
+    "ka.genre-horror",
+    "ka.genre-pack-factorization",
+    "ka.genre-romance",
+    "ka.genre-satire",
+    "ka.genre-thriller",
+    "ka.genre-suspense",
+    "ka.genre-wuxia",
+    "ka.medium-branching-interactive",
+    "ka.medium-commercial",
+    "ka.medium-feature-film"
+  ],
+  "fallback_behavior": "Reduce adaptation scope and preserve the core conflict first if the target promise breaks the engine.",
+  "default_loading_mode": "focus_pack",
+  "adjunct_bundles": {
+    "expression-lens": {
+      "trigger": "ip_continuity",
+      "mode": "smallest_adjunct"
+    }
+  },
+  "fallback_to_skill_id": null
+}
