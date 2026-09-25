@@ -92,6 +92,17 @@ Render spec:
 - **Wardrobe**: the character's default costume. One sheet per costume — see variants below.
 - **Aspect ratio**: always `16:9`; the approved contact-sheet template requires this horizontal canvas.
 
+### Character-sheet visual gate
+
+Do not approve a sheet because one panel looks plausible. Inspect every view
+for facial identity drift, warped eyes or teeth, extra/fused fingers, duplicated
+limbs, impossible joints, hallucinated accessories, wardrobe/color changes,
+and unexplained silhouette changes. Hidden anatomy is `unobservable`, not
+implicitly approved. A failed panel blocks the sheet; it must be regenerated
+or replaced rather than averaged away. Run the modern `image-character`
+evaluation with ordered aliases and `reference-coverage.subject-kind=character`
+for a multi-view sheet, retaining the receipt with the reference asset.
+
 Then persist the structured identity alongside it — one schema owns these fields for every surface. Write it like this:
 
 ```
@@ -186,6 +197,16 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
 ```
 
 - **`Depth & axes` is the field that prevents crossing the line.** Name the long axis and which direction each reference image looks along it, and left/right stays stable between a wide and a reverse.
+- Add an orientation record for every attached view: `view`,
+  `camera-position`, `facing-direction`, `screen-left-world`,
+  `screen-right-world`, and visible `landmarks`. `world-left/right` stays
+  fixed; camera-left/right changes when the camera reverses. A top, bottom,
+  overhead, underslung, reverse, or detail view is conditional on the shot
+  plan, not a mandatory checklist for every location.
+- Derive `required-views` from planned camera zones and include an
+  opposite-axis/reverse view whenever the episode crosses or approaches the
+  established line. Pass this orientation record to `image-location` before
+  approving the location.
 - Every element named here in CAPS becomes a prop-continuity token for Step 04.
 - No reference image → header gets `(TEXT-ONLY)`, unknown fields get `UNKNOWN`. Do not fill `Layout: UNKNOWN` with a plausible invention; the audit needs to know it is unverified.
 

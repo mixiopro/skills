@@ -118,6 +118,35 @@ contract or client requires the explicit forms; do not request streaming.
 The complete deterministic request example is
 [references/modern-evaluation-request.example.json](references/modern-evaluation-request.example.json).
 
+## Reference-pack readiness
+
+Use `image-character` for a character turnaround or wardrobe sheet. Treat face
+identity, anatomy, hands/limbs, wardrobe/accessories, and generation artifacts
+as required quality gates; a clean aggregate score must not hide a deformed
+face, extra limb, fused hand, or unexplained costume change. For a multi-view
+sheet, pass the views as ordered image inputs and include the
+`reference-coverage` context.
+
+Use `image-location` for a location reference pack. It requires at least two
+image views, a `location-reference` anchor, and explicit coverage metadata.
+Record each view's camera position, facing direction, visible landmarks, and
+world-to-screen mapping. Add `shot-zones` when the shot plan needs a reverse,
+overhead, underslung, top, bottom, or detail view. Do not generate every angle
+by habit: required views come from the planned camera zones.
+
+Keep these coordinate systems distinct: `world-left`/`world-right` are fixed
+to the location; `camera-left`/`camera-right` may reverse; `character-left`/
+`character-right` are anatomical; and `screen-left`/`screen-right` belong to
+one shot. A reverse angle is not a defect by itself. A landmark crossing the
+declared axis, or changing color/shape between adjacent views without an
+intended change, is.
+
+The coverage context is trusted evaluator input, not free-form prompt prose.
+Missing required aliases, unbound views, or unsupported location geometry fail
+the readiness gate rather than being filled in by model inference.
+See [references/reference-readiness-request.example.json](references/reference-readiness-request.example.json)
+for a complete location-pack request.
+
 The example also requests an explicit `output-schema` wrapper for a structured
 continuity extension: `review-verdict`, `worst-transition`,
 `blocking-findings`, and per-transition `transitions` containing localized
@@ -228,6 +257,8 @@ single request.
 
 | Profile | Use as the primary lens for | Not a substitute for |
 | --- | --- | --- |
+| `image-character` | Character turnarounds and candidate sheets, including deformation, face, hands, wardrobe, and identity checks. | A rendered video-character or final delivery review. |
+| `image-location` | Location packs with world-axis, landmark, orientation, lighting, palette, and artifact checks. | The shot-level keyframe continuity gate. |
 | `keyframe-continuity` | Strict ordered keyframe evidence and adjacent-transition gating with expected state. | A general storyboard review or final delivery QC. |
 | `sequence-storyboard` | General storyboard/keyframe visual review and sequence context. | The strict adjacent-transition gate or final delivery QC. |
 | `video-multi-shot` | A rendered multi-shot candidate, cuts, and cross-angle geography. | Character-only review. |

@@ -42,7 +42,25 @@ Completeness — 12 references checked
   ❌ HALLWAY DOORWAY — MISSING_REF (mentioned 4× in script)
 ```
 
-### 2. Consistency — name/description vs image alignment
+### 2. Visual reference readiness — sheet integrity and coverage
+
+For each character sheet, inspect every attached view—not only the primary
+thumbnail—for identity drift, face deformation, extra/fused hands or limbs,
+warped joints, hallucinated accessories, wardrobe/color changes, and
+unexplained silhouette changes. Mark hidden regions unobservable. Any
+confirmed deformation, hallucinated body part, or unexplained identity or
+wardrobe break is **BLOCKING** and routes to `image-character`; it cannot be
+waived by a strong average score.
+
+For each location, compare `depthAxes`, landmarks, and every attached
+orientation record. Require the views needed by actual shot camera zones,
+including a reverse/opposite-axis view where the shot plan crosses the line.
+Validate world-left/right separately from camera-left/right and
+screen-left/right. Missing required coverage or a misbound view is
+**BLOCKING**; unneeded top/bottom/overhead/underslung/detail views are not
+failures.
+
+### 3. Consistency — name/description vs image alignment
 
 For each reference that has both structured details and at least one image, check for contradictions:
 
@@ -57,7 +75,7 @@ This check is **advisory, not blocking** — it requires visual interpretation w
 
 Implementation: if the agent has vision capabilities, describe the primary image and compare against `characterDetails.build`, `.age`, `.hair`, `.skin`, `.distinctiveFeatures`. If no vision, skip this category and note `Consistency checks skipped — no vision capability available`.
 
-### 3. Duplicates — fuzzy matching across the roster
+### 4. Duplicates — fuzzy matching across the roster
 
 | Finding | Meaning |
 |---------|---------|
@@ -76,7 +94,7 @@ Resolution plan:
 - Merge duplicates: identify the canonical name and the alias to preserve; hand the plan to `/mixio:pipeline` Phase 2 or `mixio-references`, which reads `settings.references` before any update.
 - Convert variant-as-ref: identify the parent reference and its candidate look; hand the plan to `mixio-references` for a policy-safe migration. Do not delete a reference from this audit.
 
-### 4. Metadata quality — structured detail completeness
+### 5. Metadata quality — structured detail completeness
 
 For each reference type, check the fields that downstream steps depend on:
 
@@ -112,7 +130,7 @@ Metadata quality — 12 references
   ✅ POPPY (CHARACTER): all HIGH/MEDIUM fields present
 ```
 
-### 5. Policy compliance
+### 6. Policy compliance
 
 Read `projects.settings.references` from `studio_get_project` and verify:
 
@@ -124,7 +142,7 @@ Read `projects.settings.references` from `studio_get_project` and verify:
 
 This category is informational when the project has no policy set (the defaults are permissive).
 
-### 6. Look-binding integrity — bound looks resolve to a real variant
+### 7. Look-binding integrity — bound looks resolve to a real variant
 
 A shot or scene can bind a reference's look via `lookRef` on its `appears_in`/`presence` relation (`mixio-script-breakdown`). That binding degrades silently to the reference's default variant when it doesn't resolve — no error, no visible sign in the UI — so this is the one check that catches a wrong render before it happens rather than after.
 
@@ -187,6 +205,8 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 - Any HIGH-severity metadata gap on a location appearing in ≥1 scene — `setting` and `lighting` are required to render the scene's anchor frame without guessing
 - Any `GENDER_MISMATCH` confirmed by both text and vision (not advisory-only)
 - Any `STALE_LOOK_REF` — it renders the wrong look silently, with nothing in the UI to catch it before delivery
+- Any confirmed character-sheet deformation, hallucinated anatomy, identity drift, or unexplained wardrobe/accessory/color break
+- Any missing or misbound location view required by a declared shot camera zone
 
 Everything else is advisory. The user may say "proceed anyway" — record that decision in metadata so a later session knows it was acknowledged, not missed.
 

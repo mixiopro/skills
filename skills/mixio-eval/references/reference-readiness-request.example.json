@@ -1,0 +1,62 @@
+{
+  "project-id": "project-example",
+  "profile": "image-location",
+  "inputs": [
+    {
+      "input-alias": "location-front",
+      "role": "candidate",
+      "type": "image",
+      "view": "front",
+      "source-url": "https://example.com/location-front.png"
+    },
+    {
+      "input-alias": "location-reverse",
+      "role": "candidate",
+      "type": "image",
+      "view": "reverse",
+      "source-url": "https://example.com/location-reverse.png"
+    },
+    {
+      "input-alias": "location-anchor",
+      "role": "reference",
+      "type": "location-reference",
+      "source-url": "https://example.com/location-anchor.png"
+    }
+  ],
+  "reference-coverage": {
+    "subject-kind": "location",
+    "required-views": ["location-front", "location-reverse"],
+    "views": [
+      {
+        "input-alias": "location-front",
+        "view": "front",
+        "camera-position": "door-wall",
+        "facing-direction": "toward-window-wall",
+        "screen-left-world": "window-wall",
+        "screen-right-world": "staircase",
+        "landmarks": ["door", "window", "table"]
+      },
+      {
+        "input-alias": "location-reverse",
+        "view": "reverse",
+        "camera-position": "window-wall",
+        "facing-direction": "toward-door-wall",
+        "screen-left-world": "staircase",
+        "screen-right-world": "window-wall",
+        "landmarks": ["door", "window", "table"]
+      }
+    ],
+    "coordinate-system": {
+      "origin": "scene-anchor",
+      "up": "world-up",
+      "primary-axis": { "from": "door-wall", "to": "window-wall" }
+    },
+    "shot-zones": [
+      { "shot-id": "shot-01", "view": "location-front" },
+      { "shot-id": "shot-07", "view": "location-reverse" }
+    ]
+  },
+  "prompt": "Evaluate @location-front and @location-reverse against @location-anchor for landmark geometry, world-axis orientation, lighting, palette, and visual artifacts.",
+  "threshold": 0.8,
+  "background": true
+}
