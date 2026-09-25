@@ -14,22 +14,32 @@ A missing character image found here costs one upload. The same gap found in Ste
 ## Prerequisites
 
 - A project with references registered (`mixio-references`)
-- A script persisted on the episode (Step 01)
+- A screenplay or raw script persisted on the episode (Step 01); a non-empty SCREENPLAY body is authoritative
 - Ideally, sheets already built (Step 02) — but the audit is valuable even without them
+
+When invoked as Step 02.5 by `mixio-pipeline`, a missing or empty `SCREENPLAY` is a blocking
+precondition. The raw Idea/Story fallback is available only to an explicit legacy/direct audit;
+it never advances the production pipeline to Step 03.
 
 ## What it checks
 
 Six categories, run in order. Each produces a finding list; the gate is at the end.
 
-### 1. Completeness — script demand vs reference supply
+### 1. Completeness — screenplay demand vs reference supply
 
-Extract every CAPS entity from the persisted script (`studio_get_episode` → `script`). Cross-reference against `studio_list_references({ projectId })`.
+Read the episode's `SCREENPLAY` element first:
+
+```
+studio_query_elements({ projectId, type: "SCREENPLAY", tags: { episodeId }, limit: 50, offset: 0, includeFull: true })
+```
+
+Use the non-empty `body`, including a draft, as the source for extraction. Also read the episode metadata and load `metadata.pipeline.screenplay_loop.dispositions`; accept an exemption only when `name` is non-empty, `mode == "TEXT_ONLY"`, `status == "approved"`, `reason` is non-empty, and classification is `LOCATION_TEXT_ONLY` for a LOCATION or `INCIDENTAL_SET_DRESSING` for a PROP. Only when no usable screenplay exists, fall back to `studio_get_episode({ episodeId })` and its raw `script`/`metadata.fullScript` for an explicit legacy/direct audit. In the production pipeline, missing or empty `SCREENPLAY` is a blocking precondition, not permission to advance on raw text. Cross-reference the selected source against `studio_list_references({ projectId })`.
 
 **Judge `MISSING_IMAGE` by `hasImage` — never by `thumbnailUrl`/`previewUrl`.** `list_references` returns `thumbnailUrl`/`previewUrl` alongside it, and it's easy to grab the wrong pair: those two are a card-preview column that nothing populates when a Look is attached, so a reference with real turnaround images routinely still shows both as `null`. Reading those as the presence signal produces a false `MISSING_IMAGE` on every reference in the project — a wrong blocking finding on the roster's healthiest data, not its worst. `hasImage` (see `mixio-references`) is the real signal.
 
 | Finding | Meaning |
 |---------|---------|
-| `MISSING_REF` | Entity mentioned in script has no matching reference element at all |
+| `MISSING_REF` | Entity mentioned in the selected source has no matching reference element at all; an approved `TEXT_ONLY` location or incidental PROP disposition is the only exemption |
 | `MISSING_IMAGE` | Reference exists but `hasImage` is false |
 | `MISSING_IMAGE_HIGH_USAGE` | Same, but the entity appears in ≥3 shots or ≥2 scenes — generation will be inconsistent without a visual anchor |
 | `NO_PRIMARY_LOOK` | Reference has variant images but none marked `isPrimary` or `isDefault` — prompt assembly picks arbitrarily |
@@ -271,15 +281,17 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
 ## Workflow
 
 ```
-1. studio_get_episode({ episodeId })                  → get persisted script
-2. extract CAPS entities from script text             → demand list
-3. studio_list_references({ projectId })              → supply list
-4. studio_get_project({ projectId })                  → read reference policy
-5. run 6 check categories                            → findings
-6. emit REFERENCE AUDIT report
-7. ↺ Ralph Loop: hand blocking findings to the pipeline Phase 2 runner; it applies only policy-safe, non-generative remediation and re-checks until 0 blocking errors
-8. if ADVISORY only: present, record in metadata
-9. persist audit result (0 blocking) → GATE → Step 03 Panel Breakdown
+1. studio_query_elements({ projectId, type: "SCREENPLAY", tags: { episodeId }, includeFull: true }) → read SCREENPLAY first
+2. studio_get_episode({ episodeId }) → read pipeline metadata and approved dispositions
+3. if no non-empty screenplay, block the production path; only an explicit legacy/direct audit may use raw Idea/Story fallback
+4. extract CAPS entities from the selected source     → demand list
+5. studio_list_references({ projectId })              → supply list
+6. studio_get_project({ projectId })                  → read reference policy
+7. run 6 check categories                            → findings, exempting only named approved dispositions
+8. emit REFERENCE AUDIT report
+9. ↺ Ralph Loop: hand blocking findings to the pipeline Phase 2 runner; it applies only policy-safe, non-generative remediation and re-checks until 0 blocking errors
+10. if ADVISORY only: present, record in metadata
+11. persist audit result (0 blocking) → GATE → Step 03 Panel Breakdown
 ```
 
 ## Notes

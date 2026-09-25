@@ -36,7 +36,7 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 | 05 | **Shot Planning** | `mixio-shot-planning` | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | 06 | **Video Generation** | `mixio-generate` | VIDEO elements + workspace uploads |
 
-**Gate rule: never start step N+1 until step N is confirmed by the user.** The Pre-Production Token Ralph Loop is limited to safe text and graph corrections across Step 01, Step 02.5, and Step 04; Step 03 is re-audited only when one of those corrections changes a shot or relation. Step 02's sheets and anchors remain a separately confirmed step: do not enter an image-generation use case from the loop. The loop re-checks every safe correction until it reaches **0 blocking errors**, then asks the user to approve the converged breakdown before Step 05 cost approval (see `references/pre-production-ralph-loop.md`). Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Ready for Step 05 approval.`
+**Gate rule: never start step N+1 until step N is confirmed by the user.** The Pre-Production Token Ralph Loop is limited to safe text and graph corrections across Step 01, Step 02.5, and Step 04; Step 03 is re-audited only when one of those corrections changes a shot or relation. Step 02's sheets and anchors remain a separately confirmed step: Step 01's pre-gate reference loop may pause for that confirmed image work and return to Step 01, but it never starts Step 02 or submits an image-generation use case automatically. The loop re-checks every safe correction until it reaches **0 blocking errors**, then asks the user to approve the converged breakdown before Step 05 cost approval (see `references/pre-production-ralph-loop.md`). Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Ready for Step 05 approval.`
 
 ## Step 00 — Full Project Preflight & Settings Locking
 
@@ -111,9 +111,24 @@ For explicit director intent that must override inference, place a standalone `[
 
 Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not** `studio_update_episode({ projectId, episodeId, updates: { script } })`. A screenplay is its own per-episode element and a non-empty body—draft included—wins over raw Idea/Story `script`/`fullScript` in Step 03. `upsert_screenplay` is idempotent and always writes a draft; Studio's human Screenplay view performs approval separately. Persist only the logline with `studio_update_episode({ projectId, episodeId, updates: { summary } })` when needed.
 
+### Step 01 does not close on the first upsert
+
+That first write is the start of a loop with Step 02, not the end of Step 01. A `#` token that resolves to nothing fails soft — it stays literal text, the screenplay saves, breakdown proceeds, and nothing binds a reference. `upsert_screenplay` returns `{ elementId, version, deduped }` and no mention diagnostics, so a body where every token missed writes exactly like one where every token landed.
+
+So loop: **draft → extract → resolve → propose → register/enrich → review/approve → re-mention → re-upsert**, until zero authored `#` character, location, or prop tokens are unmapped, every actual character/story-critical prop has an approved reference/look, every actual location has an approved reference/look or an explicit user-approved `TEXT-ONLY` disposition, and every incidental prop has an explicit text-only disposition.
+
+- **Asset-Ready draft** (already carries `#name.variant`) — harvest the distinct tokens *and* sweep the prose, then reconcile. A confidently-written token is not a resolved one, and a character or location nobody mentioned is invisible to a token-only check: `INT. HARBOR OFFICE — NIGHT` with no `#harbor-office` anywhere reads as zero unmapped while binding nothing.
+- **Raw idea or prose** (no tokens) — discover characters from cues, locations from sluglines, all props from CAPS, and candidate looks from described state changes. Classify props as story-critical or incidental, propose the candidates, and write nothing yet.
+
+Resolve each distinct token with `studio_resolve_mention({ projectId, mention })`. It never throws for a miss — it returns `{ resolved: false, reason }`, and the reason separates the two cases that must not be confused: `no element named "…"` means create a reference, while `no look named "wet_look" on element "Maya"` means add a **variant to Maya**. Minting a second `Maya` for `#maya.wet_look` is the failure this loop exists to prevent. Flag it and ask — offer a generated variant or a supplied image. If the author means a one-shot condition such as "soaked", edit the screenplay to author that state as ordinary prose before re-running the loop; do not silently remove an authored unresolved token.
+
+New references get registered with `studio_register_reference_entities` and dressed with `studio_update_reference` — but registering a name does **not** make it mentionable: `mentionableLooks` derives from variants, so a reference with no image still has no token. That is why the loop runs through Step 02 rather than before it. Treat new references, variants, and sheets as provisional until their `workflow.status` is `approved`; show them to the user for review before closing Step 01. Re-list references after every write, copy the exact new tokens back into the body, and re-upsert.
+
+Full procedure — the five passes, the `reason`-string diagnosis table, the ask format, the policy gate and the exit tally: `references/screenplay-reference-loop.md`.
+
 ## Step 02 — Anchor Frames
 
-→ `mixio-sheets`, after the user confirms this image-work step. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** with an explicit `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in screenplay text alone — flag them, don't silently invent geography.
+→ `mixio-sheets`, after the user confirms this image-work step. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** with an explicit `anchor_aspect_ratio`. A location with no reference may be marked `TEXT-ONLY` only after explicit user approval and only when the screenplay contains no authored `#` location token; otherwise block and request an existing, supplied, or explicitly approved generated reference.
 
 ### Reference Enrichment (do this before Step 02.5)
 
@@ -239,6 +254,8 @@ exists; avoid `studio_get_production_context` until its graph detail is actually
 ```
 00. studio_get_project → studio_update_project({ projectId, updates: { settings } }) → studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline } } }) → GATE
 01. screenplay → studio_upsert_screenplay({ projectId, episodeId, body })
+    ↺ Step 01 pre-gate reference loop (may pause for separately confirmed Step 02): extract all entities → resolve every authored # token → register/enrich → approve refs/looks → re-mention → re-upsert
+                                                   → GATE: 0 authored # character/location/prop tokens unmapped, required refs/looks approved, locations approved or explicitly TEXT-ONLY, props_pending: 0, 0 pending location dispositions, all named dispositions approved; user confirms draft (human screenplay approval in Studio)
 02. /mixio:sheets → character + location sheets, anchor per scene → GATE (image work is separately confirmed)
 03. /mixio:script-breakdown → studio_upsert_scene_packages + studio_link_graph → relational audit
 ┌── Pre-Production Token Ralph Loop (01 ↔ 02.5 ↔ 04; safe text/graph corrections only) ─┐
@@ -258,3 +275,4 @@ exists; avoid `studio_get_production_context` until its graph detail is actually
 - If the user jumps straight to "generate this script", still run 01→05 — just run them fast and present each gate as a short confirm rather than a discussion.
 - Re-entering an earlier step invalidates the later ones. Editing Step 03 after Step 05 means re-planning; say so instead of patching one batch.
 - Step 02.5 catches reference problems that Step 02 should have resolved. If sheets were skipped or rushed, 02.5 surfaces the gaps. It's a safety net, not a replacement for doing sheets properly.
+- Steps 01 and 02 interleave by design — the screenplay names a reference, the reference has to exist before its mention resolves, and the resolved token has to go back into the screenplay. Step 02 image work remains separately confirmed. Announce the 01 gate only once the authored-token tally reads zero unmapped, all required references/looks are approved, location `TEXT-ONLY` decisions are explicit, and incidental props are dispositioned; a screenplay full of literal `#` text passes every later step without complaint and binds nothing.
