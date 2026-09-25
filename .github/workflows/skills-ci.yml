@@ -16,7 +16,9 @@ env:
 jobs:
   linux-validation:
     name: Linux skill and screenplay validation
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      - skills-linux-validation
 
     steps:
       - name: Check out repository
@@ -84,7 +86,11 @@ jobs:
 
   windows-installation:
     name: Windows installer and npx discovery
-    runs-on: windows-latest
+    runs-on:
+      - codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      - "image:windows-3.0"
+      - "instance-size:medium"
+      - skills-windows-installation
 
     steps:
       - name: Check out repository

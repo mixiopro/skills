@@ -6,19 +6,32 @@ on:
 permissions:
   contents: read
 jobs:
-  unix:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  unix-linux:
+    runs-on:
+      - codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      - public-installer-linux
     steps:
       - uses: actions/checkout@v4
       - name: Verify public document rendering
         run: |
           bash -n install.sh scripts/test-install-public-agents.sh
           bash scripts/test-install-public-agents.sh
+
+  unix-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify public document rendering
+        run: |
+          bash -n install.sh scripts/test-install-public-agents.sh
+          bash scripts/test-install-public-agents.sh
+
   windows:
-    runs-on: windows-latest
+    runs-on:
+      - codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      - "image:windows-3.0"
+      - "instance-size:medium"
+      - public-installer-windows
     steps:
       - uses: actions/checkout@v4
       - name: Verify public document rendering in Windows PowerShell
