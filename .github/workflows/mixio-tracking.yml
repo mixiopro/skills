@@ -9,7 +9,9 @@ permissions:
   contents: read
 jobs:
   tracking:
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      - maintainer-tracking
     steps:
       - uses: actions/checkout@v4
       - name: Check tracking instructions and governing PR ticket

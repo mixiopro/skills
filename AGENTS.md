@@ -58,6 +58,14 @@ A **project** holds episodes and a Cast & World roster. An **episode** owns a ra
 | `mixio-workspace` | `/mixio:workspace` | Upload local files, get permanent URLs |
 | `mixio-eval` | `/mixio:eval` | Visual continuity evaluation of rendered media |
 
+**Screenplay development bridge** — use before production when the request is about story craft.
+
+| Skill | Invoke | Use for |
+|-------|--------|---------|
+| `mixio-screenwriting` | `/mixio:screenwriting` | Route idea discovery, logline/premise, character/world, structure/beat, scene writing, dialogue/subtext, rewrite diagnosis, and screenplay quality gating to the complete Mixio-owned `how-to-make-script` system. |
+
+The `how-to-make-script` root skill is vendored under `skills/how-to-make-script/` and is Mixio-owned for customization. Keep its shared protocols, rubrics, knowledge, schemas, examples, license, and `UPSTREAM.md` provenance intact when changing the eight route skills.
+
 **Production skills** — the procedure, the schemas and the gates.
 
 | Skill | Invoke | Use for |
@@ -69,11 +77,12 @@ A **project** holds episodes and a Cast & World roster. An **episode** owns a ra
 | `mixio-continuity` | `/mixio:continuity` | Four-pass text continuity audit, before anything renders |
 | `mixio-shot-planning` | `/mixio:shot-planning` | 5 structural archetypes + model matching, execution audit (action density & speaking rate), batches, and credit budget approval |
 
-For a full episode run `/mixio:pipeline` and let it gate the steps. Invoke a production skill directly when you only need that one step — each one's description says which of its siblings it isn't, and falls back to `mixio-pipeline` when that's still unclear.
+For story work, start with `/mixio:screenwriting`; do not look up a Studio project or episode until the screenplay handoff is ready. For a full episode, then run `/mixio:pipeline` and let it gate the production steps. Invoke a production skill directly when you only need that one step — each one's description says which of its siblings it isn't, and falls back to `mixio-pipeline` when that's still unclear.
 
 ## Order matters
 
 ```
+PRE story development + screenplay handoff → Mixio-owned `how-to-make-script` via `/mixio:screenwriting`
 00  Preflight          → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
                         resolution, visual style, reference policy into project `settings`
 01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty

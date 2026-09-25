@@ -1,11 +1,11 @@
 #!/bin/bash
-# Fails if the skill count drifts between skills/, README.md, and AGENTS.md.
+# Fails if the Mixio skill count drifts between skills/, README.md, and AGENTS.md.
 # Catches the class of bug fixed by hand in "docs: fix stale skill count" (#8) —
 # run this instead of trusting a human remembered to update every count.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-actual=$(find skills -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')
+actual=$(find skills -mindepth 2 -maxdepth 2 -path 'skills/mixio-*/SKILL.md' -type f | wc -l | tr -d ' ')
 badge=$(grep -oE 'skills-[0-9]+-blueviolet' README.md | grep -oE '[0-9]+')
 readme_rows=$(grep -c '^| \[`mixio-' README.md)
 agents_rows=$(grep -c '^| `mixio-' AGENTS.md)

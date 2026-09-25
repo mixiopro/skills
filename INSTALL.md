@@ -51,6 +51,16 @@ If you already have an MCP server configured and just want the skill docs:
 git clone --depth 1 https://github.com/mixiopro/skills.git ~/.mixio/skills
 ```
 
+### Screenplay development system
+
+The Mixio package owns the complete `how-to-make-script` screenplay system. The standard `npx` install copies its root router recursively, so the eight requested routes and their dependency graph are available without a second repository install:
+
+```bash
+npx skills add mixiopro/skills -g -y
+```
+
+Use `/mixio:screenwriting` for idea, premise, character/world, structure, scene, dialogue, rewrite, and screenplay quality work. Hand off the resulting screenplay package before starting Mixio Step 00/01. Customize the owned route files under `skills/how-to-make-script/skills/`; do not remove their shared protocols, rubrics, knowledge atoms, schemas, examples, `LICENSE`, or `UPSTREAM.md`.
+
 ## Method 3: Agent-specific
 
 ### Claude Code

@@ -1,0 +1,29 @@
+[project]
+name = "how-to-make-script"
+version = "0.1.0"
+description = "Research-first open source agent skill monorepo for screenplay creation knowledge."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "XucroYuri" }
+]
+keywords = ["screenwriting", "agent-skill", "llm", "storytelling", "creative-writing"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Text Processing :: Markup :: Markdown"
+]
+
+[project.urls]
+Homepage = "https://github.com/XucroYuri/how-to-make-script"
+Documentation = "https://github.com/XucroYuri/how-to-make-script#readme"
+Repository = "https://github.com/XucroYuri/how-to-make-script"
+Issues = "https://github.com/XucroYuri/how-to-make-script/issues"
+Discussions = "https://github.com/XucroYuri/how-to-make-script/discussions"
+Changelog = "https://github.com/XucroYuri/how-to-make-script/blob/main/CHANGELOG.md"
+
+[tool.unittest]
+test_dir = "tests"

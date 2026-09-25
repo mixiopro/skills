@@ -215,6 +215,7 @@ $AgentsMdPath = Join-Path $AgentsDir "AGENTS.md"
 
 $RepoZipUrl = "https://github.com/mixiopro/skills/archive/refs/heads/main.zip"
 $RepoGitUrl = "https://github.com/mixiopro/skills.git"
+$ScreenplaySkillName = "how-to-make-script"
 
 # Step 1: Pre-flight checks
 Write-Info "Checking prerequisites..."
@@ -391,8 +392,10 @@ function Link-Or-Copy-Skills {
     try {
         New-Item -ItemType Directory -Force -Path $TargetSkillsDir | Out-Null
         
-        # Clean obsolete mixio-* skills from target agent directory
-        Get-ChildItem -Path $TargetSkillsDir -Filter "mixio-*" | ForEach-Object {
+        # Clean obsolete Mixio and screenplay skills from target agent directory
+        Get-ChildItem -Path $TargetSkillsDir -Directory | Where-Object {
+            $_.Name -like "mixio-*" -or $_.Name -eq $ScreenplaySkillName
+        } | ForEach-Object {
             $curName = $_.Name
             if (-not (Test-Path (Join-Path $MixioSkillsDir $curName))) {
                 Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
@@ -400,7 +403,9 @@ function Link-Or-Copy-Skills {
         }
 
         $installed = 0
-        Get-ChildItem -Path $AgentsSkillsDir -Directory -Filter "mixio-*" | ForEach-Object {
+        Get-ChildItem -Path $AgentsSkillsDir -Directory | Where-Object {
+            $_.Name -like "mixio-*" -or $_.Name -eq $ScreenplaySkillName
+        } | ForEach-Object {
             $dest = Join-Path $TargetSkillsDir $_.Name
             # On Windows, try SymbolicLink / Junction or copy
             try {

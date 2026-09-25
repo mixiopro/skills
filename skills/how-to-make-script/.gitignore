@@ -1,0 +1,35 @@
+.DS_Store
+
+# Local editor / agent workspace state
+.obsidian/
+# Allow .claude/settings.json to be committed (shared team config)
+.claude/*
+!.claude/settings.json
+.omc/
+.omx/
+.codex/
+.claude-code/
+.opencode/
+.openclaw/
+.gemini/
+.gemini-cli/
+.aider/
+.cursor/
+.continue/
+.roo/
+.windsurf/
+.avante/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.coverage
+.coverage.*
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+.generated/
+coverage.xml

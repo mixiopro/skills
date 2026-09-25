@@ -1,0 +1,59 @@
+---
+{
+  "id": "wp.character-world",
+  "type": "workflow_protocol",
+  "title": "角色与世界观协议",
+  "goal": "建立能产生持续冲突的角色动力和世界约束。",
+  "input_contract": [
+    "premise",
+    "logline",
+    "world fragment"
+  ],
+  "output_contract": [
+    "premise",
+    "synopsis"
+  ],
+  "preconditions": [
+    "已有主概念和大致媒介"
+  ],
+  "steps": [
+    "先用欲望、恐惧、价值排序、内在矛盾构成角色驱动四联体。",
+    "为关键能力补上限制、代价或误用风险，让能力真正进入冲突。",
+    "把角色写成触发式行为画像，而不是形容词列表。",
+    "把世界观写成能施加压力的规则，而不是百科设定。",
+    "明确对手、盟友和关键关系网络。",
+    "输出角色-世界互动摘要，供结构设计使用。"
+  ],
+  "fallbacks": [
+    "若世界观庞杂，先只保留与主线冲突直接相关的规则。"
+  ],
+  "stop_conditions": [
+    "角色缺陷与世界压力形成闭环",
+    "结构设计所需的关键关系已清楚"
+  ],
+  "rubrics": [
+    "rb.character-world"
+  ],
+  "linked_atoms": [
+    "ka.capability-friction-balance",
+    "ka.character-arc",
+    "ka.character-drive-quartet",
+    "ka.cross-protocol-referral-edges",
+    "ka.exposition-control",
+    "ka.theme-pressure",
+    "ka.triggered-behavior-profile",
+    "ka.viewer-inference-guidance"
+  ],
+  "budget_class": "L",
+  "mandatory_atom_count": 8,
+  "expansion_allowed": true
+}
+---
+# 角色与世界观协议
+
+角色不是履历表，世界观不是资料库。二者都要变成给冲突施压的装置。
+
+这个协议的核心，是把人物和世界都写成”会出手的东西”。人物要能推动选择，世界要能制造限制，关系要能持续施压。否则写出来的只会是档案，不会是戏。
+人物开发不再默认从履历和标签出发，优先从驱动四联体、能力摩擦和触发式行为画像入手。
+
+专业开发里一个常见的误区：角色设定很完整，世界观很宏大，但一进入场景就没有任何东西真正影响决策。这个协议就是用来把”设定”改造成”压力系统”。
