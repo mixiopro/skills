@@ -86,11 +86,7 @@ jobs:
 
   windows-installation:
     name: Windows installer and npx discovery
-    runs-on:
-      - codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}
-      - "image:windows-3.0"
-      - "instance-size:medium"
-      - skills-windows-installation
+    runs-on: windows-latest
 
     steps:
       - name: Check out repository

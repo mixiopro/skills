@@ -27,11 +27,7 @@ jobs:
           bash scripts/test-install-public-agents.sh
 
   windows:
-    runs-on:
-      - codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}
-      - "image:windows-3.0"
-      - "instance-size:medium"
-      - public-installer-windows
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: Verify public document rendering in Windows PowerShell

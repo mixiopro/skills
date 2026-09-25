@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Route the repository's Linux and Windows GitHub Actions jobs through the AWS CodeBuild-hosted runner project `skills-ci` while retaining the macOS check as an explicit GitHub-hosted exception.
+**Goal:** Route the repository's Linux GitHub Actions jobs through the AWS CodeBuild-hosted runner project `skills-ci` while retaining Windows and macOS checks as explicit GitHub-hosted exceptions.
 
-**Architecture:** Keep GitHub Actions as the workflow and status-check layer. Create one CodeBuild runner project in `ap-south-1` with a `WORKFLOW_JOB_QUEUED` webhook; jobs opt into it with the required dynamic `codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}` label. Use separate unique labels for each job and a Windows image override so one project can serve both Linux and Windows jobs.
+**Architecture:** Keep GitHub Actions as the workflow and status-check layer. Create one Linux CodeBuild runner project in `ap-south-1` with a `WORKFLOW_JOB_QUEUED` webhook; Linux jobs opt into it with the required dynamic `codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}` label. Keep Windows on `windows-latest` because the required CodeBuild Windows image is unavailable in `ap-south-1`; keep macOS on `macos-latest`.
 
 **Tech Stack:** GitHub Actions YAML, AWS CodeBuild-hosted GitHub Actions runners, AWS CLI, Bash, PowerShell, existing repository validation scripts.
 
@@ -15,7 +15,8 @@
 - CodeBuild project name is `skills-ci` and AWS region is `ap-south-1`.
 - The repository source is `https://github.com/mixiopro/skills`.
 - CodeBuild receives `WORKFLOW_JOB_QUEUED` events and uses the existing Mixio GitHub runner service-role pattern.
-- Linux uses Ubuntu 22.04 standard 7.0; Windows uses the `windows-3.0` override with a medium instance.
+- Linux uses Ubuntu 22.04 standard 7.0.
+- Windows remains `windows-latest` because no supported Windows CodeBuild image is available in the active region.
 - macOS remains `macos-latest` until a separate CodeBuild macOS fleet is provisioned.
 - No credentials or tokens may be committed.
 - Existing validation commands and public installer behavior remain unchanged.
@@ -35,11 +36,11 @@
 
 - [ ] **Step 1: Update Linux and Windows runner labels in `skills-ci.yml`**
 
-Use the dynamic base label `codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}`. Add `skills-linux-validation` to the Linux job and add `image:windows-3.0`, `instance-size:medium`, and `skills-windows-installation` to the Windows job.
+Use the dynamic base label `codebuild-skills-ci-${{ github.run_id }}-${{ github.run_attempt }}` and add `skills-linux-validation` to the Linux job. Keep the Windows job on `windows-latest`.
 
 - [ ] **Step 2: Split the public installer Unix matrix into Linux and macOS jobs**
 
-Run the existing Unix validation command on a CodeBuild Linux runner with `public-installer-linux`; keep the same command on `macos-latest` with no CodeBuild labels. Route the existing Windows validation command to CodeBuild with `image:windows-3.0`, `instance-size:medium`, and `public-installer-windows`.
+Run the existing Unix validation command on a CodeBuild Linux runner with `public-installer-linux`; keep the same command on `macos-latest` with no CodeBuild labels. Keep the existing Windows validation command on `windows-latest`.
 
 - [ ] **Step 3: Route maintainer tracking to CodeBuild Linux**
 
@@ -79,7 +80,7 @@ git commit -m "ci: route validation jobs through CodeBuild"
 
 - [ ] **Step 1: Document the project and label contract**
 
-Include the exact project name, region, source repository, webhook event, Linux default image, Windows override, unique labels, and the macOS exception.
+Include the exact project name, region, source repository, webhook event, Linux default image, unique labels, and the Windows/macOS GitHub-hosted exceptions.
 
 - [ ] **Step 2: Document AWS and GitHub verification commands**
 
@@ -95,7 +96,7 @@ Run:
 
 ```bash
 git diff --check
-rg -n 'skills-ci|WORKFLOW_JOB_QUEUED|macos-latest|windows-3.0' docs/codebuild-ci.md
+rg -n 'skills-ci|WORKFLOW_JOB_QUEUED|macos-latest|windows-latest' docs/codebuild-ci.md
 ```
 
 Expected: no whitespace errors and every required contract term is present.
@@ -141,10 +142,10 @@ Run:
 
 ```bash
 aws codebuild batch-get-projects --region ap-south-1 --names skills-ci
-aws codebuild get-webhook --region ap-south-1 --project-name skills-ci
+aws codebuild batch-get-projects --region ap-south-1 --names skills-ci --query 'projects[0].webhook' --output json
 ```
 
-Expected: the project source, role, environment, and active workflow-job filter match the specification.
+Expected: the project source, role, Linux environment, and active workflow-job filter match the specification.
 
 - [ ] **Step 5: Record the AWS resource evidence**
 
@@ -175,7 +176,7 @@ Expected: every command exits zero.
 
 - [ ] **Step 2: Push the branch and inspect the first CodeBuild-backed run**
 
-Use the existing PR branch workflow. Confirm the Linux and Windows jobs are picked up by `skills-ci`, while the macOS job remains GitHub-hosted.
+Use the existing PR branch workflow. Confirm the Linux jobs are picked up by `skills-ci`, while the Windows and macOS jobs remain GitHub-hosted.
 
 - [ ] **Step 3: Inspect GitHub check conclusions**
 
@@ -185,7 +186,7 @@ Run:
 gh pr checks 35 --repo mixiopro/skills
 ```
 
-Expected: CodeBuild-backed jobs report pass/fail in GitHub and no job remains queued for an unmatched runner label.
+Expected: CodeBuild-backed Linux jobs and GitHub-hosted Windows/macOS jobs report pass/fail in GitHub, with no job remaining queued for an unmatched runner label.
 
 - [ ] **Step 4: Inspect CodeBuild build history**
 
