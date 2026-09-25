@@ -51,10 +51,14 @@ list_has_skill() {
 
   awk -v expected="$expected" '
     {
+      # The skills CLI uses a spinner and may leave ANSI cursor/color
+      # sequences in redirected output on hosted runners. Strip them before
+      # matching the box-drawn skill rows.
       line = $0
+      gsub(/\033\[[0-9;?]*[ -\/]*[@-~]/, "", line)
       sub(/\r$/, "", line)
       sub(/[[:space:]]+$/, "", line)
-      if (line == "│    " expected) found = 1
+      if (line ~ ("^[^[:alnum:]]+" expected "[[:space:]]*$")) found = 1
     }
     END { exit(found ? 0 : 1) }
   ' "$listing"
