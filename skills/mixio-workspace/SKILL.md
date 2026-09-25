@@ -24,8 +24,8 @@ Upload a local file to Mixio Studio media and cache the path → URL mapping. Re
 | Param | Required | Notes |
 |-------|----------|-------|
 | `path` | yes | absolute or `~`-expanded local path |
-| `project_id` | optional, but pass it | scope the media to a Mixio project — see below |
-| `organization_id` | optional, but pass it | see below |
+| `project_id` | **required when a project is active** | scope the media to a Mixio project — omit only when there genuinely isn't one (see below) |
+| `organization_id` | **required when a project is active** | resolve from the active project's org (`studio_get_project`), not by guessing |
 | `alt` | no | alt text/description |
 | `category` | no | media category tag |
 | `force` | no | re-upload even if cached |
@@ -42,7 +42,7 @@ Get the public URL for a local file, re-hashing to detect drift. On a fresh cach
 |-------|----------|-------|
 | `path` | yes | |
 | `upload` | no | defaults to `true`; set `false` for cache-only lookup |
-| `project_id`, `organization_id`, `alt`, `category` | optional, but pass project/org if known | used only when uploading on a cache miss — same orphaning risk as `upload_file` if omitted |
+| `project_id`, `organization_id`, `alt`, `category` | **required when a project is active** | used only when uploading on a cache miss — same orphaning risk as `upload_file` if omitted when a project is active |
 
 Returns `{ ok: true, found, source, public_url, entry }` — `source` is `"cache"`, `"cache_sha256"`, or `"uploaded"`. With `upload: false` and no cache hit, returns `{ ok: true, found: false, public_url: null, entry: null }` (not a bare null).
 
