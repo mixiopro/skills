@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MixioHumanReviewRepairPlan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["execution-policy", "review-required", "actions", "notes"],
+  "properties": {
+    "execution-policy": {
+      "type": "string",
+      "const": "manual-only"
+    },
+    "review-required": {
+      "type": "boolean"
+    },
+    "actions": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      }
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action-id",
+        "proposal-state",
+        "human-approval",
+        "scope",
+        "source-finding-ids",
+        "input-aliases",
+        "recommended-action",
+        "rationale",
+        "preserve",
+        "recheck"
+      ],
+      "properties": {
+        "action-id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+          "maxLength": 128
+        },
+        "proposal-state": {
+          "type": "string",
+          "enum": ["proposed", "no-action"]
+        },
+        "human-approval": {
+          "type": "string",
+          "const": "required"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "reference-pack",
+            "segment",
+            "shot-boundary",
+            "shot",
+            "sequence",
+            "full-delivery"
+          ]
+        },
+        "source-finding-ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "evidence-links": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "input-aliases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "shot-ids": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "time-range-ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "integer", "minimum": 0 },
+            "end": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "frame-range": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "integer", "minimum": 0 },
+            "end": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "confidence-score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "recommended-action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "preserve": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+        },
+        "retry-inputs": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "recheck": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["evaluation-profile", "input-aliases", "include-neighbors"],
+          "properties": {
+            "evaluation-profile": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "input-aliases": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 64,
+              "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+            },
+            "include-neighbors": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

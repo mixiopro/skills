@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 eval_skill='skills/mixio-eval/SKILL.md'
 pipeline='skills/mixio-pipeline/SKILL.md'
 example='skills/mixio-eval/references/modern-evaluation-request.example.json'
+repair_schema='skills/mixio-eval/references/human-review-repair-plan.schema.json'
 
 require() {
   rg -Fq -- "$2" "$1" || { echo "missing: $2 in $1" >&2; exit 1; }
@@ -21,11 +22,15 @@ require "$eval_skill" 'worst transition and any blocking finding win'
 require "$eval_skill" '`keyframe-continuity`'
 require "$eval_skill" 'general storyboard lens'
 require "$eval_skill" 'transport adapter'
+require "$eval_skill" 'human-review'
+require "$eval_skill" 'manual-only'
 require "$pipeline" 'evals_evaluate_media'
 require "$pipeline" 'keyframe-continuity'
 require "$pipeline" '`sequence-storyboard` only as a general storyboard lens'
 require "$pipeline" 'video-multi-shot'
 require "$pipeline" 'delivery-qc'
+require "$pipeline" 'human-review'
+require "$pipeline" 'human review'
 
 node - "$example" <<'NODE'
 const fs = require('fs')
@@ -245,4 +250,63 @@ if (strictGate(completed, { ...passingReview, transitions: [{ ...passingReview.t
 if (strictGate({ ...completed, status: 'failed' }, passingReview)) fail('failed run must not pass')
 
 console.log('OK: modern evaluation request, ordered evidence, profile routing, polling, and strict gate contract')
+NODE
+
+node - "$repair_schema" <<'NODE'
+const fs = require('fs')
+const path = process.argv[2]
+const schema = JSON.parse(fs.readFileSync(path, 'utf8'))
+const fail = message => {
+  console.error(`invalid human-review schema: ${message}`)
+  process.exit(1)
+}
+if (schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') fail('$schema')
+if (schema.type !== 'object' || schema.additionalProperties !== false) fail('root object contract')
+for (const field of ['execution-policy', 'review-required', 'actions', 'notes']) {
+  if (!schema.required?.includes(field)) fail(`root required ${field}`)
+}
+if (schema.properties?.['execution-policy']?.const !== 'manual-only') fail('manual-only execution policy')
+if (schema.properties?.['review-required']?.type !== 'boolean') fail('review-required')
+if (schema.properties?.actions?.items?.$ref !== '#/$defs/action') fail('action reference')
+const action = schema.$defs?.action
+if (!action || action.type !== 'object' || action.additionalProperties !== false) fail('action object contract')
+for (const field of [
+  'action-id', 'proposal-state', 'human-approval', 'scope',
+  'source-finding-ids', 'input-aliases', 'recommended-action',
+  'rationale', 'preserve', 'recheck'
+]) {
+  if (!action.required?.includes(field)) fail(`action required ${field}`)
+}
+if (!action.properties?.['proposal-state']?.enum?.join(',').includes('proposed')) fail('proposal state')
+if (action.properties?.['human-approval']?.const !== 'required') fail('human approval')
+const scopes = action.properties?.scope?.enum || []
+for (const scope of ['reference-pack', 'segment', 'shot-boundary', 'shot', 'sequence', 'full-delivery']) {
+  if (!scopes.includes(scope)) fail(`scope ${scope}`)
+}
+const recheck = action.properties?.recheck
+if (!recheck || recheck.type !== 'object' || recheck.additionalProperties !== false) fail('recheck object contract')
+for (const field of ['evaluation-profile', 'input-aliases', 'include-neighbors']) {
+  if (!recheck.required?.includes(field)) fail(`recheck required ${field}`)
+}
+const reserved = new Set([
+  'id', 'object', 'type', 'status', 'ok', 'terminal', 'evaluation', 'model',
+  'output', 'contract-version', 'catalog-version', 'verdict', 'decision',
+  'passed', 'score', 'threshold', 'confidence', 'profile', 'metrics',
+  'findings', 'evidence', 'coverage', 'resolved-plan', 'skill-outputs',
+  'extensions', 'input-alias', 'source-url', 'required-floor', 'finding-ids',
+  'evidence-ids', 'run-id'
+])
+const propertyName = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
+const inspect = node => {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return
+  if (node.properties && typeof node.properties === 'object' && !Array.isArray(node.properties)) {
+    for (const key of Object.keys(node.properties)) {
+      if (!propertyName.test(key) || reserved.has(key)) fail(`reserved or invalid property ${key}`)
+      inspect(node.properties[key])
+    }
+  }
+  if (node.items) inspect(node.items)
+  if (node.$defs && typeof node.$defs === 'object') Object.values(node.$defs).forEach(inspect)
+}
+inspect(schema)
 NODE

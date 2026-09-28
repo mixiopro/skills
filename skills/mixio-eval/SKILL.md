@@ -147,6 +147,44 @@ the readiness gate rather than being filled in by model inference.
 See [references/reference-readiness-request.example.json](references/reference-readiness-request.example.json)
 for a complete location-pack request.
 
+## Human-in-the-loop repair plan
+
+Request the reusable `human-review` extension when a review may produce a
+repair recommendation:
+
+```json
+{
+  "mode": "extend",
+  "namespace": "human-review",
+  "schema": { "...": "inline the contents of the linked JSON schema here" }
+}
+```
+
+Use the schema in
+[references/human-review-repair-plan.schema.json](references/human-review-repair-plan.schema.json).
+The request must embed that document as the `schema` object; the path above is a
+repository reference, not a value sent to the evaluator.
+It is deliberately manual-only. Every proposed action must cite source
+finding IDs, evidence links, input aliases, and an optional frame/time range;
+declare the narrowest repair scope (`segment`, `shot-boundary`, `shot`,
+`sequence`, or `full-delivery`); state what references/keyframes must be
+preserved; and define the evaluation to run after the repair. The evaluator
+must never return an approval or an executable command.
+
+Interpret the result as a review packet:
+
+- `proposed` + `human-approval: required` means a person decides whether and
+  how to proceed;
+- `no-action` means retain the current render and record why;
+- `time-range-ms`, `frame-range`, and `shot-ids` are localization hints, not
+  an authorization to regenerate;
+- if the evidence is insufficient, propose `sequence` or `full-delivery`
+  review rather than inventing a precise segment.
+
+The generic core findings remain authoritative for verdict and evidence. The
+repair plan is advisory and must be preserved alongside the evaluation receipt
+and the human decision.
+
 The example also requests an explicit `output-schema` wrapper for a structured
 continuity extension: `review-verdict`, `worst-transition`,
 `blocking-findings`, and per-transition `transitions` containing localized
