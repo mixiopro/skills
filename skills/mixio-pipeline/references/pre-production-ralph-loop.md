@@ -60,14 +60,14 @@ No loop phase may call `/mixio:sheets` or submit a Studio job. An image may be a
 
 ### Phase 1: Screenplay & Entity Binding (01)
 - Normalize source text to standard screenplay grammar.
-- Harvest `#name.variant` tokens and sweep prose for un-mentioned characters/locations.
+- Harvest `#name.variant` tokens and sweep prose for un-mentioned characters, locations, and story-critical props; classify incidental props explicitly rather than discarding them.
 - Resolve mentions with `studio_resolve_mention`. If an entity or look is unmapped, pass it to Phase 2; do not create a sheet or render an image.
-- Re-upsert the normalized screenplay only after Phase 2 has returned a valid mention. If it is blocked, preserve the source and persist the requested action.
+- Re-upsert the normalized screenplay only after Phase 2 has returned a valid mention or the user has approved a source rewrite/TEXT-ONLY disposition. In the rewrite/disposition branch, apply the decision to the body, re-run extraction and resolution, and persist the requested action if the revised source is still blocked.
 
 ### Phase 2: Reference Audit & Look-Binding Verification (02.5)
 - Run `mixio-reference-audit` across all script entities against registered references.
 - **Auto-remediation (policy-gated):**
-  - If `MISSING_REF` on a script entity: register it only with `createPolicy: "allow"`; with `"propose"`, persist a proposal and block for approval; with `"link_only"`, request an existing reference link.
+  - If `MISSING_REF` on a script entity: register it only with `createPolicy: "allow"`; with `"propose"`, persist a proposal and block for approval; with `"link_only"`, request an existing reference link or an approved source rewrite/TEXT_ONLY disposition when the entity is a plain-prose location or incidental prop. An authored `#` token remains blocked until it has a real mentionable look.
   - If `STALE_LOOK_REF` or a missing look variant: rebind to an existing permitted name, or update only with a user-supplied asset and an allowed variant name.
   - If a HIGH-severity metadata gap (e.g. missing `visualAnchor` on core character or missing `lighting` on location) is deterministic: populate the structured detail only after the policy gate permits it.
   - If `MISSING_IMAGE_HIGH_USAGE` is blocking: use an already supplied asset when allowed; otherwise set the loop to `blocked` and request an upload or explicit image-generation permission.

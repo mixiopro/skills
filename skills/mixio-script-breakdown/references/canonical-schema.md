@@ -29,7 +29,7 @@ Seven required fields. Persisting a shot without them throws `Shot metadata miss
 | `linked_location_ids` | — | resolved element IDs in Cast & World |
 | `linked_prop_ids` | — | resolved element IDs in Cast & World |
 
-Every entity present in a shot must be linked — passing both canonical names (`character_links`, `location_links`, `prop_links`) and resolved element IDs (`linked_character_ids`, `linked_location_ids`, `linked_prop_ids`). That builds the relation graph `mixio-generate` later reads to pull reference images, and it carries per-shot `appearanceState`.
+Every reference-backed entity present in a shot must be linked — passing both canonical names (`character_links`, `location_links`, `prop_links`) and resolved element IDs (`linked_character_ids`, `linked_location_ids`, `linked_prop_ids`). An approved Step 01 disposition with `mode: "TEXT_ONLY"` and the matching `LOCATION_TEXT_ONLY` or `INCIDENTAL_SET_DRESSING` classification is the only exception: its canonical name may remain in the text-link list without an ID, and the persisted audit must exclude that named exception from missing-ID failures. That builds the relation graph `mixio-generate` later reads to pull reference images, and it carries per-shot `appearanceState`.
 
 ### Zero-Placeholder Rule
 The 7 required fields must never be populated with empty or placeholder strings (`""`, `"TBD"`, `"tbd"`, `"n/a"`, `"na"`, `"unknown"`, `"none"`, `"null"`). Downstream renderers and prompt assemblers treat placeholders as blank frames or corrupt prompts. Every shot must carry concrete, authored cinematic direction.

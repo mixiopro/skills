@@ -28,7 +28,7 @@ Best of both: run the **composed** path but keep Studio's two safety properties 
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- A project and an episode with source text persisted (`mixio-episode`) — preferably a screenplay, otherwise the raw Idea/Story `script` field
+- A project and an episode with source text persisted (`mixio-episode`) — a non-empty SCREENPLAY is required for the `mixio-pipeline` production path; standalone raw Idea/Story fallback remains supported only for legacy/direct breakdown use
 - For the composed path, the project's `settings.references` read with `studio_get_project`; its
   `createPolicy` decides whether an unmatched entity may be registered
 
@@ -43,7 +43,14 @@ studio_query_elements({ projectId, type: "SCREENPLAY", tags: { episodeId }, limi
 - A `SCREENPLAY` row with a non-empty `body` wins, **including a draft**. Use its body verbatim as `script_content`; do not strip `#mentions`, `~locks`, or standalone `[Key: Value]` annotation lines because native breakdown consumes them.
 - If no screenplay exists, or its `body` is empty, read `studio_get_episode({ episodeId })` and use `metadata.fullScript` as the fallback.
 
-The managed job only analyzes the text supplied in `script_content`. Submitting stale `fullScript` after a screenplay was written silently discards the newer screenplay work.
+The managed job only analyzes the text supplied in `script_content`. Submitting stale `fullScript` after a screenplay was written silently discards the newer screenplay work. The raw-script fallback is not a substitute for MIXSKILLS-2 Step 01: a production run must normalize the source, resolve its references, and persist a `SCREENPLAY` before breakdown.
+
+### Production-mode gate
+
+When invoked by `mixio-pipeline`, a missing or empty `SCREENPLAY` is a hard stop: return to Step 01
+for normalization and reference resolution. The raw `metadata.fullScript` fallback above is only
+for an explicit legacy/direct breakdown invocation and must never be passed to the managed
+production job.
 
 ## Managed path
 
@@ -52,7 +59,7 @@ studio_submit_studio_job({
   jobType: "script_breakdown",
   model: "script-preproduction",
   useCaseId: "script-preproduction",
-  input: { script_content: "<screenplay body, or fullScript only when no screenplay body exists>" },
+  input: { script_content: "<non-empty SCREENPLAY body>" },
   context: { projectId, episodeId }
 })
 → jobId ; poll studio_get_job_status({ jobId, projectId })
@@ -98,9 +105,17 @@ context, including aliases when enabled. Existing matches may be linked. For unm
 This is a blocking branch, not a best-effort fallback. Route any policy interpretation to
 `mixio-references`.
 
+Before matching entities, load `episode.metadata.pipeline.screenplay_loop.dispositions`. Treat a
+record as eligible only when `name` is non-empty, `mode == "TEXT_ONLY"`, `status == "approved"`, `reason` is non-empty,
+and its classification is `LOCATION_TEXT_ONLY` for a LOCATION or `INCIDENTAL_SET_DRESSING` for a
+PROP. Such a record may exempt only its named entity from reference registration and linked IDs;
+preserve the entity in verbatim screenplay text and `prop_links`/location text, but do not fabricate
+an ID. Every other unmatched entity remains blocking under the policy gate. Never infer a
+disposition from a missing reference or from a count-only field.
+
 ## Canonical shot metadata
 
-Seven required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`); persisting a shot without them throws `Shot metadata missing required field <name>` at the materialization gate. Audio cues are decomposed into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }` (populating `audio.sfx` from `[SFX: ...]` and `audio.ambient` from `[Ambient: ...]` verbatim). Every entity present in a shot must be linked — pass both the human-readable canonical names (`character_links` / `location_links` / `prop_links`) and the resolved element IDs (`linked_character_ids` / `linked_location_ids` / `linked_prop_ids`). That's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
+Seven required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`); persisting a shot without them throws `Shot metadata missing required field <name>` at the materialization gate. Audio cues are decomposed into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }` (populating `audio.sfx` from `[SFX: ...]` and `audio.ambient` from `[Ambient: ...]` verbatim). Every reference-backed entity present in a shot must be linked — pass both the human-readable canonical names (`character_links` / `location_links` / `prop_links`) and the resolved element IDs (`linked_character_ids` / `linked_location_ids` / `linked_prop_ids`). An approved text-only location or incidental prop remains in the source text and named text links, but is excluded from `linked_*_ids`; never fabricate an ID. That's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
 
 The full field table, the two camera vocabularies (`shot_type` is framing only; `camera_angle`/`lens`/`camera_movement` are their own axes — authoring conventions, not validated enums), the grammar→canonical-key mapping, and the passthrough rules: `references/canonical-schema.md`.
 
@@ -226,7 +241,7 @@ A scene needs a repair pass when any of these hold; check your own output the sa
 - `heading`, `location`, or `timeOfDay` is a placeholder
 - `scriptBody` has ≥2 non-empty lines but `screenplayLines`, `dialogueLines`, `cameraNotes`, and `directorNotes` are all empty
 
-On repair: fill missing/weak metadata from the raw script, keep scene and shot ordering stable, preserve existing non-placeholder fields, and split/merge/add scenes only if the draft is genuinely incomplete.
+On repair: fill missing/weak metadata from the selected source (`SCREENPLAY.body`, otherwise the explicitly permitted fallback `metadata.fullScript`), keep scene and shot ordering stable, preserve existing non-placeholder fields, and split/merge/add scenes only if the draft is genuinely incomplete.
 
 ## Persisting
 
@@ -277,10 +292,10 @@ passes. Its canonical payload and executable example are in
 ## Workflow
 
 ```
-1. read SCREENPLAY by `tags.episodeId`; use non-empty `body`, otherwise episode `metadata.fullScript`
+1. read SCREENPLAY by `tags.episodeId`; if `body` is empty or absent, block the production path and return to Step 01
 2. studio_get_project + studio_get_production_context       → read reference policy and canonical names
 3. segment the selected source verbatim into scenes (headings, transitions, time-of-day); retain native mentions, locks, and standalone annotations
-4. extract entities → match policy: `allow` registers; `propose`/`link_only` stop before writes
+4. extract entities → apply approved Step 01 `TEXT_ONLY` dispositions, then match policy: `allow` registers; `propose`/`link_only` stop before writes for every other unmatched entity
 5. refresh production context → resolve every final linked ID and canonical name
 6. design shots per scene — 7 canonical fields with zero placeholders; author per-shot appearanceState
 7. self-check against the repair criteria; fix rather than emitting "TBD"

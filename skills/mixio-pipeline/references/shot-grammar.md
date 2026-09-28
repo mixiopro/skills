@@ -93,7 +93,7 @@ See `mixio-sheets`. Six fields, always in this order: `Layout` · `Entries & exi
 ## Grounding modes
 
 - **GROUNDED** — an anchor image exists for the scene. Blocking is checked against real pixels; the audit can catch a shot that contradicts the set.
-- **TEXT-ONLY** — no reference image. Everything is grounded in script text only. Mark the scene `TEXT-ONLY` in its staging block and say so in the audit report, because "no anchor mismatches found" means nothing without an anchor.
+- **TEXT-ONLY** — a scene-level continuity grounding mode meaning no anchor image is available. It is distinct from a Step 01 `mode: "TEXT_ONLY"` entity disposition: the latter must be named and approved, and must never be inferred from missing media. Mark the scene `TEXT-ONLY` in its staging block and say so in the audit report, because "no anchor mismatches found" means nothing without an anchor.
 
 ## Continuity issue taxonomy
 
