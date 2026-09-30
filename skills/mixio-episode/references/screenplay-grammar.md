@@ -59,7 +59,7 @@ studio_list_references({ projectId, limit })
 
 Then copy the exact `mentionableLooks[].mention` or `mentionableLooks[].views[].mention` response value. A display name with spaces is one hyphenated root segment, not several dot segments. For example, if Studio returns `#verify-hero.wedding.front`, use that exact form—never `#verify.hero.wedding.front`.
 
-A look with no distinct `views` correctly uses its two-segment `#root.look` mention. `#root` and canonical `#char-…` forms are syntactically valid, but `mentionableLooks` is the authoritative safe form for a particular visual look.
+A look with no distinct `views` correctly uses its two-segment `#root.look` mention. For a CHARACTER, the look identifies a script-required age/clothing variant and an optional third segment can identify a sheet view. For a LOCATION, the look identifies a scenario-required configuration (such as exterior or living room), and a third segment identifies a camera-view image within that configuration. `#root` and canonical `#char-…` forms are syntactically valid, but `mentionableLooks` is the authoritative safe form for a particular visual look; copy its exact value and do not hand-build tokens for variants/views that are not yet registered.
 
 `#` is deliberately separate from `@`: `@` is reserved for Studio's structured prompt mentions such as `@[Label](type:id)` (code-level structured wire format, e.g. `@[Tony](character:char_123)`). An unresolved `#` mention fails soft and remains literal text, so a typo does not stop breakdown; it also does not bind a reference. Treat an unresolved token as an error to fix, not as a fallback.
 
@@ -75,12 +75,15 @@ Before remediating an unresolved entity or look, read `settings.references` with
 |---|---|---|
 | `RESOLVED` | Entity and look variant successfully resolved. | None needed. Ready for breakdown. |
 | `UNRESOLVED_ENTITY`<br>(`no element named "..." in this project`) | The character/location/prop element does not exist in Cast & World. | After the reference-policy check, register the entity via `studio_register_reference_entities`, then generate its look sheet. |
-| `UNRESOLVED_LOOK`<br>(`no look named "..." on element "..."`) | Entity exists, but the specific variant look does not. | After the reference-policy check, add a **variant look** to the existing element via `studio_update_reference` / `mixio-sheets`. **Never create a second duplicate character**. |
+| `UNRESOLVED_LOOK`<br>(`no look named "..." on element "..."`) | Entity exists, but the specific variant/configuration or view does not. | If the script requires it, record the missing row for Step 02's confirmed inventory and build it through `mixio-sheets`, subject to reference policy. After approval, copy the exact new `mentionableLooks` token if the screenplay needs one. Otherwise correct a typo. **Never create a second duplicate character, hand-build a token, or create one location per camera angle.** |
 | `AMBIGUOUS`<br>(`ambiguous: 2 elements named "..." in this project`) | Two references collapse to one mention root slug. | Deduplicate or rename the conflicting reference element in Cast & World. |
 
-**Step 01 Quality Gate**: Zero unmapped `#` tokens—character, location, or prop—are permitted
-before advancing to Step 02/03. Unresolved mentions fail soft on write but prevent references
-from binding downstream.
+Script-required variants/views may be ordinary prose and Step 02 inventory rows before their
+images are registered; do not invent `#` tokens for them. Convert an unresolved token to an
+existing canonical mention plus descriptive prose, or defer adding the exact variant/view token
+until Step 02 has produced an approved image and `mentionableLooks` value. Before breakdown at
+Step 03, every remaining `#` token—character, location, or prop—must resolve. Unresolved
+mentions fail soft on write but do not bind references downstream.
 
 ## Native continuity locks: `~`
 
@@ -116,7 +119,7 @@ Its 11 recognized keys are case-sensitive and exact:
 | `Mood` | `mood` | Emotional atmosphere of the frame (e.g. `tense`, `intimate`, `claustrophobic`) |
 | `Blocking` | `blocking` | In-frame spatial layering (e.g. `FG → MAYA; MG → OAK DESK; BG → VAULT DOOR`) |
 | `Background` | `context` | Specific background action or environment features (e.g. `rain pelting glass`); merge it into the shot's canonical environment context. |
-| `Location` | `location_links` | Target location; supports exact `#location.variant` mention |
+| `Location` | `location_links` | Target location; supports exact `#location.configuration[.view]` mention, copied from `mentionableLooks` |
 | `Shot Type` | `shot_type` | Framing size (e.g. `close_up`, `wide`, `over_shoulder`, `two_shot`) |
 | `SFX` | `audio.sfx` | Concrete sound effects / foley cues (e.g. `heavy steel door latch click`) |
 | `Ambient` | `audio.ambient` | Environmental soundscape / room tone (e.g. `low hum of server fans`) |

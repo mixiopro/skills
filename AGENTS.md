@@ -71,7 +71,7 @@ The `how-to-make-script` root skill is vendored under `skills/how-to-make-script
 | Skill | Invoke | Use for |
 |-------|--------|---------|
 | `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode, and whenever it's unclear which production skill applies.** Six gated steps + resumable state |
-| `mixio-sheets` | `/mixio:sheets` | Character turnarounds, location sheets, prop sheets, per-scene anchors |
+| `mixio-sheets` | `/mixio:sheets` | Approved character defaults and script-required variants, scenario-specific location configurations with camera-view packs, prop sheets, per-scene anchors |
 | `mixio-reference-audit` | `/mixio:reference-audit` | Audit Cast & World for completeness, consistency, duplicates, metadata quality |
 | `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → scenes and shot specs against canonical schemas, entity graph linking, appearanceState, and relational audit |
 | `mixio-continuity` | `/mixio:continuity` | Four-pass text continuity audit, before anything renders |
@@ -86,7 +86,7 @@ PRE story development + screenplay handoff → Mixio-owned `how-to-make-script` 
 00  Preflight          → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
                         resolution, visual style, reference policy into project `settings`
 01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty
-02  Sheets + anchors  → /mixio:sheets — references must exist before shots reference them; confirm image generation separately
+02  Reference packs + anchors → /mixio:sheets — approved character variants and location configuration/view packs before shots reference them; confirm image generation separately
 03  Shot breakdown    → /mixio:script-breakdown
 ┌── Token Ralph Loop (01 ↔ 02.5 ↔ 04; text/graph corrections only) ─────────────────────┐
 │ 02.5 Reference audit → /mixio:reference-audit — policy-safe ref/binding corrections    │

@@ -19,9 +19,9 @@ Two ways to run it:
 | Gates | none, runs to completion | user sign-off between scenes |
 | Verbatim safety | regex pass wins over the LLM | you must replicate it (below) |
 | Relational audit | server internal | explicit audit emitted + locked into `metadata.pipeline` |
-| Use when | you want a fast, schema-safe first pass | you need shot-grammar depth, entity graph linking, per-shot `appearanceState`, and relational audit |
+| Use when | you want a fast, schema-safe first pass with no inventory-backed non-default look bindings | you need shot-grammar depth, entity graph linking, per-shot `appearanceState.lookRef` mappings, and relational audit |
 
-Both paths reach the same contract, so the choice is about **process, not capability** — duration quantization is gone, so there is no longer a field the managed path can't express. Take the managed path for a cheap reproducible draft; take the composed path when you want sheets built first, gates between scenes, explicit entity ID linking, per-shot `appearanceState`, and a verified relational audit.
+Both paths can persist the canonical schemas, but only the composed path receives and applies the confirmed `reference_pack_inventory` while it authors `appears_in` relations. When that inventory maps an appearance to a non-default character variant, use the composed path so it can write the explicit `lookRef` at relation creation. The managed job accepts `script_content` only; a wardrobe description or variant mention is not proof that it selected the mapped look. Use the managed path when no inventory-backed non-default binding is required. Duration values remain expressible on either path.
 
 Best of both: run the **composed** path but keep Studio's two safety properties — derive `scriptBody` / `transitionFromPrevious` / `isContinuation` from the text deterministically rather than authoring them, and self-check against the repair criteria before persisting.
 
@@ -128,22 +128,27 @@ fields are optional, and an appearance with no state is not sufficient for a pas
 | `condition` | injuries, dirt, blood, sweat, exhaustion — cumulative across a sequence |
 | `carriedProps` | array of canonical prop names, max 50 |
 | `emotionalState` | performance direction. Distinct from the shot's `mood`, which is the mood of the *frame* |
-| `lookRef` | point at an existing approved variant by id/name instead of re-describing it |
+| `lookRef` | point at an existing approved CHARACTER variant by id/name instead of re-describing it |
 | `continuityNotes` | anything continuity-relevant the fields above don't cover |
 
 Aliases are mapped, so `costume`/`outfit` → `wardrobe`, `hair`/`hair_state` → `hairState`, `injuries`/`physicalCondition` → `condition`, `props`/`heldProps`/`carried_props` → `carriedProps`, `emotion` → `emotionalState`, `look`/`variant` → `lookRef`, `notes` → `continuityNotes`.
 
+Before authoring appearances, read `metadata.pipeline.reference_pack_inventory`. When a confirmed CHARACTER row maps the screenplay's age/clothing cue and shot to an approved non-default variant, write that exact variant ID/name to `appearanceState.lookRef` alongside the descriptive `wardrobe` value. Keep `wardrobe` even when `lookRef` is set: it records continuity state, while `lookRef` selects the approved image. The approved default needs no explicit binding. Never choose a variant by fuzzy text similarity; if the inventory does not map a required appearance unambiguously, stop and return it for user confirmation before persisting the breakdown.
+
 ```
 studio_link_graph({ projectId, relations: [{
   fromId: characterId, toId: shotId, relationType: "appears_in",
-  metadata: { wardrobe: "red tee, dark jeans, bare feet",
+  metadata: { wardrobe: "adult casual: dark jacket, light shirt",
               condition: "rested, uninjured",
               hairState: "loose curls, slightly mussed",
-              carriedProps: ["PHONE"], emotionalState: "amused, unguarded" }
+              carriedProps: ["PHONE"], emotionalState: "amused, unguarded",
+              lookRef: "adult-casual" }
 }]})
 ```
 
-`lookRef` resolves shot → scene → reference default at generation time, and a stale value (pointing at a renamed/deleted variant) degrades silently to the default rather than erroring, where the cascade is live — check by looking for a `lookBindings` key in `get_production_context`'s response. Re-running this breakdown never wipes an existing binding: presence relations are created only when missing, so an already-bound relation's metadata is untouched by a re-run.
+The example's `lookRef` is present only when the confirmed inventory maps this appearance to the approved `adult-casual` variant; omit it when the appearance uses the approved default.
+
+Character `lookRef` resolves shot → scene → character reference default at generation time, and a stale value (pointing at a renamed/deleted variant) degrades silently to the default rather than erroring, where the cascade is live — check by looking for a `lookBindings` key in `get_production_context`'s response. Re-running this breakdown never wipes an existing binding: presence relations are created only when missing, so an already-bound relation's metadata is untouched by a re-run.
 
 **Still not covered by a canonical field:** zone, facing, posture, and relative-to. `appearanceState` is deliberately appearance, not staging, and the shot's `blocking` is one string for the whole frame. They're durable-but-unchecked, not session-local: written as passthrough they persist and survive re-entry, and — on jobs where the prompt materializer actually runs (`promptEnhancementMode: "enhance"`, see `references/canonical-schema.md`) — reach the generation prompt under `- Additional direction:`. Either way nothing downstream reads or enforces them, so the continuity blocking map's pose columns still need restating per shot rather than trusted from inheritance — see `mixio-continuity`.
 
@@ -211,10 +216,19 @@ studio_register_reference_entities({ projectId, references: [
 
 Matching is by normalized `project + type + name`, so a permitted registration is idempotent.
 Reuse canonical names exactly as `studio_get_production_context` returns them; a name listed as
-an `aka` is the *same* entity and a listed variant is a *state* of that entity, never a separate
-reference. `TONY (gala)` as a second CHARACTER splits the identity and both halves drift. Apply
-the reference-policy gate first; `link_only` and `propose` do not reach this tool for an
-unmatched name.
+an `aka` is the *same* entity and a listed variant remains part of that reference; the meaning
+depends on entity type. Character variants represent script-required ages/clothing combinations.
+Location variants represent scenario-specific spatial/environmental configurations, and their
+labeled images are camera-view looks. Do not register a new CHARACTER for an age/costume variant
+or a new LOCATION merely to represent a camera angle. A screenplay may still require distinct
+LOCATION references when places need independent identity or reuse. Apply the reference-policy
+gate first; `link_only` and `propose` do not reach this tool for an unmatched name.
+
+For each shot, preserve the canonical location in `location_links` and
+`linked_location_ids`. The breakdown does not persist a location configuration or camera-view
+selection in character `appearanceState`, and must not invent a location `lookRef` relation.
+Step 05 selects the confirmed location variant and exact labeled view for that shot; see
+`mixio-shot-planning` and `mixio-generate`.
 
 ## Quality gates
 
@@ -261,6 +275,7 @@ Verify that all 7 required canonical fields are populated with real, non-placeho
 Verify all relational connections:
 - **Entity ID validation**: Every ID in `linked_character_ids`, `linked_location_ids`, `linked_prop_ids` resolves to an existing element in Cast & World (`studio_get_production_context` / `studio_list_references`). Zero orphaned links.
 - **Appearance State coverage**: Every character occurring in `linked_character_ids` for a shot must have a corresponding `appears_in` relation with non-empty `wardrobe`, `condition`, and `carriedProps` (use `[]` when no props are carried). Other appearance fields remain optional.
+- **Required character look bindings**: For each confirmed inventory mapping from a shot's age/clothing state to a non-default CHARACTER variant, the persisted `appears_in` relation must carry that approved variant's exact id/name in `appearanceState.lookRef`. Report `REQUIRED_LOOK_UNBOUND` when missing or mismatched; the approved default needs no explicit binding.
 - **Anchor attachment**: Every scene carries `anchorRef` referencing the scene's approved visual anchor.
 
 ### 3. Screenplay Scope Reconciliation
@@ -278,11 +293,11 @@ passes. Its canonical payload and executable example are in
 
 ```
 1. read SCREENPLAY by `tags.episodeId`; use non-empty `body`, otherwise episode `metadata.fullScript`
-2. studio_get_project + studio_get_production_context       → read reference policy and canonical names
+2. studio_get_project + studio_get_production_context       → read reference policy, canonical names, and confirmed reference-pack inventory
 3. segment the selected source verbatim into scenes (headings, transitions, time-of-day); retain native mentions, locks, and standalone annotations
 4. extract entities → match policy: `allow` registers; `propose`/`link_only` stop before writes
 5. refresh production context → resolve every final linked ID and canonical name
-6. design shots per scene — 7 canonical fields with zero placeholders; author per-shot appearanceState
+6. design shots per scene — 7 canonical fields with zero placeholders; author per-shot appearanceState and bind explicitly mapped non-default character variants with `lookRef`
 7. self-check against the repair criteria; fix rather than emitting "TBD"
 8. studio_upsert_scene_packages({ projectId, episodeId, scenes })                  → persist scenes and shots with linked_*_ids
 9. studio_link_graph({ projectId, relations })                          → attach appears_in relations with appearanceState

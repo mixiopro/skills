@@ -172,19 +172,52 @@ for each character_link / location_link / prop_link:
     if reference has no attached image AND model requires image reference:
         FINDING: REF_IMAGE_MISSING — model needs reference image for consistency
         → BLOCKING: Resolve in Step 02.5 / mixio-references before Step 06
+
+for each shot's selected character variant and location configuration/view:
+    resolve each selection to an approved referenceVariants image
+    if no confirmed inventory row or no approved image matches:
+        FINDING: REFERENCE_VARIANT_VIEW_NOT_READY — selection is absent, ambiguous, or unapproved
+        → BLOCKING: resolve the exact variant and labeled image in Step 02.5
+    for each location image:
+        verify its label maps to the confirmed orientation record and shot camera zone
+        if missing or inconsistent:
+            FINDING: LOCATION_VIEW_UNMAPPED — image does not prove the planned camera view
+            → BLOCKING: map or generate the required view and recheck the pack
+
+for each character appearance with a confirmed non-default variant mapping:
+    require appearanceState.lookRef to match that approved variant id/name
+    if missing or stale:
+        FINDING: REQUIRED_LOOK_UNBOUND — wardrobe/age state maps to an approved look but the shot will fall back to the default
+        → BLOCKING: bind the mapped variant or return to the confirmed inventory if the mapping is wrong
 ```
+
+The inventory is entity-specific: a CHARACTER's approved sheet is its default,
+with only screenplay-required age/clothing variants; a LOCATION variant names
+the required spatial/environmental configuration and its labeled images are
+camera views. Do not resolve a location camera angle through a character-style
+`lookRef`. Record the chosen location `variantId`/`variantName` and exact view
+label/URL in the persisted plan so Step 06 passes the correct approved image.
+
+This is the final post-breakdown reconciliation: compare each shot's mapped
+character appearance and actual camera zone/linked location with
+`metadata.pipeline.reference_pack_inventory`.
+If the shot needs a new or unapproved view, report a blocking
+`REFERENCE_VARIANT_VIEW_NOT_READY`, add a `proposed` row to the inventory, and
+stop before the cost-approval gate. Return to Step 02 only after the user
+confirms the additional render round; then evaluate and approve the pack, rerun
+`mixio-reference-audit`, and restart Steps 03–05 because their outputs are stale.
 
 ### Look-binding readiness
 
 ```
-for each character_link / location_link / prop_link with a bound lookRef:
+for each character_link with a bound lookRef:
     resolve against reference's referenceVariants
     if unresolved:
         FINDING: LOOK_REF_UNRESOLVED — binding stale, will silently render default look
         → BLOCKING: Re-bind variant or fix in Step 02.5 (STALE_LOOK_REF)
 ```
 
-Pull bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. A resolved binding is worth carrying forward: record its `variantId`/`variantName` in the persisted plan (below) so Step 06 declares it directly on the media reference instead of re-resolving it (see `mixio-generate` §7; check `get_production_context` for a `lookBindings` key to confirm your Studio resolves it).
+Pull character bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. Carry each approved character `variantId`/`variantName` into the persisted plan. For locations, record the confirmed configuration `variantId`/`variantName` and exact labeled view URL; a generic `lookRef` check does not prove camera-view readiness (see `mixio-generate` §7).
 
 ### Prompt mention & mention map validation (Universal Invariant across all models & methods)
 

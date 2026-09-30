@@ -105,9 +105,11 @@ Rapid pacing sections:
 ## Plan persistence
 
 Write per-shot planning metadata alongside the batch assignment. Keep `chunk_index` as an alias
-for `batch_index` for backwards compatibility. Keep a bound look on the existing relation's
-`lookRef`; Step 06 either supplies that reference through `selectedElements` so Studio resolves
-the cascade, or passes `variantId` / `variantName` on its media reference. Do not invent
+for `batch_index` for backwards compatibility. Keep a bound CHARACTER look on the existing
+relation's `lookRef`; Step 06 either supplies that reference through `selectedElements` so Studio
+resolves the cascade, or passes `variantId` / `variantName` on its media reference. For a
+LOCATION, persist the selected configuration variant and exact approved camera-view URL from the
+confirmed inventory; do not encode the angle as a character `lookRef`. Do not invent
 `look_variant_id` / `look_variant_name` plan metadata: generation does not read it.
 
 ```

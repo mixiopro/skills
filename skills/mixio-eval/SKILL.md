@@ -125,14 +125,33 @@ identity, anatomy, hands/limbs, wardrobe/accessories, and generation artifacts
 as required quality gates; a clean aggregate score must not hide a deformed
 face, extra limb, fused hand, or unexplained costume change. For a multi-view
 sheet, pass the views as ordered image inputs and include the
-`reference-coverage` context.
+`reference-coverage` context. Evaluate each script-required age/clothing
+variant as its own pack against the approved character default; retain the
+variant name, input aliases, findings, repair feedback, and human decision with
+the inventory row. Evaluator output is evidence for review, not approval.
 
 Use `image-location` for a location reference pack. It requires at least two
-image views, a `location-reference` anchor, and explicit coverage metadata.
+image views, a `location-reference` anchor, and explicit coverage metadata. Use
+an approved image from the same configuration as the anchor when available. If
+no approved image exists for that configuration yet, use a representative
+staged candidate as the evaluation-only anchor only when the live evaluation
+contract accepts its URL as a `location-reference` input. Compare the candidate
+views against their declared orientation records, landmarks, and world axes;
+keep all candidates outside Cast & World pending human approval. Never use an
+image from another configuration just to fill the anchor role. If no valid
+anchor input is available, block the pack and request a suitable source image.
+This `location-reference` is the pack's evaluation anchor, distinct from the
+per-scene KEYFRAME `anchorRef` generated later in Step 02.
 Record each view's camera position, facing direction, visible landmarks, and
 world-to-screen mapping. Add `shot-zones` when the shot plan needs a reverse,
 overhead, underslung, top, bottom, or detail view. Do not generate every angle
-by habit: required views come from the planned camera zones.
+by habit: required views come from the planned camera zones. If only one view is
+script-required, add only the second view needed to satisfy the evaluator's
+minimum for that pack. Evaluate every script-required location configuration
+as a separate pack; map each input alias
+to its exact variant and image label/orientation record. Compare views and
+configurations for stable geometry, world axes, landmarks, and palette, and
+record intentional spatial or environmental changes in the inventory.
 
 Keep these coordinate systems distinct: `world-left`/`world-right` are fixed
 to the location; `camera-left`/`camera-right` may reverse; `character-left`/
@@ -184,6 +203,17 @@ Interpret the result as a review packet:
 The generic core findings remain authoritative for verdict and evidence. The
 repair plan is advisory and must be preserved alongside the evaluation receipt
 and the human decision.
+
+For reference candidates, keep the evaluation receipt, input aliases, findings,
+human feedback, and approval/rejection decision linked to the corresponding
+variant/view inventory rows in episode
+`metadata.pipeline.reference_pack_inventory`. Attach only user-approved
+candidates. If a rejected
+candidate was attached earlier, use `mixio-references` to remove it from every
+active store and clear any matching `thumbnailUrl`/`previewUrl` through a
+documented operation, then read the reference back; do not treat a rejection
+note as cleanup. A candidate whose removal from active stores and preview
+fields cannot be verified blocks downstream generation.
 
 The example also requests an explicit `output-schema` wrapper for a structured
 continuity extension: `review-verdict`, `worst-transition`,

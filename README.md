@@ -112,8 +112,8 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 
 | Skill | Invoke | Description |
 |-------|--------|-------------|
-| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — screenplay → anchors → reference audit → breakdown → continuity → shot planning → video as gated steps, with resumable progress state. Uses the native [screenplay grammar](./skills/mixio-episode/references/screenplay-grammar.md) and the shared [shot grammar](./skills/mixio-pipeline/references/shot-grammar.md). |
-| [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Character turnaround sheets, six-field location sheets, prop sheets, and one wide anchor frame per scene — the reference layer every shot is generated against. |
+| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — screenplay → approved reference packs and anchors → reference audit → breakdown → continuity → shot planning → video as gated steps, with resumable progress state. Uses the native [screenplay grammar](./skills/mixio-episode/references/screenplay-grammar.md) and the shared [shot grammar](./skills/mixio-pipeline/references/shot-grammar.md). |
+| [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Approved character defaults and script-required age/clothing variants, scenario-specific location configurations with labeled camera-view packs, prop sheets, and one wide anchor frame per scene. |
 | [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit Cast & World for completeness, name/image consistency, duplicates, metadata quality, and policy compliance — catch reference problems before they cost re-renders. |
 | [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Script → canonical scenes and shot specs with entity graph linking, appearanceState, and immediate relational audit. |
 | [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Four-pass text continuity audit before anything renders — blocking map, checks, report, corrected shots. |
@@ -131,7 +131,7 @@ Optional pre-production: use `/mixio:screenwriting` and the owned `how-to-make-s
 Step 00  Preflight           → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
                               resolution, visual style and reference policy into the project settings
 Step 01  Detailed Screenplay → /mixio:episode discovers mentions and upserts the native screenplay draft
-Step 02  Anchor Frames       → /mixio:sheets — character + location sheets, one anchor per scene
+Step 02  Reference Packs     → /mixio:sheets — approved character default + required variants, location configurations × camera-view packs, then one anchor per scene
 Step 02.5 Reference Audit    → /mixio:reference-audit — completeness, consistency, duplicates, metadata
 Step 03  Panel Breakdown     → /mixio:script-breakdown — shot specs, canonical schemas, enums
 Step 04  Continuity Audit    → /mixio:continuity — 4 text passes, corrected shots locked
