@@ -1,6 +1,6 @@
 ---
 name: mixio-sheets
-description: "Build the reference layer an episode is generated against — character turnaround sheets, location sheets, prop sheets, and one wide anchor frame per scene — and persist them as Cast & World references so every shot inherits the same look. Not raw Cast & World CRUD (mixio-references) or auditing references that already exist (mixio-reference-audit). Unclear which step you need → mixio-pipeline."
+description: "Use when an episode needs character or location references prepared for consistent image generation, especially when the script requires multiple character looks or views across rooms, interiors, and exteriors. Not raw Cast & World CRUD (mixio-references) or auditing existing references (mixio-reference-audit). Unclear which step you need → mixio-pipeline."
 version: 0.3.1
 invoke: /mixio:sheets
 ---
@@ -9,15 +9,17 @@ invoke: /mixio:sheets
 
 Step 02 of `mixio-pipeline`. Consistency across a 40-shot episode is not a prompting problem, it is a **reference problem**: every shot must be generated against the same images. This skill produces those images and the structured text that travels with them.
 
-Three artifacts, two lifetimes:
+Three artifact families, two lifetimes:
 
 | Artifact | Scope | Answers |
 |----------|-------|---------|
-| **Character sheet** | project | who this person is, from every angle |
-| **Location sheet** | project | what this space contains and where |
+| **Character reference pack** | project | who this person is by default and which script-required age/clothing variants are needed |
+| **Location variant/view packs** | project | which spatial configurations the script needs and how each looks from required camera angles |
 | **Anchor frame** | episode / scene | how this scene is staged and lit, right now |
 
-Character and location sheets are built once and reused across episodes. Anchors are per scene, and are the thing shots point at (`Lighting: as Anchor 1`).
+Character and location reference packs are project-scoped and reused across episodes. A character default is an approved character sheet. A location reference is a configurable set of variants, each with labeled camera-view images; it is not assumed to be one image or one universal sheet. Anchors are per scene, and are the thing shots point at (`Lighting: as Anchor 1`).
+
+Use the scenario-driven inventory and view rules in [variant-view-matrix.md](references/variant-view-matrix.md). The `referenceVariants` container is generic; character and location variant meanings are different.
 
 Vocabulary: `mixio-pipeline/references/shot-grammar.md`.
 
@@ -41,21 +43,26 @@ Read `mixio-references` for the write semantics (especially `attachments` vs `re
 
 ## Always ask before rendering
 
-The user may already have art. Extract the cast and location list from the script, present it, and ask for references:
+The user may already have art. Read the screenplay and current Cast & World references, then build a required variant/view matrix before asking what to render. Derive demand from screenplay evidence, not from registered `#` mentions alone: capture explicit age and costume changes from action, dialogue, and appearance notes; distinguish them from per-shot hair, injury, emotion, or carried-prop state. For locations, account for `INT.`/`EXT.`, named rooms and areas, environmental configurations required by the script, and stated camera geography. A single default is correct when the script requires no other look/configuration. Map supplied images to the exact character look or location configuration and camera-view row they cover. Use a supplied image as visual guidance when deriving missing variants or angles, but count it as coverage only for the row(s) its framing proves. One image does not establish that every script-required look or view is covered.
 
 ```
-Locations found — drop a reference image for each and tell me which is which.
-  • INT. TONY'S BEDROOM — the bed, phone-scrolling area, door POPPY enters through
-  • INT/EXT. TONY'S FRONT DOOR — doorway, BENTLEY visible behind
+Reference gaps from the script:
+  • TONY — default sheet supplied; teen/formal variant needed for scenes 2 and 5
+  • THE HOUSE / interior-living-room — [Image 1] covers entry-wide; sofa-to-dining
+    and dining-to-balcony views are still needed
+  • THE HOUSE / exterior — no supplied view; front-establishing and door-reverse needed
 
-Reply like: TONY'S BEDROOM = [Image 1], FRONT DOOR = [Image 3]
-For any location without a reference, say "skip <location>" — it will be
-grounded in script text only and marked TEXT-ONLY.
+Confirm the variant/view inventory and which missing images may be generated.
+For anything you do not want generated, say "skip <row>" and mark it TEXT-ONLY.
+Keep every affected shot blocked from all generation while that required view
+remains in the confirmed inventory. Do not use text-only generation as a
+fallback; unblock only after the user explicitly revises the screenplay or
+removes the view dependency and the inventory is reconciled.
 ```
 
-Two supplied images may be two angles of one space. Say what you inferred and get it confirmed (`Both [Image 1] and [Image 2] = TONY'S APARTMENT — two angles`) rather than registering two locations that will drift apart.
+Two supplied images may be camera looks for one location variant. Map them to separate view rows (`[Image 1] = entry-wide; [Image 2] = reverse-to-windows`) rather than creating duplicate location entries. When room or indoor/outdoor grouping is ambiguous, show the proposed grouping and ask the user to confirm it.
 
-Generating a reference the user already owns wastes credits and throws away the look they wanted. `studio_list_references` first, ask second, render last.
+Do not render until the user confirms the inventory and first candidate round. For retries, evaluation, and human approval, follow the shared candidate gate in `mixio-references`. Attach only approved images; incomplete required rows remain blocking for Step 03.
 
 ## Check the project's reference policy first
 
@@ -89,7 +96,7 @@ Render spec:
 - **Background**: flat white or light grey, no set dressing, no props not attached to the character.
 - **Lighting**: flat, even, neutral. No dramatic key. A sheet lit at golden hour poisons every shot that references it.
 - **Pose**: neutral standing, arms relaxed and clear of the body, expression neutral.
-- **Wardrobe**: the character's default costume. One sheet per costume — see variants below.
+- **Wardrobe**: show the character's default costume on the default sheet; add sheets for only the age/clothing combinations required by the script, as listed in the variant matrix below.
 - **Aspect ratio**: always `16:9`; the approved contact-sheet template requires this horizontal canvas.
 
 ### Character-sheet visual gate
@@ -103,12 +110,12 @@ or replaced rather than averaged away. Run the modern `image-character`
 evaluation with ordered aliases and `reference-coverage.subject-kind=character`
 for a multi-view sheet, retaining the receipt with the reference asset.
 
-Then persist the structured identity alongside it — one schema owns these fields for every surface. Write it like this:
+After evaluator review and human approval, attach the accepted sheet and persist the structured identity alongside it — one schema owns these fields for every surface. This sample shows an approved default sheet while other required variants may still be pending; in that case the whole reference stays `in_review`. Never attach a generated candidate before the user approves it.
 
 ```
 studio_update_reference({
   projectId, referenceId,
-  attachments: [{ url: sheetUrl, label: "Turnaround", isPrimary: true }],
+  attachments: [{ url: approvedSheetUrl, label: "Turnaround", isPrimary: true }],
   characterDetails: {
     role: "protagonist",              // enum: protagonist|antagonist|supporting|background
     age: "24", build: "petite, 5'2\"", height: "5'2\"",
@@ -120,7 +127,7 @@ studio_update_reference({
     personality: "deadpan, fast", speechStyle: "Brooklyn, dry, clipped",
     customAttributes: [{ key: "handedness", value: "right" }]
   },
-  workflow: { status: "in_review" }
+  workflow: { status: "in_review" } // set approved only when every required pack is accepted
 })
 ```
 
@@ -144,18 +151,19 @@ So decide the tag **once, here**, and record it in pipeline state next to the re
 
 **Do not put per-shot state here.** Hair state, condition/damage, and carried props are properties of an *appearance*, not of the character, and belong on the `appears_in` relation's `appearanceState` — see `mixio-script-breakdown`. A soaked-hair value on the character is one global truth that is only correct in a few shots.
 
-### Wardrobe variants
+### Character age and clothing variants
 
-A costume change is a **named variant**, not a new character. Use `referenceVariants` (full replace of the variant list — see `mixio-references`):
+The approved character sheet is the default image when a shot selects no variant. If the only supplied image is a portrait or single pose and no approved sheet exists, use it as identity guidance and include the default turnaround sheet in the confirmed inventory before deriving clothing/age variants. A script-required age or clothing combination is a **named character variant**, not a new character. Use the generic `referenceVariants` container (full replacement semantics; see `mixio-references`):
 
 ```
 referenceVariants: [
   { name: "Default Look", kind: "primary", isDefault: true, images: [{ url: defaultSheet, isPrimary: true }] },
-  { name: "formal",       kind: "look",    images: [{ url: galaSheet, isPrimary: true }] }
+  { name: "adult-casual", kind: "look",    images: [{ url: adultCasualSheet, isPrimary: true }] },
+  { name: "teen-formal",  kind: "look",    images: [{ url: teenFormalSheet, isPrimary: true }] }
 ]
 ```
 
-`kind` is `primary` | `look` | `reference`. Under `variantPolicy: closed` the `name` must come from `variantVocabulary.CHARACTER` — that's why the second entry above is `"formal"` and not `"Gala Dress"`. On an open project use a descriptive name.
+`kind` is `primary` | `look` | `reference`. Under `variantPolicy: closed`, every name must come from `variantVocabulary.CHARACTER`; on an open project use a descriptive name. Create only combinations the screenplay uses, not every possible age × outfit pairing. Keep defining identity features stable across ages and outfits, and evaluate each required variant as an ordered `image-character` pack.
 
 Shots then reference the variant by name in `character_ref`. Registering `TONY (gala)` as a second CHARACTER splits the identity and both halves drift.
 
@@ -169,12 +177,17 @@ When relative height matters (adult/child, human/creature), render one `SCALING_
 
 Cheaper alternative for a single character: set `metadata.scalingLabel` on the reference (via `studio_update_element` — `update_reference` has no `metadata` param). Either mechanism causes scale constraints to be injected into generation prompts; neither one present means the model picks relative heights freshly in every shot.
 
-## Location sheet
+## Location variant and camera-view packs
 
-Text first, image second. The six fields, in this order — this is the schema the continuity audit reads:
+Text first, images second. Derive the location configurations from sluglines, action, blocking, and planned camera zones. The same canonical place may need variants such as `exterior`, `interior-living-room`, `interior-hallway`, or script-specific area configurations. The name is a production choice constrained by `variantPolicy`; do not force every project into the same location taxonomy.
+
+Each location variant holds a set of **camera-view looks** as its labeled `images`. For example, `interior-living-room` may contain `entry-wide`, `sofa-to-dining`, `dining-to-balcony`, and `balcony-reverse`. These image labels are camera positions and views; the parent variant names the space/configuration. An initial single location image covers only the matching view row.
+
+Text first, image second. Record the place-wide spatial truth in the location sheet fields below; index each view's orientation record by the exact image label. When a location configuration needs independent spatial details or reuse, use a separate LOCATION reference as described in [variant-view-matrix.md](references/variant-view-matrix.md).
 
 ```
-LOCATION SHEET — TONY'S APARTMENT   ([Image 1] + [Image 2])
+LOCATION PACK — THE HOUSE / interior-living-room
+Views: entry-wide ([Image 1]), sofa-to-dining ([Image 2]), dining-to-balcony (needed)
 
 Layout:            Open studio room. BED against the left wall (window side), COUCH
                    centered facing the staircase wall, OLIVE ARMCHAIR left of the couch,
@@ -196,18 +209,19 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
                    ceiling, off-white walls. Warm, lived-in Italian-American Brooklyn.
 ```
 
-- **`Depth & axes` is the field that prevents crossing the line.** Name the long axis and which direction each reference image looks along it, and left/right stays stable between a wide and a reverse.
+- **`Depth & axes` prevents crossing the line.** Name the long axis and which direction each reference image looks along it, and left/right stays stable between a wide and a reverse. Keep shared architecture, access points, landmarks, and palette consistent across variants unless the screenplay calls for a change.
 - Add an orientation record for every attached view: `view`,
   `camera-position`, `facing-direction`, `screen-left-world`,
   `screen-right-world`, and visible `landmarks`. `world-left/right` stays
   fixed; camera-left/right changes when the camera reverses. A top, bottom,
   overhead, underslung, reverse, or detail view is conditional on the shot
   plan, not a mandatory checklist for every location.
-- Derive `required-views` from planned camera zones and include an
+- Derive `required-views` separately for every required location variant from planned camera zones and include an
   opposite-axis/reverse view whenever the episode crosses or approaches the
   established line. Pass this orientation record to `image-location` before
   approving the location.
 - Every element named here in CAPS becomes a prop-continuity token for Step 04.
+- Evaluate each required variant as its own `image-location` pack with at least two image views, a `location-reference` anchor, and explicit `reference-coverage` metadata. Map each evaluation alias to the exact variant and image label. Use an approved anchor from the same configuration when available; otherwise use a representative staged candidate only if the live evaluation contract accepts its URL as the evaluation-only `location-reference`. Never substitute another configuration's image for the anchor. Missing view/configuration coverage is blocking; do not substitute a different variant's image silently.
 - No reference image → header gets `(TEXT-ONLY)`, unknown fields get `UNKNOWN`. Do not fill `Layout: UNKNOWN` with a plausible invention; the audit needs to know it is unverified.
 
 ### Persisting the sheet
@@ -216,19 +230,28 @@ The sheet has real fields, not prose blobs — map the six sheet fields onto `lo
 
 Full field-mapping table, a worked `studio_update_reference` call, and the older-Studio metadata-mirroring fallback: `references/location-fields.md`.
 
-### Time-of-day and weather variants
+### Location variant selection
 
-`lightingNotes` promises "time-of-day variants" but a DAY and a NIGHT version of one room are not one lighting note — they are two different reference images. Use the **same variant mechanism as character costumes**, which works on locations too:
+Location variants use the same generic storage mechanism as character looks, but their meaning differs: a location variant names the script-relevant space/configuration; its images are camera-view looks. Time, weather, or lighting can define another configuration when the screenplay requires it, with its own required view rows:
 
 ```
 referenceVariants: [
-  { name: "day",   kind: "primary", isDefault: true, images: [{ url: dayRef,   isPrimary: true }] },
-  { name: "night", kind: "look",                     images: [{ url: nightRef, isPrimary: true }] },
-  { name: "rain",  kind: "look",                     images: [{ url: rainRef,  isPrimary: true }] }
+  { name: "interior-living-room", kind: "primary", isDefault: true,
+    images: [
+      { url: entryWide, label: "entry-wide", isPrimary: true },
+      { url: sofaReverse, label: "sofa-reverse" }
+    ]
+  },
+  { name: "exterior-rain", kind: "look",
+    images: [
+      { url: frontWideRain, label: "front-establishing", isPrimary: true },
+      { url: doorReverseRain, label: "door-reverse" }
+    ]
+  }
 ]
 ```
 
-Names must sit in `variantVocabulary.LOCATION` when the project is `closed`. Select the variant matching the scene's `timeOfDay` when you render its anchor. A scene-level `lookRef` binding — see the appearance-state section below and `mixio-script-breakdown` — can make generation resolve that variant automatically for every shot in the scene. Check it's live before relying on it: `get_production_context` returns a `lookBindings` key once it is. No key, or no binding made, and it's still on you to pass the right variant. The alternative people reach for — registering `TONY'S APARTMENT (NIGHT)` as a second LOCATION — splits the space and the two halves drift apart exactly like a split character does.
+Names must sit in `variantVocabulary.LOCATION` when the project is `closed`. Build a required variant × view matrix before rendering anchors. Each shot must select its intended location configuration and camera view explicitly; in `mixio-generate`, pass the selected `variantId` or `variantName` with the location media reference and preserve its `@` mention pair. Do not rely on a location `lookRef` cascade unless `get_production_context` confirms `lookBindings` and the Studio relation contract supports that owner.
 
 ## Per-scene character state: appearance yes, staging not yet
 
@@ -309,24 +332,26 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
 ## Workflow
 
 ```
-1. parse script → cast list + location list + story-critical props
-2. studio_get_project({ projectId })                → settings.references policy (createPolicy, variantPolicy, vocabulary)
-3. studio_list_references({ projectId })            → what already exists
-4. ask the user for reference images; confirm image→location mapping; note skips as TEXT-ONLY
-5. studio_register_reference_entities({ projectId, references })   → upsert by name (respect createPolicy)
-   studio_update_element({ projectId, elementId: referenceId, updates: { metadata: { aliases } } }) → record script-name aliases
-6. per character: render turnaround → studio_update_reference({ projectId, referenceId, attachments, characterDetails })
-   per location:  write the 6-field sheet → studio_update_reference({ projectId, referenceId, locationDetails, referenceVariants })
-   → this is the Reference Enrichment phase — Step 02.5 gates on visualAnchor/setting/lighting before Step 03
-7. per scene: render anchor at anchor_aspect_ratio with location_ref + character_ref
-   (pick the location variant matching the scene's timeOfDay)
-   → studio_create_element({ projectId, type: "KEYFRAME", name: anchorName }) → record id in metadata.pipeline.anchors
-8. show every sheet and anchor for approval → GATE → Step 03 Panel Breakdown
+1. parse screenplay → characters, canonical places, required character looks, location configurations, provisional camera zones, and story-critical props
+2. studio_get_project({ projectId }) → reference policies and allowed variant names
+3. studio_list_references({ projectId }) → existing entities, variants, and approved images
+4. build the variant × view matrix; map supplied images to exact rows; show gaps and ask the user to confirm the grouping and first render round
+5. register only policy-permitted canonical references; enrich character identity and place-wide location details
+6. render missing candidates outside the active reference; evaluate each character/location pack and retain the receipt + feedback
+7. apply the shared candidate approval/retry gate in `mixio-references`; show candidates for human approval
+8. attach only approved images; read back the reference and verify rejected media is absent from active stores
+9. after the reference packs are approved, confirm the separate scene-anchor render round; render per-scene anchors with the selected location configuration and character variants
+10. show every scene anchor for human approval → gate Step 03 on approved, complete reference packs and anchors
 ```
+
+Persist the confirmed matrix and each row's confirmation, media status, evaluation run IDs,
+feedback, and human decision in the existing episode `metadata.pipeline.reference_pack_inventory`
+free-form metadata. Step 02.5 checks the screenplay-derived provisional camera zones; Step 05
+must reconcile the actual shot camera zones after breakdown against the same inventory.
 
 ## Notes
 
 - Sheets are the cheapest place to fix a look. Re-rendering one sheet is one job; re-rendering the 12 shots that referenced a wrong sheet is twelve.
-- Wrong images already attached? Fix with `referenceVariants` (replaces), not `attachments` (merges) — and never with `thumbnailUrl`, which only changes the card preview. See `mixio-references`.
+- Wrong images already attached? Remove rejected media from the active reference stores and rebuild `referenceVariants` from approved images only. `attachments` merges; `referenceVariants` replaces. Read back `referenceVariants`, legacy `characterDetails.looks`, flat `attachments`, and `thumbnailUrl`/`previewUrl` before continuing. See `mixio-references`.
 - External URLs (Drive, Dropbox, third-party CDNs) frequently fail through `studio_upload_media_from_url` with `No files were uploaded`. Use the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts), then `upload_file({ path: asset_path, project_id, organization_id })` and update the reference/slot with `entry.publicUrl`.
-- Set `workflow.status` honestly (`draft` → `in_review` → `approved`). Downstream steps should treat a non-approved sheet as provisional.
+- Set `workflow.status` honestly (`draft` → `in_review` → `approved`). Keep candidate packs in review until evaluation and human approval are complete; downstream steps block on incomplete or non-approved required variants/views.

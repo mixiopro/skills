@@ -7,23 +7,25 @@ invoke: /mixio:reference-audit
 
 # Mixio Reference Audit
 
-Step 02.5 of `mixio-pipeline`. Runs after sheets (Step 02) and before the panel breakdown (Step 03). The question it answers: **are the references this episode will generate against actually ready?**
+Step 02.5 of `mixio-pipeline`. Runs after sheets (Step 02) and before the panel breakdown (Step 03), then runs again during Step 05 reconciliation if breakdown exposes camera zones missing from the confirmed matrix. The question it answers: **are the references this episode will generate against actually ready?**
 
 A missing character image found here costs one upload. The same gap found in Step 06 costs every shot that character appears in — re-generated blind, or blocked until someone notices.
 
 ## Prerequisites
 
 - A project with references registered (`mixio-references`)
-- A script persisted on the episode (Step 01)
+- A persisted native `SCREENPLAY` body or, if none is usable, episode fallback script (Step 01)
 - Ideally, sheets already built (Step 02) — but the audit is valuable even without them
 
 ## What it checks
 
-Six categories, run in order. Each produces a finding list; the gate is at the end.
+Seven categories, run in order. Each produces a finding list; the gate is at the end.
 
 ### 1. Completeness — script demand vs reference supply
 
-Extract every CAPS entity from the persisted script (`studio_get_episode` → `script`). Cross-reference against `studio_list_references({ projectId })`.
+Read the episode's native `SCREENPLAY` element and episode record. Extract every CAPS entity from the non-empty screenplay `body`, including drafts; use episode `script` / `metadata.fullScript` only when no usable screenplay body exists, following `screenplay-grammar.md`. Cross-reference against `studio_list_references({ projectId })`.
+
+For a pipeline audit, require a present, confirmed `metadata.pipeline.reference_pack_inventory`; report `REFERENCE_PACK_INVENTORY_MISSING` and block if it is absent, unconfirmed, or empty before screenplay demand has been reconciled. Do not let a single image or `Default` look pass by itself. Compare screenplay-evidenced age/costume combinations, location configurations, and provisional camera zones with the inventory, then compare every required row with the actual approved reference element data. A default-only pack passes when the screenplay requires no other look/configuration. CAPS extraction alone cannot establish that a costume combination, location configuration, or angle pack exists. On a post-breakdown rerun, compare persisted shot camera zones and character appearance mappings with those same inventory rows.
 
 **Judge `MISSING_IMAGE` by `hasImage` — never by `thumbnailUrl`/`previewUrl`.** `list_references` returns `thumbnailUrl`/`previewUrl` alongside it, and it's easy to grab the wrong pair: those two are a card-preview column that nothing populates when a Look is attached, so a reference with real turnaround images routinely still shows both as `null`. Reading those as the presence signal produces a false `MISSING_IMAGE` on every reference in the project — a wrong blocking finding on the roster's healthiest data, not its worst. `hasImage` (see `mixio-references`) is the real signal.
 
@@ -33,6 +35,12 @@ Extract every CAPS entity from the persisted script (`studio_get_episode` → `s
 | `MISSING_IMAGE` | Reference exists but `hasImage` is false |
 | `MISSING_IMAGE_HIGH_USAGE` | Same, but the entity appears in ≥3 shots or ≥2 scenes — generation will be inconsistent without a visual anchor |
 | `NO_PRIMARY_LOOK` | Reference has variant images but none marked `isPrimary` or `isDefault` — prompt assembly picks arbitrarily |
+| `MISSING_REQUIRED_VARIANT` | A screenplay-required character age/clothing look or location configuration has no approved variant |
+| `MISSING_REQUIRED_VIEW` | A required location configuration lacks a camera-view image mapped to a planned shot zone |
+| `SCRIPT_REQUIREMENT_UNMAPPED` | A screenplay-evidenced character look, location configuration, or camera zone has no confirmed inventory row |
+| `REFERENCE_PACK_INVENTORY_MISSING` | The pipeline inventory is absent, empty before demand reconciliation, or unconfirmed, so variant/view completeness cannot be established |
+| `REFERENCE_PACK_NOT_APPROVED` | A required reference or variant pack is still draft/in review, or lacks human approval |
+| `REJECTED_MEDIA_ACTIVE` | A candidate rejected by evaluation or human review remains in an active reference image store or is still shown as its card preview |
 
 ```
 Completeness — 12 references checked
@@ -44,21 +52,37 @@ Completeness — 12 references checked
 
 ### 2. Visual reference readiness — sheet integrity and coverage
 
-For each character sheet, inspect every attached view—not only the primary
-thumbnail—for identity drift, face deformation, extra/fused hands or limbs,
-warped joints, hallucinated accessories, wardrobe/color changes, and
+For each required character variant, inspect every attached view—not only the
+primary thumbnail—for identity drift, face deformation, extra/fused hands or
+limbs, warped joints, hallucinated accessories, wardrobe/color changes, and
 unexplained silhouette changes. Mark hidden regions unobservable. Any
 confirmed deformation, hallucinated body part, or unexplained identity or
 wardrobe break is **BLOCKING** and routes to `image-character`; it cannot be
-waived by a strong average score.
+waived by a strong average score. Confirm the approved character sheet remains
+the default and that every script-required age/clothing combination has its
+own approved pack; do not require unused combinations.
 
-For each location, compare `depthAxes`, landmarks, and every attached
-orientation record. Require the views needed by actual shot camera zones,
-including a reverse/opposite-axis view where the shot plan crosses the line.
-Validate world-left/right separately from camera-left/right and
-screen-left/right. Missing required coverage or a misbound view is
-**BLOCKING**; unneeded top/bottom/overhead/underslung/detail views are not
-failures.
+For each required location variant/configuration, compare `depthAxes`, stable
+landmarks, and every attached orientation record. Require the camera looks
+needed by that configuration's shot zones, including a reverse/opposite-axis
+view where the shot plan crosses the line. Validate world-left/right separately
+from camera-left/right and screen-left/right. Every location pack sent to
+`image-location` must meet that profile's minimum view count and have explicit
+`reference-coverage` aliases mapped to its exact variant and image labels.
+Missing coverage or a misbound view is **BLOCKING**; unneeded
+top/bottom/overhead/underslung/detail views are not failures.
+
+Compare variants against the location inventory's declared invariants (such as
+building silhouette, fixed entrances, window/door placement, and world axes).
+Treat changes as intentional only when the screenplay or user-confirmed
+inventory names them. Unexplained geometry, landmark, palette, or orientation
+drift across views/configurations is **BLOCKING**. A rejected candidate must
+never remain in `referenceVariants`, legacy `characterDetails.looks`, or flat
+`attachments`, and must not remain in top-level `thumbnailUrl`/`previewUrl` as
+the card image. Retain its feedback and evaluation receipt outside the active
+media stores. Read the reference back to verify removal before clearing the
+finding; if a rejected preview cannot be cleared through a documented
+operation, keep the reference non-approved and block generation.
 
 ### 3. Consistency — name/description vs image alignment
 
@@ -81,7 +105,7 @@ Implementation: if the agent has vision capabilities, describe the primary image
 |---------|---------|
 | `LIKELY_DUPLICATE` | Two references of the same type with names within edit distance 2, or one name is a substring of another |
 | `ALIAS_CANDIDATE` | Script uses a name that matches an existing reference's description/bio but not its canonical name — likely an alias |
-| `VARIANT_CONFUSED_AS_REF` | A reference whose name looks like `CHARACTER (state)` — e.g. `TONY (gala)` — which should be a variant, not a separate element |
+| `VARIANT_CONFUSED_AS_REF` | A reference whose name looks like `CHARACTER (state)` — e.g. `TONY (gala)` — or a location alias for a configuration already modeled under one canonical place, when the screenplay does not require an independent LOCATION identity |
 
 ```
 Duplicates — 12 references checked
@@ -142,16 +166,17 @@ Read `projects.settings.references` from `studio_get_project` and verify:
 
 This category is informational when the project has no policy set (the defaults are permissive).
 
-### 7. Look-binding integrity — bound looks resolve to a real variant
+### 7. Look-binding integrity — required looks are selected and bindings resolve
 
-A shot or scene can bind a reference's look via `lookRef` on its `appears_in`/`presence` relation (`mixio-script-breakdown`). That binding degrades silently to the reference's default variant when it doesn't resolve — no error, no visible sign in the UI — so this is the one check that catches a wrong render before it happens rather than after.
+A shot or scene can bind a CHARACTER reference's age/clothing variant via `lookRef` on its `appears_in`/`presence` relation (`mixio-script-breakdown`). Compare post-breakdown relations with the confirmed character appearance mappings in `reference_pack_inventory`: when a row maps a shot's age/clothing state to a non-default approved variant, the relation must carry that variant's exact id/name. A missing binding silently renders the default, so report it before generation. The approved default needs no explicit `lookRef`. Location configuration and camera-view readiness are checked against the Step 02 inventory separately.
 
 Pull bindings from `studio_get_production_context`'s `lookBindings` (or `studio_query_relations`
 per relation). Pass relation `metadata` as a native object, never a JSON-stringified string, and
-cross-reference each `lookRef` against the target reference's `referenceVariants[].id` / `.name`.
+cross-reference each character `lookRef` against the target reference's `referenceVariants[].id` / `.name`.
 
 | Finding | Meaning |
 |---------|---------|
+| `REQUIRED_LOOK_UNBOUND` | A confirmed inventory mapping requires a non-default character variant for this shot, but its appearance relation has no matching `lookRef` |
 | `STALE_LOOK_REF` | `lookRef` names a variant id/name that no longer exists on the reference — renamed or deleted since the binding was made |
 
 ```
@@ -172,6 +197,7 @@ References checked:    12 (6 CHARACTER, 4 LOCATION, 2 PROP)
 Script entities:       15
 
 Completeness:          2 MISSING_REF, 1 MISSING_IMAGE_HIGH_USAGE
+Variant/view packs:    1 MISSING_REQUIRED_VIEW, 1 REJECTED_MEDIA_ACTIVE
 Consistency:           1 GENDER_MISMATCH (advisory)
 Duplicates:            1 LIKELY_DUPLICATE, 1 ALIAS_CANDIDATE
 Metadata quality:      2 HIGH-severity gaps
@@ -180,6 +206,8 @@ Look bindings:         1 STALE_LOOK_REF
 
 BLOCKING findings (must resolve before Step 03):
   ❌ HALLWAY DOORWAY — MISSING_REF — appears in 4 script lines, 0 references
+  ❌ THE HOUSE / interior-living-room — MISSING_REQUIRED_VIEW — sofa-to-dining view has no approved image
+  ❌ TONY — REJECTED_MEDIA_ACTIVE — rejected teen-formal candidate remains in legacy attachments
   ❌ CEREAL BOWL — MISSING_IMAGE_HIGH_USAGE — 2 shots depend on this prop
   ❌ TONY — missing visualAnchor — every prompt mentioning TONY will lack identity anchor
 
@@ -205,6 +233,9 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 - Any HIGH-severity metadata gap on a location appearing in ≥1 scene — `setting` and `lighting` are required to render the scene's anchor frame without guessing
 - Any `GENDER_MISMATCH` confirmed by both text and vision (not advisory-only)
 - Any `STALE_LOOK_REF` — it renders the wrong look silently, with nothing in the UI to catch it before delivery
+- Any `MISSING_REQUIRED_VARIANT`, `MISSING_REQUIRED_VIEW`, or `REJECTED_MEDIA_ACTIVE` for a script-required reference pack
+- Any `REFERENCE_PACK_NOT_APPROVED` for media a planned shot will use
+- Any unexplained cross-view or cross-variant location geometry/landmark drift
 - Any confirmed character-sheet deformation, hallucinated anatomy, identity drift, or unexplained wardrobe/accessory/color break
 - Any missing or misbound location view required by a declared shot camera zone
 

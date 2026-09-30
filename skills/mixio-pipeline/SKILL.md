@@ -29,14 +29,14 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 |---|------|----------|--------------------|
 | 00 | **Preflight & Settings Lock** | this skill | `studio_update_project({ projectId, updates: { settings } })` + `studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline } } })` |
 | 01 | **Detailed Screenplay** | this skill | `studio_upsert_screenplay({ projectId, episodeId, body })` (+ `studio_update_episode({ projectId, episodeId, updates: { summary } })` for the logline) |
-| 02 | **Anchor Frames** | `mixio-sheets` | CHARACTER/LOCATION refs + one anchor KEYFRAME per scene |
-| 02.5 | **Reference Audit** | `mixio-reference-audit` | episode `metadata.pipeline.reference_audit` |
-| 03 | **Deterministic Breakdown & Relational Audit** | `mixio-script-breakdown` | `studio_upsert_scene_packages` + `studio_link_graph` + episode `metadata.pipeline.breakdown_audit` |
+| 02 | **Reference Packs & Anchor Frames** | `mixio-sheets` | Confirmed `metadata.pipeline.reference_pack_inventory` + approved CHARACTER/LOCATION packs + one anchor KEYFRAME per scene |
+| 02.5 | **Reference Audit** | `mixio-reference-audit` | episode `metadata.pipeline.reference_audit` (rerun at Step 05 if actual shot zones expose a gap) |
+| 03 | **Deterministic Breakdown & Relational Audit** | `mixio-script-breakdown` | `studio_upsert_scene_packages` + `studio_link_graph` + episode `metadata.pipeline.breakdown_audit`; use composed relation writes when the inventory maps non-default character looks |
 | 04 | **Continuity Audit** | `mixio-continuity` | `studio_revise_shot_specs` + `studio_update_shot_state` |
 | 05 | **Shot Planning** | `mixio-shot-planning` | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | 06 | **Video Generation** | `mixio-generate` | VIDEO elements + workspace uploads |
 
-**Gate rule: never start step N+1 until step N is confirmed by the user.** The Pre-Production Token Ralph Loop is limited to safe text and graph corrections across Step 01, Step 02.5, and Step 04; Step 03 is re-audited only when one of those corrections changes a shot or relation. Step 02's sheets and anchors remain a separately confirmed step: do not enter an image-generation use case from the loop. The loop re-checks every safe correction until it reaches **0 blocking errors**, then asks the user to approve the converged breakdown before Step 05 cost approval (see `references/pre-production-ralph-loop.md`). Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Ready for Step 05 approval.`
+**Gate rule: never start step N+1 until step N is confirmed by the user.** The Pre-Production Token Ralph Loop is limited to safe text and graph corrections across Step 01, Step 02.5, and Step 04; Step 03 is re-audited only when one of those corrections changes a shot or relation. Step 02's reference renders and anchors remain a separately confirmed step: do not enter an image-generation use case from the loop. The loop re-checks every safe correction until it reaches **0 blocking errors**, then asks the user to approve the converged breakdown before Step 05 cost approval (see `references/pre-production-ralph-loop.md`). Step 05 performs a final check against actual camera zones; a newly required view returns to Step 02 for user confirmation and image review before downstream steps resume. Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Ready for Step 05 approval.`
 
 ## Step 00 — Full Project Preflight & Settings Locking
 
@@ -105,15 +105,15 @@ Ask what the user already has, and offer the three real answers rather than an o
 
 Then write/normalize to standard screenplay form per the [native screenplay grammar](../mixio-episode/references/screenplay-grammar.md). Every scene must include four core components: **sluglines** (`INT./EXT. — LOCATION — TIME`), **action beats**, **character cues/dialogue**, and **audio/SFX design paragraphs** (`[SFX: ...]`, `[Ambient: ...]`). Set every recurring physical object, prop, and prominent setting element in `ALL CAPS` on first mention (`BED`, `BEDSIDE TABLE`, `NAPOLI POSTER`, `TABLET`, `PHONE`) — those CAPS tokens are what Step 03 extracts and Step 04 greps for prop continuity.
 
-Before writing, call `studio_list_references({ projectId, limit })` and build the valid mention catalog from its `mentionableLooks`. Reuse those exact `#name.variant[.view]` tokens for existing Cast & World entities—never hand-construct one. A two-segment mention is complete when a look has no views. Validate all `#` mentions (probed via `studio_resolve_mention`): resolve all `UNRESOLVED_ENTITY`, `UNRESOLVED_LOOK`, or `AMBIGUOUS` tokens (0 unmapped tokens gate) before proceeding. Use `~location.landmark[.placement]` for advisory spatial continuity locks.
+Before writing, call `studio_list_references({ projectId, limit })` and build the valid mention catalog from its `mentionableLooks`. Reuse those exact `#name.variant[.view]` tokens for existing Cast & World entities—never hand-construct one. A two-segment mention is complete when a look has no views. If the screenplay requires a variant/view that is not registered yet, describe it in prose and the Step 02 inventory; do not invent a token. Once Step 02 has approved and registered it, add an exact returned token if needed. Validate every remaining `#` mention with `studio_resolve_mention` and resolve all `UNRESOLVED_ENTITY`, `UNRESOLVED_LOOK`, or `AMBIGUOUS` tokens before Step 03. Use `~location.landmark[.placement]` for advisory spatial continuity locks.
 
 For explicit director intent that must override inference, place a standalone `[Key: Value · Key: Value]` paragraph immediately before the beat it governs. The 11 recognized keys are `Camera`, `Camera Movement`, `Lighting`, `Mood`, `Blocking`, `Background`, `Location`, `Shot Type`, `SFX`, `Ambient`, and `Lens`.
 
 Persist with `studio_upsert_screenplay({ projectId, episodeId, body })`, **not** `studio_update_episode({ projectId, episodeId, updates: { script } })`. A screenplay is its own per-episode element and a non-empty body—draft included—wins over raw Idea/Story `script`/`fullScript` in Step 03. `upsert_screenplay` is idempotent and always writes a draft; Studio's human Screenplay view performs approval separately. Persist only the logline with `studio_update_episode({ projectId, episodeId, updates: { summary } })` when needed.
 
-## Step 02 — Anchor Frames
+## Step 02 — Reference Packs and Anchor Frames
 
-→ `mixio-sheets`, after the user confirms this image-work step. Extract the location list and cast from the selected screenplay source, get a reference image per location and a turnaround sheet per character, then render one **anchor frame per scene** with an explicit `anchor_aspect_ratio`. Locations with no reference are marked `TEXT-ONLY` and grounded in screenplay text alone — flag them, don't silently invent geography.
+→ `mixio-sheets`. Read the selected screenplay and existing references, then build a user-reviewable matrix of script-required character variants and location configurations × camera-view looks. A character's approved sheet is the default; add only needed age/clothing combinations. A location variant names the scenario-specific space/configuration and its labeled images are camera views. Reuse supplied images only for rows they actually cover. Confirm the inventory and first billable image-render round before generation, then reconfirm before each retry. Missing or unapproved rows stay blocking. Render one **anchor frame per scene** only after required reference packs are ready, with an explicit `anchor_aspect_ratio`.
 
 ### Reference Enrichment (do this before Step 02.5)
 
@@ -126,28 +126,29 @@ characterDetails: { role, age, build, height, skin, eyes, hair,
 ```
 The load-bearing fields prompt materializers in Steps 05/06 depend on: **`build`, `hair`, `skin`, and `visualAnchor`** — `visualAnchor` is the single identity anchor repeated in every shot prompt.
 
-For each location, write the 6-field sheet via `studio_update_reference`:
+For each location reference, write the place-wide spatial sheet via `studio_update_reference` and map every required camera view to its exact location variant:
 ```
 locationDetails: { setting, spatialLayout, accessPoints, keyLandmarks,
   depthAxes, lightSources, lighting, surfaces, palette, ... }
 ```
 The load-bearing fields: **`setting`, `lighting`, `spatialLayout`, and `depthAxes`** — `lighting` is what anchor-frame generation needs to avoid guessing.
 
-This is the only place structured reference detail is populated; Step 02.5 gates on the HIGH-severity fields (`visualAnchor` for characters, `setting`/`lighting` for locations) before allowing Step 03. See `mixio-sheets` for the full field schema.
+This is the only place structured reference detail is populated; Step 02.5 gates on the HIGH-severity fields (`visualAnchor` for characters, `setting`/`lighting` for locations) and the complete approved variant/view inventory before Step 03. See `mixio-sheets` for the full field schema.
 
 ## Step 02.5 — Reference Audit
 
 → `mixio-reference-audit`. Runs after sheets so references *should* have images, and catches what was missed — including whether the **Reference Enrichment** phase (above) actually populated the structured fields:
 
-- **Completeness** — every CAPS entity in the script has a reference; high-usage ones have images
+- **Completeness** — every CAPS entity in the script has a reference; screenplay-evidenced variants/configurations/views are mapped in a confirmed inventory, and every required row is approved
 - **Consistency** — name/description vs attached image (gender, age, build mismatches)
-- **Visual readiness** — character deformation/identity/wardrobe checks and shot-derived location view coverage/orientation
+- **Variant/view readiness** — screenplay-evidenced character age/clothing looks and location configuration × camera-view rows are represented in the confirmed inventory and have approved images; compare stable location landmarks, axes, and palette across views/configurations
+- **Visual readiness** — character deformation/identity/wardrobe checks, location orientation coverage, and rejected-media cleanup verified by readback
 - **Duplicates** — fuzzy name matching, alias candidates, variants confused as separate refs
 - **Metadata quality** — missing `visualAnchor`, `lighting`, `setting` that downstream prompts need (HIGH-severity gaps block for any entity in ≥1 scene)
 - **Policy compliance** — `createPolicy`, `variantVocabulary` adherence
-- **Look-binding integrity** — a bound `lookRef` that no longer resolves to a real variant, which otherwise renders the default look silently
+- **Look-binding integrity** — required non-default character appearances carry a matching `lookRef`, and every bound reference resolves to a real variant; missing/stale bindings otherwise render the default silently
 
-Part of the Pre-Production Token Ralph Loop (`references/pre-production-ralph-loop.md`): safe text and graph corrections are re-checked until **0 blocking errors** remain before Step 03 proceeds. Every reference write must first satisfy `settings.references`; a missing image is resolved only by an existing attachment, a user upload, or explicit permission to generate. Advisory findings are presented for acknowledgment. This is the cheapest place to catch a reference problem — later detection costs re-renders.
+Part of the Pre-Production Token Ralph Loop (`references/pre-production-ralph-loop.md`): safe text and graph corrections are re-checked until **0 blocking errors** remain before Step 03 proceeds. The loop never generates images. Every reference write must first satisfy `settings.references`; a missing image is resolved only by an existing approved attachment, a user upload, or explicit permission to generate. Rejected candidates remain outside active references; if already attached, remove them from current and legacy look stores and clear any matching card-preview URL through a documented operation, then verify by readback. Advisory findings are presented for acknowledgment. This is the cheapest place to catch a reference problem — later detection costs re-renders.
 
 ## Step 03 — Deterministic Script Breakdown & Relational Audit
 
@@ -165,11 +166,13 @@ breakdown skill owns the fields, audit checks, and `metadata.pipeline.breakdown_
 
 → `mixio-shot-planning`. Three decisions per shot, then batching:
 
+Before batching, reconcile every broken-down shot's actual camera zone, location configuration, and selected labeled view against `metadata.pipeline.reference_pack_inventory`. If a shot requires an unlisted or unapproved row, emit a blocking reference finding, add the row to the inventory as `proposed`, and stop before writing an awaiting-budget-approval summary. Ask the user to confirm the additional image round, stage and evaluate candidates, attach only approved images, and rerun the reference audit. Re-entering Step 02 invalidates downstream work: rerun Step 02.5, Step 03, Step 04, and Step 05 before Step 06.
+
 1. **Model + live contract** — select a candidate based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.) and read its live input schema, including the duration ceiling.
 2. **Archetype / Method** — classify each shot using that contract into one of 5 structural archetypes: `GRID` (multi-panel/montage), `SEQUENCE` (multi-beat sequence), `MASTER_ANCHOR_MULTI_SHOT` (coverage grounded by the wide scene-anchor reference through a derived keyframe), `SINGLE` / `DUAL_FRAME` (standard keyframe interpolation), or `T2V` (direct text-to-video).
-3. **Execution & Feasibility Audit** — validate duration vs model max, action density (`actions / duration`), dialogue speaking rate (`words / duration`), reference readiness, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. Every active media slot (`primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`, or a schema-added slot) must have exactly one mapped `@tag` in the effective prompt; reject missing pairs, collisions, and orphan map entries.
+3. **Execution & Feasibility Audit** — validate duration vs model max, action density (`actions / duration`), dialogue speaking rate (`words / duration`), reference readiness, the shot's selected character look and location variant/view, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. The chosen location media must match the confirmed variant/view row and be approved; pass its explicit `variantId`/`variantName` with the actual view image. Every active media slot (`primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`, or a schema-added slot) must have exactly one mapped `@tag` in the effective prompt; reject missing pairs, collisions, and orphan map entries.
 
-Then group consecutive shots only when their model, generation use case, and input contract all match; the planner's live schema limits still apply. Emit a `PRODUCTION SUMMARY` with per-model costs, archetype distribution, keyframe/video job counts, estimated credit costs, and high-risk cross-model boundaries. Preserve a bound look as relation `lookRef`; Step 06 must resolve it through `selectedElements` or pass `variantId`/`variantName` on the media reference (see `mixio-generate`), not inert plan metadata. Gate: require explicit user budget approval before Step 06.
+Then group consecutive shots only when their model, generation use case, and input contract all match; the planner's live schema limits still apply. Emit a `PRODUCTION SUMMARY` with per-model costs, archetype distribution, keyframe/video job counts, estimated credit costs, and high-risk cross-model boundaries. Preserve a bound CHARACTER look as relation `lookRef`; Step 06 must resolve it through `selectedElements` or pass `variantId`/`variantName` on the media reference. For locations, pass the confirmed configuration variant and exact approved view image; do not encode the camera angle as character `lookRef` or inert plan metadata (see `mixio-generate`). Gate: require explicit user budget approval before Step 06.
 
 ## Step 06 — Video Generation
 
@@ -227,6 +230,11 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   step_03: "complete", step_04: "complete",
   step_05: "not_started", step_06: "not_started",
   anchors: { "1": "<keyframe-element-id>" },
+  // Free-form review ledger; candidate URLs remain here, not in active references.
+  reference_pack_inventory: {
+    rows: [/* confirmed variant/view rows, source media, shot IDs, status,
+             eval run IDs, feedback, human decision */]
+  },
   reference_audit: { checked: 12, blocking: 0, advisory: 1 },
   // `breakdown_audit`: exact schema in mixio-script-breakdown's persistence reference.
   // Add `pre_production_loop` exactly as defined in
@@ -239,6 +247,7 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
 | Locked models, resolution, style, reference policy | project `settings.generation` / `settings.studio` / `settings.references` |
 | Source (screenplay, synopsis, aspect ratios) | SCREENPLAY `body` (or episode `script` only as fallback), episode `summary`, `metadata.pipeline` |
 | Locations | LOCATION references + `locationDetails` (`mixio-references`) |
+| Confirmed character/location variant-view matrix and review history | episode `metadata.pipeline.reference_pack_inventory` (free-form metadata; no new API or typed schema) |
 | Reference audit results | episode `metadata.pipeline.reference_audit` |
 | Relational breakdown audit results | episode `metadata.pipeline.breakdown_audit` |
 | Pre-production Ralph loop state | episode `metadata.pipeline.pre_production_loop` — `running`, `blocked`, or `converged`, with the last phase, cycle, findings, and pending user action |
@@ -248,7 +257,8 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
 | Rendered assets and video | KEYFRAME / VIDEO elements + `upload_file` URLs |
 
 On resume, read `studio_get_project` for the locked settings and `studio_get_episode` (cheap) for
-pipeline state, then query the episode's `SCREENPLAY` element (`studio_query_elements` with
+pipeline state, including `metadata.pipeline.reference_pack_inventory` and its row statuses,
+evaluation run IDs, feedback, and human decisions. Then query the episode's `SCREENPLAY` element (`studio_query_elements` with
 `type: "SCREENPLAY"` and native-object `tags: { episodeId }`, never `JSON.stringify(...)`) before
 reusing source text. Do not substitute a stale `fullScript` when a non-empty screenplay body
 exists; avoid `studio_get_production_context` until its graph detail is actually needed.
@@ -258,7 +268,7 @@ exists; avoid `studio_get_production_context` until its graph detail is actually
 ```
 00. studio_get_project → studio_update_project({ projectId, updates: { settings } }) → studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline } } }) → GATE
 01. screenplay → studio_upsert_screenplay({ projectId, episodeId, body })
-02. /mixio:sheets → character + location sheets, anchor per scene → GATE (image work is separately confirmed)
+02. /mixio:sheets → approved character defaults/required variants + location configuration/view packs, then anchor per scene → GATE (image work is separately confirmed)
 03. /mixio:script-breakdown → studio_upsert_scene_packages + studio_link_graph → relational audit
 ┌── Pre-Production Token Ralph Loop (01 ↔ 02.5 ↔ 04; safe text/graph corrections only) ─┐
 │ 01. repair screenplay mentions or deterministic prose defects                           │

@@ -1,6 +1,10 @@
 # Location sheet — field mapping and persistence
 
-Read this when persisting a location sheet's six fields into `locationDetails`. For how to write the sheet itself, see the main `SKILL.md`.
+Read this when persisting a location sheet into `locationDetails`. The fields
+describe shared place-wide spatial truth; the screenplay-specific configuration
+and camera-view inventory is maintained separately as `referenceVariants` and
+its labeled images. For how to build that inventory, see
+[variant-view-matrix.md](variant-view-matrix.md) and the main `SKILL.md`.
 
 The sheet has real fields, not prose blobs. Map the sheet like this:
 
@@ -46,7 +50,7 @@ studio_update_reference({ projectId, referenceId, locationDetails: {
 }})
 ```
 
-Note `depthAxes` is an **object keyed by depth plane**, not the prose "long axis" sentence — put the axis statement in `dimensions` or `sightlines`. These fields exist precisely so a shot needing a viewpoint the reference image doesn't show can be directed without the model inventing geography.
+Note `depthAxes` is an **object keyed by depth plane**, not the prose "long axis" sentence — put the axis statement in `dimensions` or `sightlines`. These fields exist precisely so a shot needing a viewpoint the reference image doesn't show can be directed without the model inventing geography. For each required configuration, map every labeled view to its camera position, facing direction, world-to-screen landmarks, and planned shot zone. Preserve stable place geometry across views; record intentional differences such as time, weather, or set dressing in the inventory. Use a separate LOCATION reference when a configuration needs independent spatial details or identity.
 
 ## The full schema is live — no metadata mirroring needed
 

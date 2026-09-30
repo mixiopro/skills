@@ -182,7 +182,7 @@ A real project reads `{ "production-generate-video": "gemini_omni_multishot" }` 
 Media slots take **real URLs, not Payload media IDs** — the server rejects UUID-shaped values outright (server.ts, M-024/M-008). Resolve in this order:
 
 1. `studio_list_references({ projectId })` — names, types, and a `hasAttachments` boolean. **No URLs.** This is a directory, not a source of images.
-2. `studio_get_element({ elementId })` → `referenceVariants[].attachments[].media.url`, or `studio_get_production_context({ projectId, episodeId })` for the whole graph at once (100K+ characters — prefer the element read when you know the id). If the shot or scene has a bound look, prefer resolving through it rather than picking `referenceVariants[0]` — see §7.
+2. `studio_get_element({ elementId })` → `referenceVariants[].attachments[].media.url`, or `studio_get_production_context({ projectId, episodeId })` for the whole graph at once (100K+ characters — prefer the element read when you know the id). If a CHARACTER shot or scene has a bound look, resolve it rather than picking `referenceVariants[0]`; for a LOCATION, resolve the confirmed configuration and exact labeled view — see §7.
 3. Anything local: `upload_file(path)` or `get_public_url(path)` for a permanent URL first. `/api/media/file/{id}` form is also accepted.
 4. **External media URLs (Google Drive, third-party CDNs)**: Don't pass external URLs directly to generation slots or rely on server-side URL fetching (risk of SSRF / `No files were uploaded` failures). Use the validated local-download fallback from `mixio-workspace`:
    - run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts), which permits only public HTTPS redirects, bounds the download, validates MIME type, and cleans up its unique temporary directory;
@@ -195,7 +195,7 @@ Slot ids come from the schema, not from memory. Common ones: `primary`, `endFram
 | Field | Shape | Why |
 |---|---|---|
 | `context` | `{ projectId (required), episodeId?, sceneId?, shotId? }` | Where the job belongs. Always the deepest scope you know |
-| `selectedElements` | `[{ id, type, identityKey?, mentionCode? }]` | Which characters/locations/props the prompt refers to. `type` ∈ `CHARACTER`, `LOCATION`, `PROP`, `SHOT`, `SCENE`. Also what a look-binding fallback resolves against — see §7 |
+| `selectedElements` | `[{ id, type, identityKey?, mentionCode? }]` | Which characters/locations/props the prompt refers to. `type` ∈ `CHARACTER`, `LOCATION`, `PROP`, `SHOT`, `SCENE`. Also what a character look-binding fallback resolves against — see §7 |
 | `slotReferences` | `{ <slot>: { url, elementId?, mediaId?, referenceType?, displayLabel? } }` | Images **with provenance**; `elementId` is what lets scene anchors dedupe against an explicit per-shot choice instead of attaching twice |
 | `slotTags` | `{ <assetKey>: "@tag" }` | Binds a media asset to a mention tag; `assetKey` is `elementId \|\| mediaId \|\| url` |
 | `mentionMap` | `{ "@tag": "Human Label" }` | Binds that tag to a subject. **Both maps are required** for a tag to bind |
@@ -299,21 +299,38 @@ studio_submit_studio_job({
 })
 ```
 
-## 7. Look bindings — declaring which variant to render
+## 7. Variant selection — declaring which approved image to render
 
-A shot or scene may bind one of a reference's looks (`referenceVariants`) via `lookRef` on its `appears_in`/`presence` relation — see `mixio-script-breakdown` and `mixio-references`. Resolution order at generation time is **shot → scene → reference default**; a binding that no longer matches a variant degrades to the next rung silently, not with an error. **Check whether your Studio has this before relying on it**: call `studio_get_production_context`; a `lookBindings` key in the response means the cascade and the `variantId`/`variantName` fields below are live. No key means it hasn't landed yet — resolve and pass the variant's URL yourself (§6).
+A CHARACTER shot may bind one of its approved looks (`referenceVariants`) via
+`lookRef` on its `appears_in`/`presence` relation — see
+`mixio-script-breakdown` and `mixio-references`. Resolution order is
+**shot → scene → character reference default**; a binding that no longer
+matches a variant degrades silently. Check whether your Studio supports this:
+call `studio_get_production_context`; a `lookBindings` key means the cascade
+and `variantId`/`variantName` are live. Otherwise resolve and pass the
+character variant URL directly (§6).
 
-Three ways to hit a specific look, in order of directness:
+For a LOCATION, select the screenplay-confirmed configuration variant and its
+exact labeled camera-view image from the Step 02 inventory. A location variant
+names a configuration such as exterior, living room, or hallway; the image
+label identifies the view within that configuration. Do not use a character
+`lookRef` binding to choose a location camera angle. If the active contract
+cannot declare a location variant on `input.media.<slot>`, pass the exact
+approved view URL and retain the variant/view selection in shot plan metadata;
+do not infer it from array order. Never submit an unapproved candidate or a
+rejected URL.
 
-1. **Pass `variantId` / `variantName` on the media reference itself** — `input.media.<slot>: { url, variantId }`. Bound exactly, no lookup, and always wins over whatever generation would otherwise resolve.
+For CHARACTER looks, three ways to hit a specific variant, in order of directness:
+
+1. **Pass `variantId` / `variantName` on the media reference itself** — `input.media.<slot>: { url, variantId }`. Bound exactly, no lookup, and always wins over whatever generation would otherwise resolve. For a location image, use the confirmed configuration variant and the URL for its exact labeled camera view, not an arbitrary image from that variant.
 2. **Pass `selectedElements` alongside `media`.** Each reference is linked to its element, so the backend fallback can resolve the shot-then-scene binding for you. This is the step that's easy to skip — omit `selectedElements` and a URL-only reference has no element id, so there's nothing for the fallback to key on.
 3. **Read `lookBindings` and pass that look's URL yourself.** `studio_get_production_context` returns `lookBindings: [{ ownerId, referenceId, lookRef }]` for the whole episode; `studio_query_relations` rows expose the same thing per relation as `metadata.lookRef`. Pass a relation `metadata` filter as a native object, never a JSON-stringified string.
 
-With none of the three, a reference resolves to the element's default variant — indistinguishable from "nothing was bound," so a rebind the user made can silently not render. Whatever you declare (1 or 2) is a snapshot taken at submit time; rebinding after submitting a running job does not change what it renders.
+With none of the three, a character reference resolves to its default variant — indistinguishable from "nothing was bound," so a rebind the user made can silently not render. Whatever you declare (1 or 2) is a snapshot taken at submit time; rebinding after submitting a running job does not change what it renders. This fallback does not select a location camera view; choose and pass that location image explicitly.
 
 ### Look-binding mention contract
 
-A resolved variant is still an active media asset. `variantId`/`variantName` selects which image is used; it never replaces the prompt `@tag`, `slotTags`, or `mentionMap` pair. For example, a formal look still needs the canonical `slotTags: { "elem_tony_formal": "@tony.formal" }`, `mentionMap: { "@tony.formal": "Tony Russo — formal look" }`, and a prompt clause such as `@tony.formal turns toward the window`.
+A resolved variant is still an active media asset. `variantId`/`variantName` selects which image is used; it never replaces the prompt `@tag`, `slotTags`, or `mentionMap` pair. For example, a formal look still needs the canonical `slotTags: { "elem_tony_formal": "@tony.formal" }`, `mentionMap: { "@tony.formal": "Tony Russo — formal look" }`, and a prompt clause such as `@tony.formal turns toward the window`. For location media, label the configured space and view, and keep the same mandatory paired mention maps.
 
 ## Audio
 

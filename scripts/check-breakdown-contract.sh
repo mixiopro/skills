@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 breakdown=skills/mixio-script-breakdown/SKILL.md
 audit=skills/mixio-script-breakdown/references/persistence-and-audit.md
 preflight=skills/mixio-pipeline/references/preflight-settings.md
+reference_audit=skills/mixio-reference-audit/SKILL.md
 
 require() {
   if ! rg -Fq "$2" "$1"; then
@@ -28,6 +29,15 @@ require "$audit" 'const aliasMatching = settings.references?.aliasMatching === t
 require "$audit" 'studio_query_relations'
 require "$audit" 'canonicalFieldFailures'
 require "$audit" 'expectedShotCount'
+require "$reference_audit" 'non-empty screenplay `body`, including drafts'
+require "$reference_audit" 'only when no usable screenplay body exists'
+require "$breakdown" 'confirmed CHARACTER row maps the screenplay'
+require "$breakdown" 'Never choose a variant by fuzzy text similarity'
+require "$breakdown" 'use the composed path so it can write the explicit `lookRef`'
+require "$breakdown" 'REQUIRED_LOOK_UNBOUND'
+require "$reference_audit" 'REQUIRED_LOOK_UNBOUND'
+require "$reference_audit" 'SCRIPT_REQUIREMENT_UNMAPPED'
+require "$reference_audit" 'REFERENCE_PACK_INVENTORY_MISSING'
 require "$preflight" 'IMAGE: confirmed.deliveryAspectRatio'
 forbidden "$breakdown" 'planned_runtime'
 forbidden "$audit" 'planned_runtime'

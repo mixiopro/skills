@@ -164,7 +164,7 @@ nothing; `hairState`, `emotionalState`, `lookRef`, and `continuityNotes` remain 
 | `condition` | string | Physical condition (e.g. sweating, bruised, pristine) |
 | `carriedProps` | string[] | Array of canonical prop names held or carried in this shot |
 | `emotionalState` | string | Performance and emotional direction for the character |
-| `lookRef` | string | Variant name or ID from Cast & World reference |
+| `lookRef` | string | Approved CHARACTER age/clothing variant name or ID from its Cast & World reference |
 | `continuityNotes` | string | Granular continuity cues (e.g. prop in left hand) |
 
 ## Relational audit specification

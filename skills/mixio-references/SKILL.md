@@ -78,16 +78,33 @@ regardless, since the setting can be turned on later and the data will be there.
 
 ### `studio_update_reference` — the critical gotcha: `attachments` vs `referenceVariants`
 
-Both parameters put images on a reference, but they are **not interchangeable**:
+Both parameters put images on a reference, but they are **not interchangeable**. These writes attach approved media only; generated candidates stay outside active reference image stores until the user approves them:
 
-- **`attachments`** (array of `{ url, label?, isPrimary? }`) — **additive**. Merges new images into the existing default look. Use for adding more angles/images to what's already there.
+- **`attachments`** (array of `{ url, label?, isPrimary? }`) — **additive**. Merges approved images into the existing default look. Use for adding more accepted angles/images to what's already there.
 - **`referenceVariants`** (array of `{ name, kind?, isDefault?, images: [{url, label?, isPrimary?}] }`) — **full replace** of the entire variant list. Use when images are wrong and you need to overwrite, or when you're defining multiple named looks (e.g. `"Default Look"` + `"Battle Armor"`).
 
-`kind` is a closed set: **`primary`** (the identity reference — one per element), **`look`** (a costume/state variant), **`reference`** (a supporting image that is neither). Omitting it defaults to `look` on a variant and `primary` on the first entry. Variant `name` must sit inside `variantVocabulary` when the project sets `variantPolicy: closed` — see the policy section above.
+`kind` is a closed set: **`primary`** (the default/identity pack), **`look`** (a typed variant), **`reference`** (a supporting image that is neither). Omitting it defaults to `look` on a variant and `primary` on the first entry. Variant `name` must sit inside `variantVocabulary` when the project sets `variantPolicy: closed` — see the policy section above.
+
+`referenceVariants` is generic storage; interpret it by reference type. For a CHARACTER, the default is the approved character sheet and named variants can represent script-required ages or clothing combinations. For a LOCATION, a variant names a scenario-specific spatial/environmental configuration (for example, `exterior`, `interior-living-room`, or `interior-hallway`), while its `images[]` are the labeled camera-view looks for that configuration. `kind: "look"` does not impose one universal meaning across entity types. Keep the character/location inventory rules in `mixio-sheets`.
+
+For location packs, use each image's `label` for its camera position/view (such as `sofa-to-dining` or `balcony-reverse`) and map that exact label to the location orientation record and `image-location` coverage alias. A multi-view location variant is a pack of views, not one image. Keep independent spaces as separate LOCATION references when the script needs them to retain separate identity or reuse; otherwise group the needed configurations under the canonical place reference. Always follow the screenplay-derived inventory and project variant policy.
 
 **Variants are read from three historical locations**, so a reference created by an older surface may hold its looks somewhere you don't expect: `referenceVariants` (current), `characterDetails.looks` (legacy character path), and `attachments` (flat, pre-variant). When you need the full set of looks on an existing reference, check all three — writing only `referenceVariants` does not migrate the other two.
 
 Internally, `attachments` is sugar that auto-builds/merges into a `"default"` `referenceVariants` entry — so mixing both in one call is redundant; pass one or the other. **Do not use `thumbnailUrl`** to set look images — it only changes the card preview, it does not create look variants the Cast & World UI reads.
+
+### Candidate approval and rejected-media cleanup
+
+Stage generated character/location candidates outside the active Cast & World reference. Retain the evaluator receipt, input aliases, findings, repair feedback, and human decision in the production review record. Evaluator output is advisory; only the user's approval makes a candidate eligible for attachment. Confirm the first candidate round after confirming the required-pack inventory, and obtain fresh user confirmation before every retry round. Revise from the recorded feedback, evaluate the replacement, and obtain human approval before attachment.
+
+If a rejected candidate was attached before review, it must be removed from every active look store before generation can continue:
+
+1. Read the full reference with `studio_get_element` and identify the rejected media URL/ID in `referenceVariants`, legacy `characterDetails.looks`, and flat `attachments`. Also check top-level `thumbnailUrl`/`previewUrl`: they are not look stores, but a rejected candidate must not remain displayed as the reference card preview.
+2. Rebuild the complete `referenceVariants` list with all approved variants and images preserved and every rejected asset excluded. Because this is a full replace, never send only the changed variant.
+3. If legacy `characterDetails.looks`, flat `attachments`, or a card-preview field still contains the rejected asset, use only a documented, contract-supported migration/removal operation. Do not guess a clear operation or rely on `referenceVariants` replacement to clear historical data. If no supported operation can remove an association, leave the pack in review and block generation.
+4. Read the reference back and verify the rejected URL/ID is absent from all three look stores and from `thumbnailUrl`/`previewUrl`. If it cannot be safely removed and verified, leave the reference non-approved and block downstream generation.
+
+Keep the rejection feedback and evaluator evidence in the review record, not in active variant images. `workflow.status` applies to the whole reference: keep it `in_review` while required candidates are being evaluated, and set `approved` only when the required reference pack is complete and accepted. Do not mark the entire reference `rejected` because one candidate image failed if approved images remain valid.
 
 ```
 // Add images (merges with whatever's already there)
@@ -102,11 +119,13 @@ studio_update_reference({
 })
 ```
 
-### Binding a look — how a shot or scene selects one
+### Binding a character look — how a shot or scene selects one
 
-Defining looks here is half the contract; a shot or scene has to *select* one for generation to render it instead of the default. That's a relation write, not a reference write: set `lookRef` (aliases `look`, `look_ref`, `variant`) in the `metadata` of the shot's or scene's `appears_in`/`presence` relation, pointing at a `referenceVariants[].id` or `.name` on this reference. See `mixio-script-breakdown` for the appearance-state contract and `mixio-generate` for how a job declares or inherits the binding.
+For a CHARACTER, defining variants is half the contract; a shot or scene has to *select* one for generation to render it instead of the default. That's a relation write, not a reference write: set `lookRef` (aliases `look`, `look_ref`, `variant`) in the `metadata` of the shot's or scene's `appears_in`/`presence` relation, pointing at a `referenceVariants[].id` or `.name` on this character reference. See `mixio-script-breakdown` for the appearance-state contract and `mixio-generate` for how a job declares or inherits the binding.
 
-Resolution order at generation time is shot → scene → this reference's default variant, where the cascade is live — check for a `lookBindings` key in `get_production_context`'s response to confirm it is. A `lookRef` that no longer matches any variant — renamed, deleted — degrades silently to the default rather than erroring, so a rename here is a breaking change for anything that bound the old name.
+For a LOCATION, select the confirmed configuration variant and exact labeled camera-view image in the shot plan and generation media. Do not store a location camera angle in character `appearanceState.lookRef`; the breakdown does not write location `lookRef` relations.
+
+Character `lookRef` resolution order at generation time is shot → scene → the character reference's default variant, where the cascade is live — check for a `lookBindings` key in `get_production_context`'s response to confirm it is. A `lookRef` that no longer matches any variant — renamed, deleted — degrades silently to the default rather than erroring, so a rename here is a breaking change for anything that bound the old name.
 
 Structured detail params (type-gated — sent fields are ignored if the element isn't that type, and are deep-merged, not replaced):
 - `characterDetails` (CHARACTER only): `role`, `age`, `personality`, `build`, `skin`, `hair`, `distinctiveFeatures`, `visualAnchor`, `wardrobeNotes`, `bio`, `backstory`, `motivations`, `speechStyle`, `relationshipsSummary`, `castingNotes`, `voiceProfile`, `voiceReference`, `voiceRegistrations`
@@ -153,7 +172,7 @@ Use this to **get real reference-image URLs** before calling `studio_submit_stud
 
 **Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. Run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts) in `mixio-workspace`; it permits only public HTTPS redirects, bounds the download, validates MIME type, derives the extension, and removes its unique temporary directory.
 
-Call `studio_update_reference({ projectId, referenceId, attachments: [{ url: entry.publicUrl, ... }] })` only after `upload_file` succeeds. The `trap` cleans up only this run's directory on success or failure, and `--fail` prevents an HTTP error page or login HTML from becoming a reference image. Pass `project_id` and `organization_id` so the asset is scoped to the production rather than orphaned (`projectId: null`).
+Call `studio_update_reference({ projectId, referenceId, attachments: [{ url: entry.publicUrl, ... }] })` only after `upload_file` succeeds and the image has user approval for attachment. Uploading a candidate does not approve it. The `trap` cleans up only this run's directory on success or failure, and `--fail` prevents an HTTP error page or login HTML from becoming a reference image. Pass `project_id` and `organization_id` so the asset is scoped to the production rather than orphaned (`projectId: null`).
 
 `studio_upload_media_from_url` may still work for URLs already on trusted/reachable domains — try it first for a single asset, but don't build a batch workflow around it without a local-download fallback.
 
@@ -162,7 +181,8 @@ Call `studio_update_reference({ projectId, referenceId, attachments: [{ url: ent
 ```
 1. studio_list_references({ projectId, type, limit }) → find existing references and collect exact `mentionableLooks` before authoring a screenplay
 2. studio_register_reference_entities({ projectId, references: [...] })   → create/upsert by name
-3. upload_file(local_path) → studio_update_reference({ projectId, referenceId, attachments/referenceVariants, characterDetails/locationDetails/propDetails })
-   → populate images + structured details
+3. upload_file(local_path) → stage candidates outside Cast & World; after evaluation + user approval,
+   studio_update_reference({ projectId, referenceId, attachments/referenceVariants, characterDetails/locationDetails/propDetails })
+   → attach approved images + populate structured details
 4. → mixio-generate: pull reference URLs into character_ref/location_ref/style_ref for consistent generation
 ```
