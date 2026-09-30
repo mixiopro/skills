@@ -86,17 +86,27 @@ PRE story development + screenplay handoff → Mixio-owned `how-to-make-script` 
 00  Preflight          → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
                         resolution, visual style, reference policy into project `settings`
 01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty
-02  Reference packs + anchors → /mixio:sheets — approved character variants and location configuration/view packs before shots reference them; confirm image generation separately
-03  Shot breakdown    → /mixio:script-breakdown
+02  Reference packs + anchors → /mixio:sheets — confirm and persist
+    `metadata.pipeline.reference_pack_inventory`; use `/mixio:eval` for required
+    reference-pack checks and get approval before Step 03
+03  Shot breakdown    → /mixio:script-breakdown — use composed relation writes
+    when the inventory maps a non-default character look (`lookRef`)
 ┌── Token Ralph Loop (01 ↔ 02.5 ↔ 04; text/graph corrections only) ─────────────────────┐
 │ 02.5 Reference audit → /mixio:reference-audit — policy-safe ref/binding corrections    │
 │ 04   Continuity audit → /mixio:continuity — correct specs, then re-audit               │
 └────────────────────── ↺ persist each cycle until 0 blocking errors ───────────────────┘
-05  Shot planning     → /mixio:shot-planning — then get cost approval
-06  Generation        → /mixio:generate per batch, then /mixio:eval before delivery
+05  Shot planning     → /mixio:shot-planning — reconcile actual camera zones;
+    return gaps to Step 02, then rerun Steps 02.5–05 before Step 06 and get cost approval
+06  Generation        → /mixio:generate per batch, then /mixio:eval for shot/batch evaluation and before delivery
 ```
 
-The Ralph Loop's corrections in Steps 01, 02.5, and 04 cost only tokens. Step 02 can submit image jobs, so it remains explicitly confirmed and outside the autonomous loop. The loop (`skills/mixio-pipeline/references/pre-production-ralph-loop.md`) applies only policy-safe text/graph corrections, updates appearance state (`studio_link_graph`), persists every cycle, and re-audits until 0 blocking reference and continuity errors remain before Step 05.
+Step 02 requires a confirmed episode `metadata.pipeline.reference_pack_inventory` and approved required packs before Step 03. Confirm the inventory and first billable reference-image candidate round before generation, then obtain fresh confirmation before every retry. Evaluate required character and location packs with `/mixio:eval` using `image-character` and `image-location` before Step 03. Evaluation submissions are billable; confirm the planned evaluation unless the user's approved plan already covers it. Keep generated candidates outside active references until the user approves them; attach only approved candidates and verify rejected media is removed from active stores and card previews.
+
+After the reference packs are approved, separately confirm the scene-anchor render round. Show every scene anchor for human approval before Step 03.
+
+The Ralph Loop's corrections in Steps 01, 02.5, and 04 cost only tokens. Step 02 can submit billable image and evaluation jobs, so it remains explicitly confirmed and outside the autonomous loop. The loop (`skills/mixio-pipeline/references/pre-production-ralph-loop.md`) applies only policy-safe text/graph corrections, updates appearance state (`studio_link_graph`), persists every cycle, and re-audits until 0 blocking reference and continuity errors remain before Step 05.
+
+At Step 05, reconcile actual shot camera zones against the inventory. A missing or unapproved row blocks planning and returns to Step 02 for confirmation, rendering, evaluation, and approval; then rerun Steps 02.5, 03, 04, and 05 before Step 06.
 
 Sheets come **before** the breakdown because the breakdown emits references as shallow stubs (`name`, `description`, `attributes`) and writes no `characterDetails` or `locationDetails`. Build the sheets first and the breakdown reuses their canonical names instead of minting near-duplicates.
 
@@ -109,7 +119,7 @@ Sheets come **before** the breakdown because the breakdown emits references as s
 - Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
 - **Mandatory prompt `@` mentions & paired mention maps (Universal across all generations & models)**: Prompts MUST ALWAYS contain one `@tag` for every active media asset/reference (for example `@asset1`, `@tony`, `@scene1`) where that asset acts. This applies to every image, keyframe, video, and storyboard generation and every model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX, etc.). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`, or another schema-declared slot) must be embedded in the effective prompt. Whenever media is present, backend `userInput` MUST contain paired `slotTags` (`{ [assetKey]: '@tag' }`) and `mentionMap` (`{ '@tag': 'Human Label / Description' }`) with one-to-one coverage, non-empty labels, and no orphan entries. Without both paired maps and prompt `@` tokens, the prompt materializer and provider compilers cannot ground assets to model-specific tokens or resolve subject identity, causing models to guess identity and waste generation credits. Validate every asset/tag/prompt match in Step 05 (`mixio-shot-planning`) and repeat the gate in Step 06 (`mixio-generate`) immediately before each billable job.
 - Upload final outputs with `upload_file` for permanent URLs, and use `studio_evals_evaluate_media` plus `studio_evals_get_evaluation_result` before delivering to a client.
-- Generation is billable. Ask before video unless the user has said otherwise.
+- Image generation, evaluation submissions, and video generation can all be billable. Apply the Step 02 image and evaluation confirmations above; before Step 06, obtain explicit cost approval for video unless the user's existing authorization covers the planned spend.
 
 ## MCP server
 
