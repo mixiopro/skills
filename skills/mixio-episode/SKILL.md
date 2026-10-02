@@ -1,7 +1,7 @@
 ---
 name: mixio-episode
 description: "Use when creating or maintaining a Mixio episode’s source text, scenes, shots, and relations through Studio primitives."
-version: 0.2.0
+version: 0.3.0
 invoke: /mixio:episode
 ---
 
@@ -74,6 +74,8 @@ A screenplay is its own per-episode `SCREENPLAY` element, distinct from the raw 
 → { scenes: [...], counts: { scenes, shots } }
 ```
 Include `linked_character_ids`/`linked_location_ids`/`linked_prop_ids` in shot metadata to auto-create relations to the project's Cast & World elements — this replaces manually calling `create_element` + `create_relation` yourself.
+
+Approved shot-function labels from `/mixio:script-breakdown` use the existing shot tags object: `tags: { breakdownLabels: ["BRIDGE", "PROP_HANDOFF"] }`. The scene-package primitive merges supplied tags with existing tags, retaining the required `episodeId`, `sceneId`, and `shotNumber` scope tags. Include the exact label change in the approved diff and read the saved tags back; never replace other tags to update labels. Set `breakdownLabels: []` only when the approved diff explicitly clears labels on an existing shot.
 
 These tools do not replace the planning/review gate. Before a production breakdown write, compare the local plan to the current episode, confirm each update’s element ID and upsert key, show the exact diff, and wait for approval.
 
