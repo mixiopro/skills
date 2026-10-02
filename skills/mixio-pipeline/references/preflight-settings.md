@@ -1,7 +1,8 @@
 # Preflight settings write
 
-Use this at Step 00 after resolving the project and episode and reading their current state.
-Lock video model defaults by **normal use-case ID**. For the current catalog, the starting
+Use this after the local breakdown has been accepted and synced, before shot planning or image
+generation. Read `settings.references` at project setup as well, before any reference write.
+Confirm generation/default choices only at this downstream gate. Lock video model defaults by **normal use-case ID**. For the current catalog, the starting
 defaults are H3 I2V (`hailuo-v3-image-to-video`) for image-backed `cinematic-video` and H3
 Ref2Vid (`hailuo_v3_reference_to_video`) for `multi-shot-video`; honor supported project pins
 and explicit user choices when their input shape fits. Prompt-only `T2V` also uses

@@ -1,7 +1,7 @@
 # Reference Pull List
 
 Provenance: every column derives from live reads — `studio_get_production_context`
-(`lookBindings`), `metadata.pipeline.reference_pack_inventory` (Step 02 approval state),
+(`lookBindings`), `metadata.pipeline.reference_pack_inventory` (Step 04 approval state),
 the persisted shot plan (selected variant/view per shot), and `studio_list_references` /
 `studio_get_element` (exact image URLs). Live Studio schemas always override this file.
 
@@ -38,13 +38,14 @@ Rules:
   its cuts' participants; a selection used only in cut 3 still needs one row.
 - **A location camera angle is resolved through the location's labeled view pack, never
   through a character-style `lookRef`.** If the shot's camera zone has no matching labeled
-  view, the row is written with status `MISSING` and the shot stays blocked until Step 02
-  generates and approves it.
+  view, the row is written with status `MISSING` and the shot stays blocked until Step 04
+  builds and approves it.
 - **URLs are per-variant, not per-entity.** The default look does not stand in for a
   required variant; a stale URL (element replaced since inventory write) is re-pulled from
   `studio_get_element`, not reused from memory.
-- The list is regenerated after any Step 01 ↔ 02.5 ↔ 04 correction that changes a
-  selection — persisted plans are stale the moment a variant mapping changes.
+- The list is regenerated after an approved Step 03 breakdown change, a Step 04 reference
+  change, or a Step 05 plan update that changes a selection — persisted plans are stale the
+  moment a variant mapping changes.
 
 ## Gate use
 

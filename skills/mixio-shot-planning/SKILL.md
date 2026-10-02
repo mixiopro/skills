@@ -7,17 +7,17 @@ invoke: /mixio:shot-planning
 
 # Mixio Shot Planning
 
-Step 05 of `mixio-pipeline`. Sits between the continuity audit (Step 04) and video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content feasible for that method?**
+Step 05 of `mixio-pipeline`. Runs after the local continuity audit (Step 02), approved breakdown sync (Step 03), and reference-readiness review (Step 04), before video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content feasible for that method?**
 
 Fixed-ceiling batching assumed one model and one method. Shot planning acknowledges the live catalog, classifies each shot into a deterministic archetype, audits execution feasibility (action density, speaking rate, duration), and prepares the production plan. Video generation costs the most, image generation comes next, and other operations cost little. Ask before video generation unless the user has already authorized it.
 
 ## Prerequisites
 
-- An audited breakdown (Step 04) — plan the **corrected** shots
+- An approved, persisted breakdown (Step 03), completed local continuity audit (Step 02), and reference-readiness result (Step 04)
 - Resolved project and episode scope (from numbered Studio lists); use persisted scene/shot IDs only — never infer a label
 - Every shot has `duration`, `camera_movement`, `action`, `audio` fields populated
 - `studio_list_use_cases({ outputType: "all" })` + `studio_get_use_case_input_schema({ useCaseId, modelId })` reachable (live catalog)
-- Project settings locked in Step 00 (`settings.generation`, `settings.studio`)
+- Project/episode settings read during setup and any missing production defaults confirmed and locked after breakdown acceptance (`settings.generation`, `settings.studio`)
 
 ## The three decisions per shot
 
@@ -200,19 +200,19 @@ if speaking_rate > 0 and shot.duration < 2.5:
     → ADVISORY: Extend duration to allow natural speech cadence and lip sync
 ```
 
-### Reference readiness (cross-check with Step 02.5)
+### Reference readiness (cross-check with Step 04)
 
 ```
 for each character_link / location_link / prop_link:
     if reference has no attached image AND model requires image reference:
         FINDING: REF_IMAGE_MISSING — model needs reference image for consistency
-        → BLOCKING: Resolve in Step 02.5 / mixio-references before Step 06
+        → BLOCKING: Resolve in Step 04 / mixio-references before Step 06
 
 for each shot's selected character variant and location configuration/view:
     resolve each selection to an approved referenceVariants image
     if no confirmed inventory row or no approved image matches:
         FINDING: REFERENCE_VARIANT_VIEW_NOT_READY — selection is absent, ambiguous, or unapproved
-        → BLOCKING: resolve the exact variant and labeled image in Step 02.5
+        → BLOCKING: resolve the exact variant and labeled image in Step 04
     for each location image:
         verify its label maps to the confirmed orientation record and shot camera zone
         if missing or inconsistent:
@@ -238,7 +238,7 @@ character appearance and actual camera zone/linked location with
 `metadata.pipeline.reference_pack_inventory`.
 If the shot needs a new or unapproved view, report a blocking
 `REFERENCE_VARIANT_VIEW_NOT_READY`, add a `proposed` row to the inventory, and
-stop before Step 05 planning. Return to Step 02 only after the user
+stop shot planning. Return to Step 04 only after the user
 confirms the additional render round; then evaluate and approve the pack, rerun
 `mixio-reference-audit`, and restart Steps 03–05 because their outputs are stale.
 
@@ -253,7 +253,7 @@ for each character_link with a bound lookRef:
     resolve against reference's referenceVariants
     if unresolved:
         FINDING: LOOK_REF_UNRESOLVED — binding stale, will silently render default look
-        → BLOCKING: Re-bind variant or fix in Step 02.5 (STALE_LOOK_REF)
+        → BLOCKING: Re-bind variant or fix in Step 04 (STALE_LOOK_REF)
 ```
 
 Pull character bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. Carry each approved character `variantId`/`variantName` into the persisted plan. For locations, record the confirmed configuration `variantId`/`variantName` and exact labeled view URL; a generic `lookRef` check does not prove camera-view readiness (see `mixio-generate/references/reference-media.md`).
@@ -368,7 +368,7 @@ Announce the close with the production plan, for example:
 ## Workflow
 
 ```
-1. read corrected breakdown (Step 04) + project settings + live model catalog
+1. read approved breakdown (Step 03) + reference readiness from Step 04 + project settings + live model catalog
 2. match each shot to the best model based on characteristics; read its live input schema and duration ceiling
 3. classify each shot into one of 6 archetype families (GRID / MULTI_CUT / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V), using the selected model ceiling
 4. run execution audit (duration limits, action density, speaking rate, references, prompt @ mentions + mentionMap)
@@ -384,4 +384,4 @@ Announce the close with the production plan, for example:
 - Archetype classification is a recommendation. The user may override any assignment — record overrides in shot metadata.
 - Cross-model batch boundaries are where `mixio-eval` should focus its post-generation checks.
 - Duration adjustments during execution audit cascade batch boundaries. Re-batch after any duration change.
-- Multi-keyframe sequence planning: for pre-locked shots from Step 04, prefer `production-generate-shot-keyframes` with `keyframe_count: 1` per beat rather than sequence planner regeneration.
+- Multi-keyframe sequence planning: for pre-locked shots from Step 03, prefer `production-generate-shot-keyframes` with `keyframe_count: 1` per beat rather than sequence planner regeneration.

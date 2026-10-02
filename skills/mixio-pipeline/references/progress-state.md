@@ -1,50 +1,55 @@
 # Pipeline Progress State
 
-Pipeline state has no dedicated shared-memory store; persist it in existing project/episode/shot
-metadata. The main pipeline skill owns the order and gates. This reference holds the metadata
-shape and resume reads.
+The director’s shot plan and local continuity corrections are review artifacts in the agent’s
+current context. They are not persisted before approval and use no new Studio schema. If context
+is lost before sync, rebuild the plan from the current screenplay, references/assets, and Studio
+graph. After sync, read back the persisted graph and resume from that state.
 
-At every step close, update episode `metadata.pipeline` with the current contract and progress:
+After an approved sync, store only durable production state in existing project, episode, and
+shot metadata. Preserve unrelated values when updating `metadata.pipeline`:
 
 ```javascript
 studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   aspect_ratio,
   anchor_aspect_ratio,
   shot_contract: { mode: "multi_cut", band: "10-15" },
-  step_00: "complete", step_01: "complete", step_02: "complete", step_02_5: "complete",
-  step_03: "complete", step_04: "complete",
-  step_05: "not_started", step_06: "not_started",
+  step_00: "complete",
+  step_03: "complete",
+  step_04: "not_started",
+  step_05: "not_started",
+  step_06: "not_started",
   anchors: { "1": "<keyframe-element-id>" },
   reference_pack_inventory: {
     rows: [/* confirmed variant/view rows, source media, shot IDs, status,
              eval run IDs, feedback, human decision */]
   },
-  reference_audit: { checked: 12, blocking: 0, advisory: 1 }
-  // Add breakdown_audit and pre_production_loop using their owning references.
+  reference_audit: { checked: 12, blocking: 0, advisory: 1 },
+  breakdown_audit: { /* persisted scene/shot/relation readback */ }
 }}}})
 ```
 
 | Pipeline state | Where it lives in Mixio |
 |---|---|
-| Locked models, resolution, style, reference policy | project `settings.generation` / `settings.studio` / `settings.references` |
-| Source (screenplay, synopsis, aspect ratios) | SCREENPLAY `body` (or episode `script` only as fallback), episode `summary`, `metadata.pipeline` |
-| Locations | LOCATION references + `locationDetails` (`mixio-references`) |
-| Confirmed character/location variant-view matrix and review history | episode `metadata.pipeline.reference_pack_inventory` (free-form metadata; no new API or typed schema) |
+| Source screenplay/script | `SCREENPLAY.body` (or episode `script` / `metadata.fullScript` only as fallback) |
+| Current project settings and reference policy | project `settings.generation` / `settings.studio` / `settings.references` |
+| Confirmed character/location variant-view matrix and review history | episode `metadata.pipeline.reference_pack_inventory` |
 | Reference audit results | episode `metadata.pipeline.reference_audit` |
-| Relational breakdown audit results | episode `metadata.pipeline.breakdown_audit` |
-| Pre-production Ralph loop state | episode `metadata.pipeline.pre_production_loop` — `running`, `blocked`, or `converged`, with last phase, cycle, findings, and pending user action |
-| Scenes and direction | scene elements via `studio_upsert_scene_packages` |
-| Step progress | episode `metadata.pipeline` |
-| Shot plan (method/model/batch) | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
-| Rendered assets and video | KEYFRAME / VIDEO elements + `upload_file` URLs |
+| Approved scene/shot direction and relations | scene/shot elements via the existing episode primitives |
+| Breakdown sync audit | episode `metadata.pipeline.breakdown_audit` |
+| Persisted step progress | episode `metadata.pipeline`; local plan/review steps stay in agent context |
+| Shot method/model/batch | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
+| Rendered assets and video | KEYFRAME / VIDEO elements + permanent upload URLs |
 
-On resume, read `studio_get_project` for locked settings and `studio_get_episode` for pipeline
-state, including reference inventory rows, evaluation IDs, feedback, and human decisions. Query
-the episode's `SCREENPLAY` element (`studio_query_elements` with `type: "SCREENPLAY"` and native
-object `tags: { episodeId }`, never `JSON.stringify(...)`) before reusing source text. Do not
-substitute a stale `fullScript` when a non-empty screenplay body exists; avoid
+The exact sequence is in the main `mixio-pipeline` skill. Step 04 reference readiness and Step 05
+shot planning occur only after the approved breakdown is synced. The reference inventory is
+maintained by `mixio-sheets`; the reference audit is defined in `mixio-reference-audit`.
+
+On resume, read `studio_get_project` for current settings and `studio_get_episode` for persisted
+pipeline state and inventory rows. Query the episode's `SCREENPLAY` element with
+`studio_query_elements({ projectId, type: "SCREENPLAY", tags: { episodeId }, limit, offset,
+includeFull: true })`; use a native object for `tags`, never `JSON.stringify(...)`. Do not
+substitute stale `fullScript` when a non-empty screenplay body exists. Avoid
 `studio_get_production_context` until graph detail is needed.
 
-The breakdown audit schema is in `mixio-script-breakdown`'s persistence reference. Persist the
-pre-production loop exactly as defined in
-[`pre-production-ralph-loop.md#persisting-loop-state`](pre-production-ralph-loop.md#persisting-loop-state).
+The breakdown audit schema and readback checks are in
+`mixio-script-breakdown/references/persistence-and-audit.md`.

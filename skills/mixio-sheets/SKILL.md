@@ -7,7 +7,7 @@ invoke: /mixio:sheets
 
 # Mixio Sheets
 
-Step 02 of `mixio-pipeline`. Consistency across a 40-shot episode is not a prompting problem, it is a **reference problem**: every shot must be generated against the same images. This skill produces those images and the structured text that travels with them.
+Step 04 of `mixio-pipeline`, after the accepted shot plan is synced. Consistency across a 40-shot episode is not a prompting problem, it is a **reference problem**: every shot must be generated against the same images. This skill produces those images and the structured text that travels with them.
 
 Three artifact families, two lifetimes:
 
@@ -26,8 +26,8 @@ Vocabulary: `mixio-pipeline/references/shot-grammar.md`.
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- A locked script (Step 01) — the cast and location lists come from its sluglines and CAPS tokens
-- `aspect_ratio` and `anchor_aspect_ratio` locked on the episode
+- An accepted, persisted shot plan (pipeline Step 03) — use its character, location, prop, and camera-view demand while preserving the source screenplay
+- `aspect_ratio` and `anchor_aspect_ratio` read from project/episode settings; resolve missing values in Step 04 before rendering
 
 ## MCP tools used
 
@@ -62,7 +62,7 @@ removes the view dependency and the inventory is reconciled.
 
 Two supplied images may be camera looks for one location variant. Map them to separate view rows (`[Image 1] = entry-wide; [Image 2] = reverse-to-windows`) rather than creating duplicate location entries. When room or indoor/outdoor grouping is ambiguous, show the proposed grouping and ask the user to confirm it.
 
-Do not render until the user confirms the inventory and first candidate round. For retries, evaluation, and human approval, follow the shared candidate gate in `mixio-references`. Attach only approved images; incomplete required rows remain blocking for Step 03.
+Do not render until the user confirms the inventory and first candidate round. For retries, evaluation, and human approval, follow the shared candidate gate in `mixio-references`. Attach only approved images; incomplete required rows remain readiness blockers for Step 05 shot planning and generation, not for the local shot plan.
 
 ## Check the project's reference policy first
 
@@ -83,9 +83,9 @@ studio_update_element({ projectId, elementId: referenceId, updates: { metadata: 
 
 ## Reference Enrichment
 
-Everything in this step that writes structured detail — the character sheet's `characterDetails`, the location sheet's `locationDetails`, the prop sheet's `propDetails` — is collectively the **Reference Enrichment** phase of `mixio-pipeline` Step 02. It is where shallow screenplay stubs become generation-ready references: the breakdown (Step 03) emits references as `{ name, description, attributes? }` and never writes `characterDetails`/`locationDetails`, so if this phase is skipped those fields stay empty for the whole episode.
+Everything in this step that writes structured detail — the character sheet's `characterDetails`, the location sheet's `locationDetails`, and the prop sheet's `propDetails` — is collectively the **Reference Enrichment** phase of `mixio-pipeline` Step 04. The local breakdown does not write reference stubs or enrich references; missing details remain readiness gaps until this step.
 
-Write every enrichment via `studio_update_reference` (on an older Studio, mirror load-bearing fields to top-level metadata — see `references/location-fields.md`). The required load-bearing fields are `build`, `hair`, `skin` and **`visualAnchor`** for characters, and `setting`, `lighting`, `spatialLayout` and `depthAxes` for locations — Step 02.5 (`mixio-reference-audit`) gates on the HIGH-severity ones (`visualAnchor`, `setting`, `lighting`) before Step 03 may start.
+Write every enrichment via `studio_update_reference` (on an older Studio, mirror load-bearing fields to top-level metadata — see `references/location-fields.md`). The required load-bearing fields are `build`, `hair`, `skin` and **`visualAnchor`** for characters, and `setting`, `lighting`, `spatialLayout` and `depthAxes` for locations — Step 04 (`mixio-reference-audit`) checks the HIGH-severity ones (`visualAnchor`, `setting`, `lighting`) before Step 05 shot planning.
 
 ## Character sheet
 
@@ -220,7 +220,7 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
   opposite-axis/reverse view whenever the episode crosses or approaches the
   established line. Pass this orientation record to `image-location` before
   approving the location.
-- Every element named here in CAPS becomes a prop-continuity token for Step 04.
+- Every element named here in CAPS becomes a prop-continuity token for Step 02.
 - Evaluate each required variant as its own `image-location` pack with at least two image views, a `location-reference` anchor, and explicit `reference-coverage` metadata. Map each evaluation alias to the exact variant and image label. Use an approved anchor from the same configuration when available; otherwise use a representative staged candidate only if the live evaluation contract accepts its URL as the evaluation-only `location-reference`. Never substitute another configuration's image for the anchor. Missing view/configuration coverage is blocking; do not substitute a different variant's image silently.
 - No reference image → header gets `(TEXT-ONLY)`, unknown fields get `UNKNOWN`. Do not fill `Layout: UNKNOWN` with a plausible invention; the audit needs to know it is unverified.
 
@@ -332,7 +332,7 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
 ## Workflow
 
 ```
-1. parse screenplay → characters, canonical places, required character looks, location configurations, provisional camera zones, and story-critical props
+1. read the accepted shot plan and source → characters, canonical places, required looks, location configurations/views, camera zones, and story-critical props
 2. studio_get_project({ projectId }) → reference policies and allowed variant names
 3. studio_list_references({ projectId }) → existing entities, variants, and approved images
 4. build the variant × view matrix; map supplied images to exact rows; show gaps and ask the user to confirm the grouping and first render round
@@ -341,13 +341,12 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
 7. apply the shared candidate approval/retry gate in `mixio-references`; show candidates for human approval
 8. attach only approved images; read back the reference and verify rejected media is absent from active stores
 9. after the reference packs are approved, confirm the separate scene-anchor render round; render per-scene anchors with the selected location configuration and character variants
-10. show every scene anchor for human approval → gate Step 03 on approved, complete reference packs and anchors
+10. show every scene anchor for human approval → gate Step 05 shot planning on approved, complete reference packs and anchors
 ```
 
 Persist the confirmed matrix and each row's confirmation, media status, evaluation run IDs,
 feedback, and human decision in the existing episode `metadata.pipeline.reference_pack_inventory`
-free-form metadata. Step 02.5 checks the screenplay-derived provisional camera zones; Step 05
-must reconcile the actual shot camera zones after breakdown against the same inventory.
+free-form metadata. Step 04 checks the actual shot camera zones and required views against the same inventory; repeat the audit after any approved reference change.
 
 ## Notes
 

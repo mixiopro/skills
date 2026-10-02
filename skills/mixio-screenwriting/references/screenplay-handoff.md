@@ -50,19 +50,20 @@ The upstream layer sends story intent, craft decisions, source text, and review 
 
 After receiving the package, Mixio performs the following in order:
 
-1. **Frame contract:** lock delivery and anchor aspect ratios.
-2. **Screenplay:** read `screenplay-grammar.md`, preserve source language and line order, list references, normalize mentions and annotations, then persist a draft with `studio_upsert_screenplay`.
-3. **Reference layer:** build or reuse character, location, prop, and scene-anchor references.
-4. **Production gates:** run reference audit, script breakdown, continuity audit, and shot planning before any billable generation.
+1. **Project and episode setup:** resolve scope, then read the current screenplay/script, references, existing shots, settings, and available images.
+2. **Source selection:** a non-empty native `SCREENPLAY` body is the source; otherwise use the existing episode script or supplied high-level source. Preserve whichever source is selected verbatim during shot planning. Do not require an outline or scene card to be expanded into screenplay form unless the user asked for screenplay development.
+3. **Local production plan:** build and audit the director’s shot plan before any breakdown write; show the exact Studio diff and wait for approval.
+4. **Approved sync and readiness:** sync the approved breakdown and verify readback, then audit and build missing references/anchors before shot planning.
+5. **Shot planning and generation:** select methods/models, confirm cost, then generate and evaluate through the production pipeline.
 
-The native screenplay body remains the source of truth for breakdown once it is non-empty. If the upstream artifact is only an outline or scene card, Mixio Step 01 must expand it into screenplay form before Step 02.
+The native screenplay body remains the source of truth for breakdown once it is non-empty. The local shot plan preserves the selected source and labels visual additions as sourced, inferred, or open decisions.
 
 ## Re-entry rules
 
 | Change | Return to | Production consequence |
 |---|---|---|
-| Premise, protagonist, world rule, or arc change | Relevant upstream route + quality gate | Rebuild the handoff before Step 01 |
-| Scene function, beat order, or dialogue change | Upstream scene/dialogue/rewrite route | Re-lock screenplay and repeat affected Mixio steps |
-| Native screenplay formatting or reference mention issue | Mixio Step 01 | Preserve story intent; repair only the production source form |
-| Cast & World, staging, prop, or shot continuity issue | Mixio sheets/audit/continuity | Do not send a visual continuity issue to rewrite-doctor automatically |
+| Premise, protagonist, world rule, or arc change | Relevant upstream route + quality gate | Rebuild the handoff before the local shot plan |
+| Scene function, beat order, or dialogue change | Upstream scene/dialogue/rewrite route | Re-lock the source and rebuild the local plan before sync |
+| Native screenplay formatting or reference mention issue | Project/episode setup, before local planning | Preserve story intent; repair the production source only when authorized |
+| Cast & World, staging, prop, or shot continuity issue | Mixio continuity or reference readiness | Do not send a visual continuity issue to rewrite-doctor automatically |
 | Generated image/video mismatch | Mixio evaluation and generation steps | Revise or regenerate; story gate stays valid unless intent changed |

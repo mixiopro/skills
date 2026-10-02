@@ -45,17 +45,17 @@ Do not confuse the layers:
 
 ## Handoff
 
-Before entering Mixio Step 00/01, produce the handoff described in [screenplay-handoff.md](references/screenplay-handoff.md). The screenplay may be a draft, but its intent, constraints, and quality status must be explicit. Only `pass` or `pass_with_weaknesses` may cross into production; `needs_revision` stops at the upstream writing layer.
+When the user asks for screenplay development before Mixio production, produce the handoff described in [screenplay-handoff.md](references/screenplay-handoff.md). The screenplay may be a draft, but its intent, constraints, and quality status must be explicit. Only `pass` or `pass_with_weaknesses` may cross from this writing route into production; `needs_revision` stops at the upstream writing layer. A production request with an existing high-level source can go directly to the local Mixio shot plan without screenplay expansion.
 
 At the handoff boundary:
 
 1. Resolve the Mixio project and episode according to `AGENTS.md`.
 2. Read the native screenplay grammar and list existing references.
 3. Normalize the screenplay into Mixio's native grammar and copy exact reference mentions; never invent Studio IDs or `#` tokens upstream.
-4. Persist the screenplay as the Step 01 source of truth.
-5. Continue through sheets, reference audit, breakdown, continuity, shot planning, and generation only through `mixio-pipeline`.
+4. When the user has authorized a screenplay handoff, persist the native screenplay. A non-empty screenplay body becomes the production source; otherwise the pipeline preserves and uses the existing script or supplied source.
+5. Continue production through `mixio-pipeline`: local breakdown, local continuity review, approval-gated sync, reference readiness, shot planning, and generation.
 
-If story intent changes after Mixio Step 03, return to the upstream route and re-run the relevant quality gate before re-entering production. A screenplay edit after Step 03 invalidates downstream breakdown, continuity, shot planning, and generated media.
+If story intent changes after the breakdown has been synced (pipeline Step 03), return to the upstream route and re-run the relevant quality gate before re-entering production. A screenplay edit invalidates the local plan and its Studio diff; after sync it also invalidates downstream continuity, shot planning, and generated media.
 
 ## Not this skill
 
