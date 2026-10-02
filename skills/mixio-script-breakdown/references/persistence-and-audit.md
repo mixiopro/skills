@@ -1,8 +1,9 @@
 # Breakdown persistence and relational audit example
 
-Use this example after resolving the project and episode scope. It demonstrates the composed
-path's two hard boundaries: reference policy decides whether an unmatched entity can be written,
-and IDs come from refreshed live context and persisted shots, never a hand-written UUID.
+Use this example only after resolving scope and receiving approval for the exact local-plan diff.
+It documents post-approval sync, not permission to write. The reference policy decides whether an
+unmatched entity can be written, and IDs come from refreshed live context and persisted shots,
+never a hand-written UUID.
 
 ```javascript
 const { settings = {} } = await studio_get_project({ projectId })

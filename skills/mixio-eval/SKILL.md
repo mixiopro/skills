@@ -11,6 +11,8 @@ Evaluate rendered media before delivery. This skill uses the modern hosted
 Studio evaluator gateway. For text-only, pre-render continuity audits, use
 `mixio-continuity`.
 
+Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md) for the evaluation question: does the result communicate the accepted shot’s purpose and connect to its neighbors? Apply only relevant craft checks—for example, cinematography for framing/light/movement, script supervision for state and screen direction, editing for transitions, and sound design when audio evidence is available. Use supported plan, shot-plan, shot, and expected-state context where available, and distinguish creative-direction mismatches from technical image defects.
+
 ## Boundary with `mixio-continuity`
 
 Use `mixio-continuity` for the pre-render, text-and-shot-spec audit that can

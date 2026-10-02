@@ -1,6 +1,6 @@
 # Canonical shot and scene schema
 
-Read this when authoring or validating shot/scene metadata by hand (the composed path). The managed path (one `studio_submit_studio_job` call) doesn't need you to know this — Studio's own workflow applies it.
+Read this when preparing or validating the Studio payload for an approved local shot plan. The write-through managed `script_breakdown` job bypasses the plan/diff review and is not the normal production path; see the main skill.
 
 ## Canonical shot metadata
 

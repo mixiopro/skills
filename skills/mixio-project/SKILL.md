@@ -9,6 +9,8 @@ invoke: /mixio:project
 
 A **project** is the top-level container in Mixio Studio. It holds episodes (script/breakdown/shots — see `mixio-episode`) and a Cast & World roster of characters/locations/props (see `mixio-references`). This skill covers the project container itself and whole-graph reads.
 
+For production setup and visual-style decisions, use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md): capture stated creative intent and constraints without inventing unset direction.
+
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)

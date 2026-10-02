@@ -9,6 +9,8 @@ invoke: /mixio:references
 
 Characters, locations, and props are project-scoped reference elements. Their images and structured details (wardrobe, voice, setting, lighting, etc.) are what `mixio-generate` pulls into `character_ref`/`location_ref`/`style_ref` slots for consistent generation. This is the highest-traffic tool family in real usage, and its write semantics have a sharp edge — read the gotchas below before calling.
 
+Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md) when creating or updating references. Keep stable identity and world facts aligned with explicit direction, and keep shot-specific staging or temporary state out of canonical details unless the user approves it.
+
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)

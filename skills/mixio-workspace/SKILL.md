@@ -9,6 +9,8 @@ invoke: /mixio:workspace
 
 Upload, organize, and retrieve media files in Mixio Studio workspaces. The MCP server handles local caching so repeated uploads are instant.
 
+When moving production assets, preserve their source identity and scope them to the confirmed project. Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md) only where asset selection or labeling affects the accepted plan; routine file operations should carry that plan forward without reopening it.
+
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)

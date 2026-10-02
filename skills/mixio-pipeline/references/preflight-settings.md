@@ -1,8 +1,10 @@
 # Preflight settings write
 
-Use this at Step 00 after the user confirms the six settings choices. `updates.settings` replaces
-the complete settings object, so merge from a fresh project read and read the result back. The
-episode frame contract is separate from project settings.
+Use this after the local breakdown has been accepted and synced, before shot planning or image
+generation. Read `settings.references` at project setup as well, before any reference write.
+Confirm generation/default choices only at this downstream gate. `updates.settings` replaces the
+complete settings object, so merge from a fresh project read and read the result back. The episode
+frame contract is separate from project settings.
 
 ```javascript
 const { settings = {} } = await studio_get_project({ projectId })

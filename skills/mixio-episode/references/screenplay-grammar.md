@@ -33,7 +33,7 @@ She retrieves the MANILA DOSSIER from the center DRAWER.
 
 - **Slugline**: `INT.`, `EXT.`, `INT/EXT.`, `I/E`, or `EST`, optionally preceded by a scene number; then the location and time of day.
 - **Action beats**: ordinary prose paragraphs describing physical action, setting the scene, and staging characters. Reference tokens and locks can appear inside it.
-- **ALL CAPS Prop & Setting Rule**: Key props (`VAULT DOOR`, `OAK DESK`, `MANILA DOSSIER`, `DRAWER`) and prominent setting elements (`WINDOW`, `BALCONY`, `SERVICE COUNTER`) MUST be capitalized in `ALL CAPS` on first appearance. These capitalized tokens are the deterministic anchor that Step 03 extracts into `prop_links` / `linked_prop_ids` / `location_links` and Step 04 greps for prop continuity.
+- **ALL CAPS Prop & Setting Rule**: Key props (`VAULT DOOR`, `OAK DESK`, `MANILA DOSSIER`, `DRAWER`) and prominent setting elements (`WINDOW`, `BALCONY`, `SERVICE COUNTER`) MUST be capitalized in `ALL CAPS` on first appearance. These tokens help Step 01 identify entities for the local shot plan and help Step 02 trace prop continuity.
 - **Character cue and dialogue**: ordinary screenplay cue, optional parenthetical, and dialogue paragraphs. Preserved verbatim in source language and alphabet.
 - **Audio & SFX paragraphs**: standalone design blocks (e.g. `[SFX: ...]` and `[Ambient: ...]`) or descriptive audio paragraphs providing deterministic cues for sound design and foley during breakdown.
 - **Blank lines** separate paragraphs. A native annotation must occupy its own complete paragraph; ordinary bracketed prose remains ordinary prose.

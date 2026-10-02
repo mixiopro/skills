@@ -1,23 +1,25 @@
 ---
 name: mixio-shot-planning
-description: "Classify each shot into 5 structural archetypes, match to model capabilities, validate duration and action density, verify prompt @ mentions and paired mention maps, and group into generation batches with a credit-costed production summary — the model-aware layer between continuity and video generation. Classification and batching only — submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
+description: "Use when an approved, persisted shot breakdown is ready for generation-method, model, feasibility, batching, and cost planning."
 version: 0.3.1
 invoke: /mixio:shot-planning
 ---
 
 # Mixio Shot Planning
 
-Step 05 of `mixio-pipeline`. Sits between the continuity audit (Step 04) and video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content actually feasible for that method and budget?**
+Step 05 of `mixio-pipeline`. Runs after the local continuity audit, approved breakdown sync, and reference-readiness review, before video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content actually feasible for that method and budget?**
 
 Fixed-ceiling batching assumed one model and one method. Shot planning acknowledges the live catalog, classifies each shot into a deterministic archetype, audits execution feasibility (action density, speaking rate, duration), and requires explicit credit budget approval before any video jobs run.
 
+Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md): methods, models, and batches are production means for the accepted shot intent. If no available method can preserve the action, framing, performance, or handoff, present feasible alternatives and get approval for any direction change before persisting it or requesting spend approval.
+
 ## Prerequisites
 
-- An audited breakdown (Step 04) — plan the **corrected** shots
+- An approved, persisted breakdown (pipeline Step 03) and completed local continuity audit (Step 02)
 - Resolved project and episode scope (from numbered Studio lists); use persisted scene/shot IDs only — never infer a label
 - Every shot has `duration`, `camera_movement`, `action`, `audio` fields populated
 - `studio_list_use_cases({ outputType: "all" })` + `studio_get_use_case_input_schema({ useCaseId, modelId })` reachable (live catalog)
-- Project settings locked in Step 00 (`settings.generation`, `settings.studio`)
+- Project settings checked or locked after breakdown acceptance in pipeline Step 04 (`settings.generation`, `settings.studio`)
 
 ## The three decisions per shot
 
@@ -165,13 +167,13 @@ if speaking_rate > 0 and shot.duration < 2.5:
     → ADVISORY: Extend duration to allow natural speech cadence and lip sync
 ```
 
-### Reference readiness (cross-check with Step 02.5)
+### Reference readiness (cross-check with Step 04)
 
 ```
 for each character_link / location_link / prop_link:
     if reference has no attached image AND model requires image reference:
         FINDING: REF_IMAGE_MISSING — model needs reference image for consistency
-        → BLOCKING: Resolve in Step 02.5 / mixio-references before Step 06
+        → BLOCKING: Resolve in `/mixio:reference-audit` / `/mixio:references` before Step 06
 ```
 
 ### Look-binding readiness
@@ -181,7 +183,7 @@ for each character_link / location_link / prop_link with a bound lookRef:
     resolve against reference's referenceVariants
     if unresolved:
         FINDING: LOOK_REF_UNRESOLVED — binding stale, will silently render default look
-        → BLOCKING: Re-bind variant or fix in Step 02.5 (STALE_LOOK_REF)
+        → BLOCKING: Re-bind variant or fix in Step 04 (STALE_LOOK_REF)
 ```
 
 Pull bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. A resolved binding is worth carrying forward: record its `variantId`/`variantName` in the persisted plan (below) so Step 06 declares it directly on the media reference instead of re-resolving it (see `mixio-generate` §7; check `get_production_context` for a `lookBindings` key to confirm your Studio resolves it).
@@ -296,7 +298,7 @@ Announce the close with the exact, current credit estimate, for example:
 ## Workflow
 
 ```
-1. read corrected breakdown (Step 04) + project settings + live model catalog
+1. read approved breakdown (pipeline Step 03) + project settings + live model catalog
 2. match each shot to the best model based on characteristics; read its live input schema and duration ceiling
 3. classify each shot into one of 5 archetype families (GRID / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V), using the selected model ceiling
 4. run execution audit (duration limits, action density, speaking rate, references, prompt @ mentions + mentionMap)
@@ -312,4 +314,4 @@ Announce the close with the exact, current credit estimate, for example:
 - Archetype classification is a recommendation. The user may override any assignment — record overrides in shot metadata.
 - Cross-model batch boundaries are where `mixio-eval` should focus its post-generation checks.
 - Duration adjustments during execution audit cascade batch boundaries. Re-batch after any duration change.
-- Multi-keyframe sequence planning: for pre-locked shots from Step 04, prefer `production-generate-shot-keyframes` with `keyframe_count: 1` per beat rather than sequence planner regeneration.
+- Multi-keyframe sequence planning: for shots in the accepted Step 03 breakdown, prefer `production-generate-shot-keyframes` with `keyframe_count: 1` per beat rather than sequence planner regeneration.

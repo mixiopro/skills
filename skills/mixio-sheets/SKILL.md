@@ -1,13 +1,13 @@
 ---
 name: mixio-sheets
-description: "Build the reference layer an episode is generated against — character turnaround sheets, location sheets, prop sheets, and one wide anchor frame per scene — and persist them as Cast & World references so every shot inherits the same look. Not raw Cast & World CRUD (mixio-references) or auditing references that already exist (mixio-reference-audit). Unclear which step you need → mixio-pipeline."
-version: 0.3.1
+description: "Use when an accepted shot plan has missing or incomplete character, location, prop, or scene-anchor assets before production."
+version: 0.4.0
 invoke: /mixio:sheets
 ---
 
 # Mixio Sheets
 
-Step 02 of `mixio-pipeline`. Consistency across a 40-shot episode is not a prompting problem, it is a **reference problem**: every shot must be generated against the same images. This skill produces those images and the structured text that travels with them.
+Step 04 of `mixio-pipeline`, after the local shot plan has been accepted and synced. Consistency across a 40-shot episode is not a prompting problem, it is a **reference problem**: every shot must be generated against the same images. This skill produces those images and the structured text that travels with them.
 
 Three artifacts, two lifetimes:
 
@@ -21,11 +21,13 @@ Character and location sheets are built once and reused across episodes. Anchors
 
 Vocabulary: `mixio-pipeline/references/shot-grammar.md`.
 
+Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md) to build sheets and anchors for the accepted plan’s intended identity, geography, and staging. Do not let a sheet add unapproved story facts or quietly redirect a shot.
+
 ## Prerequisites
 
 - MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- A locked script (Step 01) — the cast and location lists come from its sluglines and CAPS tokens
-- `aspect_ratio` and `anchor_aspect_ratio` locked on the episode
+- An accepted shot plan (pipeline Steps 01–03) — use its character, location, and prop demand while keeping the source screenplay unchanged
+- `aspect_ratio` and `anchor_aspect_ratio` locked before rendering; missing values may be resolved after the breakdown is accepted
 
 ## MCP tools used
 
@@ -76,9 +78,9 @@ studio_update_element({ projectId, elementId: referenceId, updates: { metadata: 
 
 ## Reference Enrichment
 
-Everything in this step that writes structured detail — the character sheet's `characterDetails`, the location sheet's `locationDetails`, the prop sheet's `propDetails` — is collectively the **Reference Enrichment** phase of `mixio-pipeline` Step 02. It is where shallow screenplay stubs become generation-ready references: the breakdown (Step 03) emits references as `{ name, description, attributes? }` and never writes `characterDetails`/`locationDetails`, so if this phase is skipped those fields stay empty for the whole episode.
+Everything in this step that writes structured detail — the character sheet's `characterDetails`, the location sheet's `locationDetails`, the prop sheet's `propDetails` — is the reference-enrichment phase of `mixio-pipeline` Step 04, after the local breakdown has been reviewed and synced. The local breakdown does not create reference stubs or enrich references. Missing details remain readiness gaps until this step.
 
-Write every enrichment via `studio_update_reference` (on an older Studio, mirror load-bearing fields to top-level metadata — see `references/location-fields.md`). The required load-bearing fields are `build`, `hair`, `skin` and **`visualAnchor`** for characters, and `setting`, `lighting`, `spatialLayout` and `depthAxes` for locations — Step 02.5 (`mixio-reference-audit`) gates on the HIGH-severity ones (`visualAnchor`, `setting`, `lighting`) before Step 03 may start.
+Write every enrichment via `studio_update_reference` (on an older Studio, mirror load-bearing fields to top-level metadata — see `references/location-fields.md`). The required load-bearing fields are `build`, `hair`, `skin` and **`visualAnchor`** for characters, and `setting`, `lighting`, `spatialLayout` and `depthAxes` for locations. Step 04 (`mixio-reference-audit`) reports generation blockers before Step 05 shot planning; incomplete sheets never block local breakdown.
 
 ## Character sheet
 
@@ -186,7 +188,7 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
 ```
 
 - **`Depth & axes` is the field that prevents crossing the line.** Name the long axis and which direction each reference image looks along it, and left/right stays stable between a wide and a reverse.
-- Every element named here in CAPS becomes a prop-continuity token for Step 04.
+- Every element named here in CAPS becomes a prop-continuity token for Step 02's local audit.
 - No reference image → header gets `(TEXT-ONLY)`, unknown fields get `UNKNOWN`. Do not fill `Layout: UNKNOWN` with a plausible invention; the audit needs to know it is unverified.
 
 ### Persisting the sheet
@@ -213,7 +215,7 @@ Names must sit in `variantVocabulary.LOCATION` when the project is `closed`. Sel
 
 A character's *identity* is project-scoped and belongs here. A character's **state** is per shot and belongs elsewhere.
 
-**Covered** — by `appearanceState` on the `appears_in` relation (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`): validated, and readable back through the relation. Write it from the breakdown or the audit; see `mixio-script-breakdown`. `lookRef` is more than record-keeping where the shot-scoped look cascade is live: generation then resolves it shot-then-scene-then-default and renders whatever it points at, so filling that one field becomes enforcement, not just a note for the next session. Check whether your Studio has it: `get_production_context` returns a `lookBindings` key once it does.
+**Covered** — by `appearanceState` on the `appears_in` relation (`wardrobe`, `hairState`, `condition`, `carriedProps`, `emotionalState`, `lookRef`, `continuityNotes`): validated, and readable back through the relation. Author the state in the local breakdown and persist it only with the approved sync; see `mixio-script-breakdown`. `lookRef` is more than record-keeping where the shot-scoped look cascade is live: generation then resolves it shot-then-scene-then-default and renders whatever it points at, so filling that one field becomes enforcement, not just a note for the next session. Check whether your Studio has it: `get_production_context` returns a `lookBindings` key once it does.
 
 **Not covered by a canonical field**: zone, facing, posture, relative-to. The shot's canonical `blocking` is a single string describing the whole frame, not per character. They're durable-but-unchecked, not session-local: written as passthrough (inline in `action`/`blocking`, or as their own keys) they persist, and on jobs where the prompt materializer runs (`promptEnhancementMode: "enhance"`, see `mixio-script-breakdown/references/canonical-schema.md`) they reach the generation prompt. Either way nothing downstream reads or enforces them, so the `STAGING` block and the continuity blocking map still need posture/facing restated in each shot rather than trusted from inheritance.
 
@@ -288,7 +290,7 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
 ## Workflow
 
 ```
-1. parse script → cast list + location list + story-critical props
+1. read the accepted shot plan and source → cast list + location list + story-critical props
 2. studio_get_project({ projectId })                → settings.references policy (createPolicy, variantPolicy, vocabulary)
 3. studio_list_references({ projectId })            → what already exists
 4. ask the user for reference images; confirm image→location mapping; note skips as TEXT-ONLY
@@ -296,11 +298,11 @@ Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, pr
    studio_update_element({ projectId, elementId: referenceId, updates: { metadata: { aliases } } }) → record script-name aliases
 6. per character: render turnaround → studio_update_reference({ projectId, referenceId, attachments, characterDetails })
    per location:  write the 6-field sheet → studio_update_reference({ projectId, referenceId, locationDetails, referenceVariants })
-   → this is the Reference Enrichment phase — Step 02.5 gates on visualAnchor/setting/lighting before Step 03
+   → this is the Reference Enrichment phase — Step 04 audits visualAnchor/setting/lighting before Step 05 shot planning
 7. per scene: render anchor at anchor_aspect_ratio with location_ref + character_ref
    (pick the location variant matching the scene's timeOfDay)
    → studio_create_element({ projectId, type: "KEYFRAME", name: anchorName }) → record id in metadata.pipeline.anchors
-8. show every sheet and anchor for approval → GATE → Step 03 Panel Breakdown
+8. show every sheet and anchor for approval → GATE → Step 05 Shot Planning
 ```
 
 ## Notes

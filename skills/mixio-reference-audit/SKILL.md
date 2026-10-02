@@ -1,29 +1,30 @@
 ---
 name: mixio-reference-audit
-description: "Audit a project's Cast & World roster for completeness, consistency, duplicates, and metadata quality before generation — catch reference problems that cost re-renders when found late. Audits what already exists — building the sheets is mixio-sheets, creating/editing entries is mixio-references. Unclear which step you need → mixio-pipeline."
-version: 0.2.0
+description: "Use when checking whether a Mixio project’s existing references, images, metadata, or look bindings are ready for a shot plan’s production."
+version: 0.3.0
 invoke: /mixio:reference-audit
 ---
 
 # Mixio Reference Audit
 
-Step 02.5 of `mixio-pipeline`. Runs after sheets (Step 02) and before the panel breakdown (Step 03). The question it answers: **are the references this episode will generate against actually ready?**
+Step 04 of `mixio-pipeline`. It audits the accepted shot plan against the project’s existing Cast & World and images. The question it answers: **are the references this episode will generate against actually ready?** Missing items are reported as production-readiness gaps; they do not block local planning.
 
 A missing character image found here costs one upload. The same gap found in Step 06 costs every shot that character appears in — re-generated blind, or blocked until someone notices.
 
+Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md): readiness and consistency are judged against the accepted shot intent, not abstract completeness alone. Report a conflict between a canonical reference and approved direction for review; do not resolve it by silently rewriting either one.
+
 ## Prerequisites
 
-- A project with references registered (`mixio-references`)
-- A script persisted on the episode (Step 01)
-- Ideally, sheets already built (Step 02) — but the audit is valuable even without them
+- The accepted local shot plan or a persisted episode to audit
+- A project with references registered (`mixio-references`); available images and sheets may be incomplete
 
 ## What it checks
 
 Six categories, run in order. Each produces a finding list; the gate is at the end.
 
-### 1. Completeness — script demand vs reference supply
+### 1. Completeness — planned shot demand vs reference supply
 
-Extract every CAPS entity from the persisted script (`studio_get_episode` → `script`). Cross-reference against `studio_list_references({ projectId })`.
+Use the accepted shot table as the demand list, and consult the selected screenplay source for exact names and aliases. Read a non-empty native `SCREENPLAY` body first; use episode `script` / `metadata.fullScript` only as fallback. Cross-reference entities against `studio_list_references({ projectId })`.
 
 **Judge `MISSING_IMAGE` by `hasImage` — never by `thumbnailUrl`/`previewUrl`.** `list_references` returns `thumbnailUrl`/`previewUrl` alongside it, and it's easy to grab the wrong pair: those two are a card-preview column that nothing populates when a Look is attached, so a reference with real turnaround images routinely still shows both as `null`. Reading those as the presence signal produces a false `MISSING_IMAGE` on every reference in the project — a wrong blocking finding on the roster's healthiest data, not its worst. `hasImage` (see `mixio-references`) is the real signal.
 
@@ -73,7 +74,7 @@ Duplicates — 12 references checked
 ```
 
 Resolution plan:
-- Merge duplicates: identify the canonical name and the alias to preserve; hand the plan to `/mixio:pipeline` Phase 2 or `mixio-references`, which reads `settings.references` before any update.
+- Merge duplicates: identify the canonical name and the alias to preserve; present the proposal for review, then route an approved update to `mixio-references`, which reads `settings.references` before writing.
 - Convert variant-as-ref: identify the parent reference and its candidate look; hand the plan to `mixio-references` for a policy-safe migration. Do not delete a reference from this audit.
 
 ### 4. Metadata quality — structured detail completeness
@@ -151,7 +152,7 @@ REFERENCE AUDIT — Project "Brooklyn Stories" — Episode 3
 ═══════════════════════════════════════════════════════════
 
 References checked:    12 (6 CHARACTER, 4 LOCATION, 2 PROP)
-Script entities:       15
+Planned entities:      15
 
 Completeness:          2 MISSING_REF, 1 MISSING_IMAGE_HIGH_USAGE
 Consistency:           1 GENDER_MISMATCH (advisory)
@@ -160,8 +161,8 @@ Metadata quality:      2 HIGH-severity gaps
 Policy:                0 violations
 Look bindings:         1 STALE_LOOK_REF
 
-BLOCKING findings (must resolve before Step 03):
-  ❌ HALLWAY DOORWAY — MISSING_REF — appears in 4 script lines, 0 references
+BLOCKING findings (must resolve before generation):
+  ❌ HALLWAY DOORWAY — MISSING_REF — appears in 4 planned shots, 0 references
   ❌ CEREAL BOWL — MISSING_IMAGE_HIGH_USAGE — 2 shots depend on this prop
   ❌ TONY — missing visualAnchor — every prompt mentioning TONY will lack identity anchor
 
@@ -177,8 +178,8 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 
 | Severity | Gate behavior |
 |----------|--------------|
-| BLOCKING | Must be resolved before proceeding to Step 03. In the Pre-Production Token Ralph Loop, the pipeline runner applies only policy-safe, non-generative remediation and re-checks until 0 blocking errors remain |
-| ADVISORY | Surfaced for human decision. Recorded in metadata; does not block convergence |
+| BLOCKING | Generation-readiness issue. Resolve or explicitly accept before shot planning/generation; it does not block local planning or the reviewed breakdown sync |
+| ADVISORY | Surface for human decision; it does not block local planning |
 
 **Blocking criteria:**
 - Any `MISSING_REF` for an entity appearing in ≥2 shots
@@ -188,11 +189,11 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 - Any `GENDER_MISMATCH` confirmed by both text and vision (not advisory-only)
 - Any `STALE_LOOK_REF` — it renders the wrong look silently, with nothing in the UI to catch it before delivery
 
-Everything else is advisory. The user may say "proceed anyway" — record that decision in metadata so a later session knows it was acknowledged, not missed.
+Everything else is advisory. Record any user decision in the review notes for this run; do not write audit metadata as a side effect of the read-only audit.
 
-### Enrichment completion gate (before Step 03)
+### Enrichment completion gate (before generation)
 
-Before the audit passes, confirm that the **reference enrichment** phase from Step 02 (`mixio-sheets`) actually populated the load-bearing fields, not just the reference metadata. The breakdown in Step 03 emits references as **shallow stubs** (`name`, `description`, `attributes` only) and never writes `characterDetails`/`locationDetails`; if enrichment didn't happen here, these fields will be empty for the whole episode. HIGH-severity fields must be present on every character/location that appears in any scene:
+Before generation, confirm that `mixio-sheets` populated the load-bearing fields, not just reference metadata. The local breakdown does not create or enrich references. HIGH-severity fields must be present on every character/location the accepted plan uses:
 
 **Characters — `characterDetails` (via `studio_update_reference`):**
 | Field | Required |
@@ -210,82 +211,48 @@ Before the audit passes, confirm that the **reference enrichment** phase from St
 | `spatialLayout` | yes |
 | `depthAxes` | yes |
 
-These are the fields prompt materializers in Steps 05/06 rely on for visual continuity. If any are missing, treat the finding as BLOCKING and direct the fix back to Step 02 (`mixio-sheets`) to enrich rather than proceeding with a stub.
+These are the fields prompt materializers rely on for visual continuity. If any are missing, report a generation blocker and direct the fix to `/mixio:sheets`; do not block the local plan or silently write a stub.
 
-## Fixing findings & The Ralph Loop
+## Findings and remediation
 
-This skill audits; it does not create or mutate references. When called directly, emit the specific remediation plan below and stop. When called from `/mixio:pipeline`, its Phase 2 runner owns policy-safe writes and immediate re-checks; follow the canonical [policy, asset, and loop-state boundary](../mixio-pipeline/references/pre-production-ralph-loop.md#boundaries-policy-and-asset-permission).
+This is a read-only audit. Emit the exact remediation proposal and stop before changing references, relations, media, or episode metadata. The pipeline does not run an automatic reference-repair loop.
 
-Before any reference write, the runner reads `studio_get_project({ projectId })` and enforces `settings.references.createPolicy`, `variantPolicy`, and the type-specific `variantVocabulary`. If policy prevents the write, it persists `pre_production_loop.status: "blocked"` with the finding and exact next user action; it never overrides policy.
+For any approved remediation, route to `/mixio:references` or `/mixio:sheets`, read current `settings.references`, and show the exact proposed changes before writing. Follow `createPolicy`, `variantPolicy`, and `variantVocabulary`.
 
-`MISSING_IMAGE_HIGH_USAGE` has no zero-credit synthetic fix. Attach a permitted existing user-supplied asset when available; otherwise persist `blocked` and request an upload or explicit image-generation permission. Do not call `/mixio:sheets` or submit a generation job from this audit.
+`MISSING_IMAGE_HIGH_USAGE` has no zero-credit synthetic fix. Report whether a supplied image can be attached; otherwise request an upload or explicit image-generation permission. This audit never uploads media or submits a generation job.
 
 The remediation plan identifies the required action:
 
 ```
 Fix: HALLWAY DOORWAY — MISSING_REF
-→ studio_register_reference_entities({ projectId, references: [
-    { type: "LOCATION", name: "HALLWAY DOORWAY", metadata: { description: "..." } }
-  ]})
-  Then: upload or generate a reference image via /mixio:sheets
+→ propose `{ type: "LOCATION", name: "HALLWAY DOORWAY", metadata: { description: "..." } }`
+  Then: approve the reference change; use /mixio:sheets for any required image work
 
 Fix: TONY — missing visualAnchor
-→ studio_update_reference({ projectId, referenceId: "<tony-id>",
-    characterDetails: { visualAnchor: "Athletic Italian-American woman, late 20s, loose dark curls, warm olive skin" }
-  })
+→ propose `characterDetails.visualAnchor = "Athletic Italian-American woman, late 20s, loose dark curls, warm olive skin"`
 
 Fix: TONY ↔ TONY RUSSO — LIKELY_DUPLICATE
-→ studio_update_element({ projectId, elementId: "<tony-id>", updates: { metadata: {
-    aliases: ["Tony Russo", "Antonia"]
-  }}})
-  Then: archive or delete the duplicate reference
+→ propose canonical name `TONY` with aliases `Tony Russo`, `Antonia`; confirm before merging or archiving
 
 Fix: STALE_LOOK_REF — TONY'S APARTMENT:night
-→ studio_update_reference({ projectId, referenceId: "<apartment-id>", referenceVariants: [
-    ...existingVariants,
-    { name: "night", kind: "look", images: [{ url: nightUrl, isPrimary: true }] }
-  ]})
+→ propose rebinding to the existing `evening` variant or restoring the `night` variant after confirmation
 ```
 
-After the pipeline runner applies a permitted fix, **re-run the audit immediately** to confirm blocking findings drop to `0`.
-
-## Persisting the result
-
-```
-studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
-  step_02_5: "complete",
-  reference_audit: {
-    checked: 12,
-    blocking: 0,
-    advisory: 1,
-    clean: 11,
-    acknowledged_advisories: ["GENDER_MISMATCH:TONY"],
-    timestamp: "2026-..."
-  },
-  // For `running`, `blocked`, and `converged` loop-state fields, copy the
-  // canonical object from mixio-pipeline/references/pre-production-ralph-loop.md.
-  pre_production_loop: { status: "converged" }
-}}}}})
-```
+After an approved change, re-run this read-only audit. Keep its report in the local review unless the user separately approves an exact Studio metadata update.
 
 ## Workflow
 
 ```
-1. studio_get_episode({ episodeId })                  → get persisted script
-2. extract CAPS entities from script text             → demand list
-3. studio_list_references({ projectId })              → supply list
-4. studio_get_project({ projectId })                  → read reference policy
-5. run 6 check categories                            → findings
-6. emit REFERENCE AUDIT report
-7. ↺ Ralph Loop: hand blocking findings to the pipeline Phase 2 runner; it applies only policy-safe, non-generative remediation and re-checks until 0 blocking errors
-8. if ADVISORY only: present, record in metadata
-9. persist audit result (0 blocking) → GATE → Step 03 Panel Breakdown
+1. read the accepted plan/source, current project policy, references, and attached images
+2. compare planned cast, locations, props, and look bindings against existing data
+3. run the six check categories and separate story-plan issues from generation-readiness gaps
+4. emit the audit report and exact remediation proposals; make no writes
+5. after separately approved remediation, re-read and re-run the audit before generation
 ```
 
 ## Notes
 
-- Run this **after** sheets (Step 02) because sheets create the bulk of the reference images. Running before sheets would flag every reference as `MISSING_IMAGE`.
-- Step 02.5 participates in the Pre-Production Token Ralph Loop (`mixio-pipeline/references/pre-production-ralph-loop.md`): the pipeline runner may remediate safe text/graph findings and must re-check before Step 03. This audit never bypasses reference policy or starts image generation itself.
-- Re-run after any reference change in a later step. It's free (reads only) and a stale audit means a stale contract.
-- The duplicate check uses normalized names (lowercased, stripped of punctuation, collapsed whitespace). `aliasMatching` in project settings controls whether recorded aliases participate in *breakdown* matching — the audit checks aliases regardless, because it's looking for data quality, not runtime behavior.
+- Run after the local plan is accepted; it can also be used earlier to snapshot current readiness. Incomplete references never block local planning.
+- Run again after sheets or reference changes. It is read-only and does not start image generation.
+- The duplicate check uses normalized names (lowercased, stripped of punctuation, collapsed whitespace). `aliasMatching` in project settings controls whether recorded aliases participate in runtime matching; the audit checks aliases as data quality.
 - On a project with 50+ references, emit the clean list as a count rather than naming each one. The blocking and advisory lists are what the user needs to act on.

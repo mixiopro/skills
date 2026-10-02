@@ -1,298 +1,103 @@
 ---
 name: mixio-script-breakdown
-description: "Break a script into canonical references, scenes, and shot specs the way Studio's own breakdown workflow does — same schemas, same field vocabularies, same verbatim rules — then persist through the breakdown primitives. Not the continuity check (mixio-continuity) or reference audit (mixio-reference-audit) that follow it. Unclear which step you need → mixio-pipeline."
-version: 0.2.0
+description: "Use when a screenplay or high-level script needs a director’s shot plan with connective coverage and an approval-ready Studio diff."
+version: 0.3.0
 invoke: /mixio:script-breakdown
 ---
 
 # Mixio Script Breakdown
 
-Step 03 of `mixio-pipeline`, and the place where craft becomes data. Studio ships this as a server-side workflow (`api/agent-api/src/workflows/script_breakdown`) **and** exposes its internal steps as MCP primitives, explicitly so a skill can substitute its own analysis and still persist through the same validated path.
+Build a complete local shot plan before writing a breakdown to Studio. The plan turns screenplay beats into visible action, camera choices, and connected shots. Keep the original screenplay unchanged and label what the source states separately from inferred direction.
 
-Two ways to run it:
+Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md): the plan serves audience intent and sequence flow, while source facts, user-authored direction, inference, and open decisions remain distinct. Bring in relevant cinematography, production design, props, script-supervision, editing, sound, or action perspectives to answer craft-specific questions; record their recommendations in the plan rather than treating them as approved story facts.
 
-| | **Managed** — one job | **Composed** — you author, primitives persist |
+The normal path is **local analysis → local continuity review → exact Studio diff → explicit approval → sync and readback**. Do not use the write-through `script_breakdown` job as the normal path. This skill does not generate images, video, or audio.
+
+## Read the current production
+
+1. Resolve the project and episode using `mixio-pipeline` scope rules. Never infer an ID.
+2. Read the source screenplay. A non-empty native `SCREENPLAY` body wins, even when draft; otherwise use episode `script` / `metadata.fullScript`. Preserve the selected text verbatim, including dialogue, `#mentions`, `~locks`, and standalone `[Key: Value]` paragraphs. See [screenplay grammar](../mixio-episode/references/screenplay-grammar.md).
+3. Read current scenes/shots, project references and policy, and available image assets. Use exact canonical names and confirmed element IDs. Existing sheets and anchors help ground the plan; missing ones are recorded as readiness gaps.
+4. Keep all breakdown analysis and corrections in the local plan. Do not write screenplay, scene, shot, relation, or reference changes while drafting.
+
+## Director’s decision sequence
+
+Run these questions in story order. Each shot should solve an audience, action, state, space, or flow problem; a shot that solves none of them has not earned its place.
+
+| Pass | Ask | Plan |
 |---|---|---|
-| Call | `studio_submit_studio_job` | `studio_register_reference_entities` → `studio_upsert_scene_packages` → `studio_link_graph` |
-| Analysis by | Studio's workflow (Gemini + structured output) | you |
-| Granularity | whole script, one call | scene at a time, gated |
-| Gates | none, runs to completion | user sign-off between scenes |
-| Verbatim safety | regex pass wins over the LLM | you must replicate it (below) |
-| Relational audit | server internal | explicit audit emitted + locked into `metadata.pipeline` |
-| Use when | you want a fast, schema-safe first pass | you need shot-grammar depth, entity graph linking, per-shot `appearanceState`, and relational audit |
+| Intent | What should the audience know, feel, or anticipate here? Whose point of view carries it? | The shot’s dramatic or informational purpose |
+| Change | What shifts in the character’s goal, power, information, relationship, or emotion? What choice or visible action causes it? | The action, reveal, reaction, or reversal the audience must see |
+| State | What is true at entry and exit for each character, prop, costume, injury, and environment? | A cause for each material state change, or an explicit off-screen event/open question |
+| Geography | Where is everyone in the location? What establishes orientation, screen direction, eyelines, and the axis? | Blocking and spatial relations that make the cut readable |
+| Coverage | What minimum images make the action and its cause legible? | Needed establishing, entrance, hand/prop, reveal, reaction, movement, or exit coverage |
+| Flow | How does this image connect to the previous and next one? | A motivated cut, action match, eyeline, sound bridge, transition, or deliberate time/space change |
+| Expression | What framing, camera movement, performance, sound, and duration serve the intent? | Specific choices; movement and shot size carry meaning rather than decorate the beat |
+| Feasibility | Which references/assets exist? What remains unknown or costly? | Readiness gaps and decisions for later production planning; no asset generation |
 
-Both paths reach the same contract, so the choice is about **process, not capability** — duration quantization is gone, so there is no longer a field the managed path can't express. Take the managed path for a cheap reproducible draft; take the composed path when you want sheets built first, gates between scenes, explicit entity ID linking, per-shot `appearanceState`, and a verified relational audit.
+### Continuity principles
 
-Best of both: run the **composed** path but keep Studio's two safety properties — derive `scriptBody` / `transitionFromPrevious` / `isContinuation` from the text deterministically rather than authoring them, and self-check against the repair criteria before persisting.
+- A material change must happen visibly, be identified as an intentional off-screen event, or remain an `OPEN DECISION`. Never let a new prop, location, injury, costume, or position appear without a cause.
+- Plan the transition between shots, not just each shot alone. Track what enters and exits frame, who holds each prop, where people move, and what the next image needs to inherit.
+- Establish geography when the audience needs orientation. Do not add a generic wide shot to every scene; a direct start or purposeful disorientation may serve better.
+- Keep screenplay facts and authored direction distinct. A useful connective shot may be `INFERRED`; a choice that changes story facts or character intent is an `OPEN DECISION` with options for the user.
+- Do not add dialogue or rewrite screenplay action to make the plan easier. Put proposed visual direction in the shot plan.
 
-## Prerequisites
+## Produce the local shot table
 
-- MCP server configured in your agent: `@mixio-pro/mcp` (see INSTALL.md)
-- A project and an episode with source text persisted (`mixio-episode`) — preferably a screenplay, otherwise the raw Idea/Story `script` field
-- For the composed path, the project's `settings.references` read with `studio_get_project`; its
-  `createPolicy` decides whether an unmatched entity may be registered
+Segment the source into scenes and dramatic beats. Preserve original order and line references. Add the visual coverage needed to carry each beat through a coherent sequence. Label provenance at the shot level and split it when a row mixes source and inference—for example, `SCRIPTED beat; INFERRED framing and camera move`. Use this table in the user-visible review:
 
-## Source text — screenplay first, `script` only as fallback
+| Scene / shot | Source beat | Audience purpose / POV | Action, framing, and camera | Character, prop, and space state | Connection from / to | Provenance and rationale | Readiness gaps |
+|---|---|---|---|---|---|---|---|
+| Local shot number | Exact source cue or line range | What the audience learns or feels | Concrete action plus shot size, angle/move, sound, and approximate duration | Relevant entry → exit state and blocking | How the shot starts from the last and hands off to the next | `SCRIPTED`, `INFERRED`, or `OPEN DECISION`; explain inference | Missing image, sheet, anchor, or unresolved production input |
 
-Before either path, read the [native screenplay grammar](../mixio-episode/references/screenplay-grammar.md), then read the episode's screenplay element rather than assuming the episode's `script` is current:
+Example of a proposed bridge: `INFERRED — the next scripted beat shows the character drawing a sword, but no acquisition is established. Add a brief insert/medium beat showing the sword enter the character’s possession. The source does not say whether it was carried in, found, or received; list those options as an OPEN DECISION if that choice affects the story.`
 
-```
-studio_query_elements({ projectId, type: "SCREENPLAY", tags: { episodeId }, limit: 50, offset: 0, includeFull: true })  # tags must be a native object, never JSON.stringify(...)
-```
+Use the existing canonical field map in [canonical-schema.md](references/canonical-schema.md) when preparing the approved sync payload. Each synced shot needs real values for `shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, and `duration`; never put `TBD`, `unknown`, or an unresolved story choice into a required field. Keep original dialogue and screenplay lines verbatim. Provenance labels remain in the review plan; do not invent a Studio schema to store them.
 
-- A `SCREENPLAY` row with a non-empty `body` wins, **including a draft**. Use its body verbatim as `script_content`; do not strip `#mentions`, `~locks`, or standalone `[Key: Value]` annotation lines because native breakdown consumes them.
-- If no screenplay exists, or its `body` is empty, read `studio_get_episode({ episodeId })` and use `metadata.fullScript` as the fallback.
+## Check the local draft
 
-The managed job only analyzes the text supplied in `script_content`. Submitting stale `fullScript` after a screenplay was written silently discards the newer screenplay work.
+Before presenting the diff, confirm:
 
-## Managed path
+- Every source beat and required dialogue moment is represented; added coverage is clearly labeled as inference.
+- Every character and consequential prop has a legible entry/exit state. Pick-ups, put-downs, handoffs, arrivals, departures, and changes of possession have a cause.
+- Location, screen direction, blocking, and eyelines remain understandable across cuts, or a deliberate change is identified.
+- Each shot has a purpose and each transition has a visual, action, sound, or time/space relationship to its neighbors.
+- Inferred direction does not silently settle a story-changing question.
+- Existing images ground only the details they actually show. Missing sheets/anchors are listed as readiness gaps; do not claim visual validation without an image.
 
-```
-studio_submit_studio_job({
-  jobType: "script_breakdown",
-  model: "script-preproduction",
-  useCaseId: "script-preproduction",
-  input: { script_content: "<screenplay body, or fullScript only when no screenplay body exists>" },
-  context: { projectId, episodeId }
-})
-→ jobId ; poll studio_get_job_status({ jobId, projectId })
-```
+Use `/mixio:continuity` for the full local audit. Fix the local plan and repeat the affected checks before preparing the Studio diff.
 
-It runs four stages: `prepare_inputs` → `load_production_context` → `script_analysis_structured_output` → `persist_breakdown_tool_calls`. Stage 2 loads the project's existing canonical characters/locations/props (with their `aka` aliases and variant names) into the prompt so the analysis reuses them instead of creating near-duplicates — which is why you should register references **before** running a breakdown on episode 2+.
+## Prepare the exact Studio diff
 
-A completed job that persisted zero scenes is converted to `FAILED` with `BREAKDOWN_EMPTY_PERSISTENCE`. Check status, don't assume.
+Read the current Studio graph again before comparison. Show a separate change table with one row per operation:
 
-## Composed path — the seven stages, done yourself
+| Operation | Confirmed target ID | Exact change | Related elements | Match confidence / question |
+|---|---|---|---|---|
+| `ADD`, `UPDATE`, or `NO CHANGE` | Existing scene/shot ID or `NEW` | Exact fields and before → after values | Character, location, prop, and appearance links | Why the match is clear, or what needs resolving |
 
-```
-1. read policy + context  studio_get_project + studio_get_production_context
-                          → reference policy and canonical names for analysis
-2. analyze                your own LLM pass → references + scenes + shots (zero placeholders, 7 canonical fields)
-3. resolve policy         match every extracted entity; create only when `createPolicy: allow`
-4. register + refresh     studio_register_reference_entities → studio_get_production_context
-                          → fresh lookup map for IDs & canonical names
-5. persist packages       studio_upsert_scene_packages({ projectId, episodeId, scenes })
-                     (with linked_character_ids, linked_location_ids, linked_prop_ids)
-6. link appearances       studio_link_graph({ projectId, relations: [...] })
-                     (appears_in with appearanceState for every character in each shot)
-7. relational audit       audit persisted fields, IDs, appearances, and screenplay-beat scope
-                     → emit report + lock into episode metadata.pipeline.breakdown_audit
-```
+Match by confirmed element ID and the current scene/shot content. Studio upserts also use scene and shot numbers, so verify each upsert key resolves to the intended ID before calling it. Flag ambiguous matches and unmatched existing shots. Never silently overwrite, renumber, or delete an existing shot. Leave uncertain changes out of the write set and ask a focused question.
 
-Order matters: use the initial context only to recognize existing names. After a permitted
-registration, refresh the context (or use every returned `registered[].id`) before deriving
-`linked_*_ids`; a map captured before registration cannot identify the new element. Then create
-typed `appears_in` relations with `appearanceState` and audit persisted reads before Step 04.
+Show the finished shot table and the complete diff, then wait for explicit approval of that diff. If the user changes the plan, rerun the affected checks and show the revised diff before writing.
 
-### Reference-policy gate
+## Sync after approval
 
-Read `settings.references` before Stage 3. Match extracted entities to the initial canonical
-context, including aliases when enabled. Existing matches may be linked. For unmatched entities:
+Use the existing tools only after approval:
 
-- `createPolicy: allow` — call `studio_register_reference_entities`, then refresh the ID map.
-- `createPolicy: propose` — emit the exact entity proposal and stop for approval; make no
-  reference, package, or relation write.
-- `createPolicy: link_only` — ask the user to select an existing reference and stop; make no
-  reference, package, or relation write.
+1. Apply the confirmed scene/shot additions or updates with `studio_upsert_scene_packages` or targeted `studio_revise_shot_specs` as appropriate.
+2. Resolve only confirmed Cast & World IDs. Register a missing reference only when it is included in the approved diff and `settings.references.createPolicy` permits it; `propose` and `link_only` require their respective user decision before writing.
+3. Add/update typed relations with `studio_link_graph` and appearance state for the approved shot content.
+4. Read persisted scenes, shots, references, and relations back. Compare fields and IDs against the approved diff; report exact successes and any partial or mismatched result.
 
-This is a blocking branch, not a best-effort fallback. Route any policy interpretation to
-`mixio-references`.
-
-## Canonical shot metadata
-
-Seven required fields (`shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, `duration`); persisting a shot without them throws `Shot metadata missing required field <name>` at the materialization gate. Audio cues are decomposed into structured `audio`: `{ dialogue?: string, sfx?: string, ambient?: string }` (populating `audio.sfx` from `[SFX: ...]` and `audio.ambient` from `[Ambient: ...]` verbatim). Every entity present in a shot must be linked — pass both the human-readable canonical names (`character_links` / `location_links` / `prop_links`) and the resolved element IDs (`linked_character_ids` / `linked_location_ids` / `linked_prop_ids`). That's what builds the relation graph `mixio-generate` later reads to pull reference images, and it's what carries per-shot `appearanceState`.
-
-The full field table, the two camera vocabularies (`shot_type` is framing only; `camera_angle`/`lens`/`camera_movement` are their own axes — authoring conventions, not validated enums), the grammar→canonical-key mapping, and the passthrough rules: `references/canonical-schema.md`.
-
-## Duration
-
-A **continuous float, 1–60 seconds**, typical range 3–15. Authored values are preserved exactly: `2.5` persists as `2.5`.
-
-Duration is a continuous float; older Studios quantized it to `Literal[5, 8, 10, 12, 15]` at two normalization sites, so a 2.5s panel silently became 5s and short-form work had to bypass the managed workflow and write through `upsert_scene_packages` directly. **That workaround is retired** — both paths now preserve fractional durations. If a submitted `2.5` reads back as `5`, you're on a Studio that still quantizes — the old snapping applies (`≤6 → 5`, `≤9 → 8`, `≤11 → 10`, `≤13 → 12`, else `15`).
-
-Duration guidance: short holds (2.5–5s) for reaction cutaways, inserts, beat transitions, quick reveals and punctuation; 8–10s for dialogue exchanges, character action and reveals; 12–15s for complex blocking with camera movement, continuous action, emotional beats that need room, and oners. Vary it within a scene — monotonous equal-length shots read flat. Short-form vertical drama typically runs 2.5–4.5s per panel throughout, and that is now expressible on either path.
-
-## Per-shot appearance state
-
-A character reference says who someone *is*. What is true of them in **one shot** — soaked hair, a fresh cut over the left eye, the briefcase they didn't have two shots ago — belongs to the appearance, and a production has many appearances per character. Putting it on the character gives one global value that is only correct somewhere.
-
-It lives on the `appears_in` relation's `metadata`, validated by `appearanceStateSchema`. The
-schema permits optional fields, but the breakdown audit requires `wardrobe`, `condition`, and
-`carriedProps` for every appearing character; use `[]` when no props are carried. The remaining
-fields are optional, and an appearance with no state is not sufficient for a passing breakdown.
-
-| Key | Notes |
-|-----|-------|
-| `wardrobe` | what they wear in this shot; overrides the character default without editing the reference |
-| `hairState` | soaked, cut short, tied back, wind-blown |
-| `condition` | injuries, dirt, blood, sweat, exhaustion — cumulative across a sequence |
-| `carriedProps` | array of canonical prop names, max 50 |
-| `emotionalState` | performance direction. Distinct from the shot's `mood`, which is the mood of the *frame* |
-| `lookRef` | point at an existing approved variant by id/name instead of re-describing it |
-| `continuityNotes` | anything continuity-relevant the fields above don't cover |
-
-Aliases are mapped, so `costume`/`outfit` → `wardrobe`, `hair`/`hair_state` → `hairState`, `injuries`/`physicalCondition` → `condition`, `props`/`heldProps`/`carried_props` → `carriedProps`, `emotion` → `emotionalState`, `look`/`variant` → `lookRef`, `notes` → `continuityNotes`.
-
-```
-studio_link_graph({ projectId, relations: [{
-  fromId: characterId, toId: shotId, relationType: "appears_in",
-  metadata: { wardrobe: "red tee, dark jeans, bare feet",
-              condition: "rested, uninjured",
-              hairState: "loose curls, slightly mussed",
-              carriedProps: ["PHONE"], emotionalState: "amused, unguarded" }
-}]})
-```
-
-`lookRef` resolves shot → scene → reference default at generation time, and a stale value (pointing at a renamed/deleted variant) degrades silently to the default rather than erroring, where the cascade is live — check by looking for a `lookBindings` key in `get_production_context`'s response. Re-running this breakdown never wipes an existing binding: presence relations are created only when missing, so an already-bound relation's metadata is untouched by a re-run.
-
-**Still not covered by a canonical field:** zone, facing, posture, and relative-to. `appearanceState` is deliberately appearance, not staging, and the shot's `blocking` is one string for the whole frame. They're durable-but-unchecked, not session-local: written as passthrough they persist and survive re-entry, and — on jobs where the prompt materializer actually runs (`promptEnhancementMode: "enhance"`, see `references/canonical-schema.md`) — reach the generation prompt under `- Additional direction:`. Either way nothing downstream reads or enforces them, so the continuity blocking map's pose columns still need restating per shot rather than trusted from inheritance — see `mixio-continuity`.
-
-## Canonical scene metadata
-
-Scene keys are **camelCase**; shot keys are **snake_case** — mixing them up sends the field to the passthrough partition where nothing reads it. `anchorRef` is the payoff of the sheets step: generation auto-attaches it to **every** shot in the scene, so the caller never restates it per shot.
-
-Full field table (`heading`, `scriptBody`, `dialogueLines`, `anchorRef`, …) and scene `status` progression: `references/canonical-schema.md`.
-
-### Verbatim is a hard rule
-
-Preserve source language exactly. Never translate, romanize, paraphrase, or rewrite `scriptBody`, `screenplayLines`, `dialogueLines`, `cameraNotes`, or `directorNotes` — keep line breaks and ordering.
-
-`dialogueLinesRomanized` is the single exception and never a replacement: keep `dialogueLines` in the source alphabet and supply a transliteration at the same index (Devanagari → IAST-style, Chinese → pinyin, Japanese → romaji). Transliterate the **sound**, not the meaning. Empty list when the dialogue is already Latin script. Never put romanized text into `dialogueLines`, `scriptBody`, `screenplayLines`, or any shot field.
-
-## Scene segmentation
-
-Match Studio's own recognizers so your scene boundaries agree with the server's:
-
-- **Heading** — optional leading scene number, then one of `INT` · `EXT` · `INT/EXT` · `I/E` · `EST`, with optional trailing period.
-- **Time of day** — `DAY` `NIGHT` `DAWN` `DUSK` `MORNING` `EVENING` `LATER` `CONTINUOUS` `SUNSET` `SUNRISE` `SAME`.
-- **Transitions** — `CUT TO` `SMASH CUT TO` `MATCH CUT TO` `DISSOLVE TO` `FADE TO` `JUMP CUT TO` `WIPE TO` `INTERCUT [TO]` `BACK TO` `CONTINUED` `HARD CUT TO`.
-- **Continuations** — `CONTINUED`, `INTERCUT`, `INTERCUT TO`, `BACK TO` set `isContinuation: true`.
-
-`sceneNumber` and `shotNumber` start at 1 and must be ordered. `tags.sceneNumber` and `tags.shotNumber` are set automatically on persist; `tags.episodeId` is what scopes later queries.
-
-### The deterministic pass wins
-
-Studio does not trust the LLM with the source text. A non-LLM pass walks the script line by line, derives scene chunks from the heading regex — heading, `location`, `timeOfDay`, transition cue, `isContinuation`, sequential number, and verbatim body — then matches each LLM scene to a chunk (exact heading, then substring, then location/time, then position). On the three fields that record what the script *says*, the chunk wins:
-
-```python
-resolved_script_body = _pick_first_non_empty(
-    chunk_map.get("scriptBody"),   # ← parser
-    metadata.get("scriptBody"),    # ← LLM
-    ...)
-```
-
-Same precedence for `transitionFromPrevious` and `isContinuation`. Below that sit two fallbacks: no LLM scenes → synthesize scenes from the chunks alone; no chunks either → one scene holding the whole script with annotation lines derived by pattern.
-
-Consequence for the composed path: **derive those three fields from the text, don't author them.** If the same script ever goes through the managed path, the parser's version is what survives, so authoring them differently just creates a discrepancy. The LLM's job is shot design; the parser's job is the record.
-
-### What the breakdown does and does not produce
-
-The depth is asymmetric, and assuming otherwise is how the sheets step gets skipped:
-
-| | Depth |
-|---|---|
-| **Scenes** | deep — full verbatim capture |
-| **Shots** | deep — the whole canonical spec |
-| **References** | **shallow** — `{ name, description, attributes? }` and nothing else |
-
-The breakdown writes no `characterDetails` or `locationDetails`: no build, skin, hair, `visualAnchor`, no `spatialLayout`, `depthAxes`, `accessPoints`. References come out as *stubs*. Enriching them is `mixio-sheets`' job, which is why the pipeline runs sheets at Step 02 and the breakdown at Step 03 — build the sheets first and the breakdown's context-loading stage finds those canonical names, aliases and variants and reuses them instead of minting near-duplicate stubs.
-
-## Reference extraction
-
-Emit three lists, each entry `{ name, description, attributes? }`, then upsert:
-
-```
-studio_register_reference_entities({ projectId, references: [
-  { type: "CHARACTER", name: "TONY", metadata: { description, attributes } },
-  { type: "LOCATION",  name: "TONY & POPPY'S BROOKLYN APARTMENT", ... },
-  { type: "PROP",      name: "CEREAL BOWL", ... }
-]})
-```
-
-Matching is by normalized `project + type + name`, so a permitted registration is idempotent.
-Reuse canonical names exactly as `studio_get_production_context` returns them; a name listed as
-an `aka` is the *same* entity and a listed variant is a *state* of that entity, never a separate
-reference. `TONY (gala)` as a second CHARACTER splits the identity and both halves drift. Apply
-the reference-policy gate first; `link_only` and `propose` do not reach this tool for an
-unmatched name.
-
-## Quality gates
-
-**Missing required fields do not fail loudly.** Absence persists as `""` rather than the literal `"TBD"` — older Studios wrote `"TBD"` and defaulted `duration` to `10`; check which you're on by reading a thin shot back. Either way the materialization gate only rejects null, and the read side filters `""`, `tbd`, `unknown`, `n/a`, `na`, `none`, `null` as placeholders — so a thin shot passes validation and renders blank everywhere. Reads still filter `"TBD"` because existing rows contain it. Never emit a placeholder to satisfy the gate: write a real value or don't create the shot.
-
-A scene needs a repair pass when any of these hold; check your own output the same way:
-
-- `scriptBody` under 20 characters, or a placeholder value
-- `heading`, `location`, or `timeOfDay` is a placeholder
-- `scriptBody` has ≥2 non-empty lines but `screenplayLines`, `dialogueLines`, `cameraNotes`, and `directorNotes` are all empty
-
-On repair: fill missing/weak metadata from the raw script, keep scene and shot ordering stable, preserve existing non-placeholder fields, and split/merge/add scenes only if the draft is genuinely incomplete.
-
-## Persisting
-
-Use the initial production context for matching, then refresh it after any permitted
-`studio_register_reference_entities` call and build the final name-to-ID map from that read. The
-complete policy-safe, ID-safe persistence and relation-linking example lives in
-[references/persistence-and-audit.md](references/persistence-and-audit.md). It extracts the
-persisted shot ID from `studio_upsert_scene_packages` before calling `studio_link_graph`; if a
-Studio response omits nested IDs, query the scoped SHOT by episode, scene number, and shot number.
-Never substitute a fabricated ID.
-
-Max 100 scenes per call. Scenes upsert by `sceneNumber + episodeId`; shots by `shotNumber` within a scene. Both `metadata` and `tags` merge, so a later partial write preserves omitted keys.
-
-For refinement after the initial persist use `studio_revise_shot_specs` (content) and `studio_update_shot_state` (workflow state) — see `mixio-continuity`. `revise_shot_specs` validates the spec partition partially, so you may send just the keys you're changing.
-
-## Relational Audit (Immediate Verification)
-
-Immediately after persisting scenes, shots, and appearance relations, execute a deterministic relational audit across three pillars:
-
-### 1. 100% Canonical Fields Audit
-Verify that all 7 required canonical fields are populated with real, non-placeholder values across 100% of persisted shots:
-- `shot_type`: valid framing convention (e.g. `close_up`, `wide`, `over_shoulder`, `two_shot`).
-- `camera_movement`: valid camera movement (e.g. `static`, `dolly_in`, `tracking`, `handheld`).
-- `subject`: concrete character/subject description (no blank or generic strings).
-- `action`: unambiguous physical action and staging beat.
-- `context`: specific environmental setting and conditions.
-- `style_ambiance`: lighting/color palette direction.
-- `duration`: continuous float between 1.0 and 60.0 seconds (e.g. `3.5`).
-- **Zero-placeholder rule**: Fail if any field contains `""`, `"TBD"`, `"tbd"`, `"n/a"`, `"na"`, `"unknown"`, `"none"`, or `"null"`.
-
-### 2. Cast & World Graph Integrity
-Verify all relational connections:
-- **Entity ID validation**: Every ID in `linked_character_ids`, `linked_location_ids`, `linked_prop_ids` resolves to an existing element in Cast & World (`studio_get_production_context` / `studio_list_references`). Zero orphaned links.
-- **Appearance State coverage**: Every character occurring in `linked_character_ids` for a shot must have a corresponding `appears_in` relation with non-empty `wardrobe`, `condition`, and `carriedProps` (use `[]` when no props are carried). Other appearance fields remain optional.
-- **Anchor attachment**: Every scene carries `anchorRef` referencing the scene's approved visual anchor.
-
-### 3. Screenplay Scope Reconciliation
-- Build the expected shot count and total duration from the deterministic screenplay beat plan
-  before persistence; it is the scope contract, not a separate preflight setting.
-- Compare persisted shot count and duration to that plan; report the expected values and delta.
-
-### 4. Emit Audit Report & Lock Metadata
-Read the persisted scenes, shots, and `appears_in` relations; derive every audit value from those
-reads. Lock the report into episode `metadata.pipeline.breakdown_audit` only after every check
-passes. Its canonical payload and executable example are in
-[references/persistence-and-audit.md](references/persistence-and-audit.md).
+The complete existing write/readback contract is in [persistence-and-audit.md](references/persistence-and-audit.md). That reference documents the post-approval primitives; it does not change the local-first approval gate.
 
 ## Workflow
 
+```text
+read source + current graph/assets
+  → reason through intent, change, state, geography, coverage, flow, expression, feasibility
+  → build and locally audit the shot table
+  → show the exact ID-matched Studio diff
+  → explicit user approval
+  → sync with existing primitives and verify by readback
 ```
-1. read SCREENPLAY by `tags.episodeId`; use non-empty `body`, otherwise episode `metadata.fullScript`
-2. studio_get_project + studio_get_production_context       → read reference policy and canonical names
-3. segment the selected source verbatim into scenes (headings, transitions, time-of-day); retain native mentions, locks, and standalone annotations
-4. extract entities → match policy: `allow` registers; `propose`/`link_only` stop before writes
-5. refresh production context → resolve every final linked ID and canonical name
-6. design shots per scene — 7 canonical fields with zero placeholders; author per-shot appearanceState
-7. self-check against the repair criteria; fix rather than emitting "TBD"
-8. studio_upsert_scene_packages({ projectId, episodeId, scenes })                  → persist scenes and shots with linked_*_ids
-9. studio_link_graph({ projectId, relations })                          → attach appears_in relations with appearanceState
-10. read persisted records; audit fields, IDs, appearances, and screenplay-beat scope → lock metadata
-11. → /mixio:continuity for the continuity audit, then /mixio:shot-planning
-```
-
-## Notes
-
-- Each shot should have a stated purpose — establish, reveal, react, transition, climax, tension, release. Not every scene needs an establishing shot; jump into action when the audience already knows the space, or when disorientation serves the tone.
-- One shot with a `tracking` or `crane` move can legitimately cover several story beats. Longer takes suit climaxes.
-- Verify `counts.shots` matches what you sent. A silent shortfall means shots were skipped by the per-item validator, not that the call failed.
-- The managed path uses `gemini-3-flash-preview` with structured output and a repair pass. If your composed breakdown is thinner than that, use the managed path instead.

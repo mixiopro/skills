@@ -1,13 +1,15 @@
 ---
 name: mixio-episode
-description: "Manage Mixio Studio episodes — script content, scene/shot breakdown, shot revision and approval state, and the element/relation primitives that back them."
-version: 0.1.0
+description: "Use when creating or maintaining a Mixio episode’s source text, scenes, shots, and relations through Studio primitives."
+version: 0.2.0
 invoke: /mixio:episode
 ---
 
 # Mixio Episode
 
-An episode lives inside a project (see `mixio-project`) and owns everything downstream of the script: scenes, shots, and their relations to the project's Cast & World roster (see `mixio-references`). This skill covers episode CRUD, script content, the scene/shot breakdown primitives, and generic element/relation tools.
+An episode lives inside a project (see `mixio-project`) and owns everything downstream of the script: scenes, shots, and their relations to the project's Cast & World roster (see `mixio-references`). This skill covers episode CRUD, script content, the scene/shot primitives, and generic element/relation tools. It is the low-level Studio surface; use `/mixio:script-breakdown` to plan shots locally and obtain approval before using these write primitives for a breakdown.
+
+For production edits, treat these primitives as the means to persist the user-approved director’s plan, not as a new creative decision point. Follow the shared [director’s lens](../mixio-pipeline/references/directors-lens.md) and surface any tool limitation that would alter approved direction.
 
 ## Prerequisites
 
@@ -56,7 +58,7 @@ A screenplay is its own per-episode `SCREENPLAY` element, distinct from the raw 
 
 | Tool | Purpose |
 |------|---------|
-| `studio_upsert_scene_packages` | Atomically create/update scenes with nested shots for an episode — the core breakdown persistence primitive |
+| `studio_upsert_scene_packages` | Atomically create/update scenes with nested shots for an episode — use for the exact approved breakdown diff |
 | `studio_revise_shot_specs` | Bulk-update shot metadata (camera, subject, action, duration, links) after an initial breakdown |
 | `studio_update_shot_state` | Bulk-update shot approval state (`approved`/`needs_revision`/`in_review`/`scripting`), feedback, continuity notes |
 
@@ -72,6 +74,8 @@ A screenplay is its own per-episode `SCREENPLAY` element, distinct from the raw 
 → { scenes: [...], counts: { scenes, shots } }
 ```
 Include `linked_character_ids`/`linked_location_ids`/`linked_prop_ids` in shot metadata to auto-create relations to the project's Cast & World elements — this replaces manually calling `create_element` + `create_relation` yourself.
+
+These tools do not replace the planning/review gate. Before a production breakdown write, compare the local plan to the current episode, confirm each update’s element ID and upsert key, show the exact diff, and wait for approval.
 
 **`studio_revise_shot_specs`** / **`studio_update_shot_state`** both take `{ projectId, shots: [{ shotId, ... }] }` (max 100). Every target must be a `SHOT` in that project; an invalid target rejects the whole call during preflight. Use `revise_shot_specs` for content changes, `update_shot_state` for approval/review workflow — they're separate tools because state changes shouldn't silently overwrite creative metadata and vice versa.
 
@@ -114,13 +118,16 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 
 ```
 1. studio_create_episode({ projectId, title, sequenceNumber })
-2. studio_list_references({ projectId, limit }) → copy valid `mentionableLooks`
-3. studio_upsert_screenplay({ projectId, episodeId, body })                  → persist the preferred screenplay draft
-   — or, for a raw idea with no screenplay stage: studio_update_episode({ projectId, episodeId, updates: { script } })
-4. studio_upsert_scene_packages({ projectId, episodeId, scenes: [...] })     → break the selected source into scenes/shots (with linked entity IDs)
-5. studio_link_graph({ projectId, relations: [...] })                        → bind appears_in appearanceState for each character/shot pair
-6. studio_revise_shot_specs / studio_update_shot_state                       → refine and approve shots
-7. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
+2. preserve or create the source screenplay/script as part of episode setup; do not rewrite it during breakdown
+3. /mixio:script-breakdown → read source/current graph and build a local shot table + exact Studio diff
+4. /mixio:continuity → correct and re-check the local plan
+5. show the diff → wait for explicit approval
+6. studio_upsert_scene_packages / studio_revise_shot_specs → apply only approved additions/updates
+7. studio_link_graph → apply approved character/shot relations and appearance state
+8. read persisted scenes, shots, and relations back → verify against the approved diff
+9. /mixio:reference-audit, then /mixio:sheets for missing generation references (confirm image work)
+10. /mixio:shot-planning → choose method/model and approve cost
+11. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
 ```
 
 ## Notes

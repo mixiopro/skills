@@ -100,32 +100,35 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 
 | Skill | Invoke | Description |
 |-------|--------|-------------|
-| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — screenplay → anchors → reference audit → breakdown → continuity → shot planning → video as gated steps, with resumable progress state. Uses the native [screenplay grammar](./skills/mixio-episode/references/screenplay-grammar.md) and the shared [shot grammar](./skills/mixio-pipeline/references/shot-grammar.md). |
+| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — project setup → local director’s plan → local continuity audit → approved Studio diff → reference readiness → shot planning → generation. |
 | [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Character turnaround sheets, six-field location sheets, prop sheets, and one wide anchor frame per scene — the reference layer every shot is generated against. |
 | [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit Cast & World for completeness, name/image consistency, duplicates, metadata quality, and policy compliance — catch reference problems before they cost re-renders. |
-| [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Script → canonical scenes and shot specs with entity graph linking, appearanceState, and immediate relational audit. |
-| [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Four-pass text continuity audit before anything renders — blocking map, checks, report, corrected shots. |
+| [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Build a local director’s shot plan, label sourced and inferred direction, and prepare the exact Studio diff for review. |
+| [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Audit coverage, character/prop state, geography, and shot-to-shot flow; keep corrections in the local plan until sync approval. |
 | [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot into 5 structural archetypes (grid, sequence, master anchor multi-shot, single/dual frame, t2v), match to best model, audit execution feasibility, and group into generation batches with a credit-costed production summary. |
 
 Tool skills are reference docs for the MCP surface and are safe to use standalone. Production skills encode the craft and the gating — start at `/mixio:pipeline` for a full episode.
+
+Across Mixio production, agents use a [director’s lens](./skills/mixio-pipeline/references/directors-lens.md) by default and bring in relevant craft perspectives—cinematography, production design, costume, props, continuity, editing, sound, action, and production feasibility—as needed. These perspectives serve the accepted creative intent; inferred or story-changing direction stays visible for review.
+
+For long episode runs, use the [host’s native goal/task tracker](./skills/mixio-pipeline/references/agent-native-tracking.md) when available. Keep its task plan phase-based and portable; Studio remains the source of truth, and native task completion never satisfies an approval gate.
 
 ## Typical Workflow
 
 Running a full episode — `/mixio:pipeline` drives this, gating on user confirmation between steps:
 
 ```
-Step 00  Preflight           → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
-                              resolution, visual style and reference policy into the project settings
-Step 01  Detailed Screenplay → /mixio:episode discovers mentions and upserts the native screenplay draft
-Step 02  Anchor Frames       → /mixio:sheets — character + location sheets, one anchor per scene
-Step 02.5 Reference Audit    → /mixio:reference-audit — completeness, consistency, duplicates, metadata
-Step 03  Panel Breakdown     → /mixio:script-breakdown — shot specs, canonical schemas, enums
-Step 04  Continuity Audit    → /mixio:continuity — 4 text passes, corrected shots locked
-Step 05  Shot Planning       → /mixio:shot-planning — method + model + feasibility + batches + PRODUCTION SUMMARY
-Step 06  Video Generation    → /mixio:generate per batch, then /mixio:eval before delivery
+Step 00  Project + episode setup → resolve scope; read the existing screenplay, settings, references,
+                                    Studio shots, and available images
+Step 01  Local director’s plan  → /mixio:script-breakdown — shot table, connective coverage, provenance
+Step 02  Local continuity audit → /mixio:continuity — fix the draft and re-check state, space, and flow
+Step 03  Review and sync         → show the exact Studio diff, wait for approval, write, then read back
+Step 04  Reference readiness     → /mixio:reference-audit; /mixio:sheets for missing sheets or anchors
+Step 05  Shot planning           → /mixio:shot-planning — method, model, feasibility, batches, cost approval
+Step 06  Generation              → /mixio:generate per approved batch, then /mixio:eval before delivery
 ```
 
-Steps 01, 02.5, 03, 04 and 05 cost nothing but tokens. That is the point: a continuity break caught in Step 04 costs a paragraph, a missing reference caught in Step 02.5 costs one upload — the same problems caught in Step 06 cost re-renders.
+The local plan preserves screenplay text and marks every proposal as `SCRIPTED`, `INFERRED`, or `OPEN DECISION`. Missing sheets and anchors are readiness gaps; they do not block planning. No breakdown write happens before approval of the exact diff. Image generation and cost approval remain downstream.
 
 For one-off work, skip the pipeline:
 
@@ -133,11 +136,15 @@ For one-off work, skip the pipeline:
 User prompt: "Set up episode 3 and generate its opening shot"
 
 1. /mixio:project    → find or create the project
-2. /mixio:references → make sure the characters/locations in the shot have reference images
-3. /mixio:episode    → create the episode, break the script into scenes/shots
-4. /mixio:generate   → submit the shot as a generation job, pulling in reference images
-5. /mixio:workspace  → upload any local renders, get public URLs
-6. /mixio:eval       → run a continuity/consistency evaluation before delivery
+2. /mixio:episode    → create the episode and preserve its source script
+3. /mixio:script-breakdown → draft the shot plan and exact Studio diff locally
+4. /mixio:continuity → check and correct the local plan; review and approve the diff
+5. /mixio:episode    → sync approved scenes/shots/relations and verify by reading them back
+6. /mixio:references → /mixio:sheets for missing generation references, with image work confirmed
+7. /mixio:shot-planning → choose the method/model and approve cost
+8. /mixio:generate   → submit the approved shot as a generation job
+9. /mixio:workspace  → upload any local renders, get public URLs
+10. /mixio:eval      → run a continuity/consistency evaluation before delivery
 ```
 
 ## Models
