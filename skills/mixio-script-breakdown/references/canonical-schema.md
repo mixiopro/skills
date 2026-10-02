@@ -10,8 +10,8 @@ Seven required fields. Persisting a shot without them throws `Shot metadata miss
 |-----|----------|-------|
 | `shot_type` | ✅ | vocabulary below (not validated — see note) — **framing only**, angles live on `camera_angle` |
 | `camera_movement` | ✅ | vocabulary below (not validated — see note) |
-| `camera_angle` | — | enum below; alias `angle` / `cameraAngle`. Omit when the script gives no angle evidence |
-| `lens` | — | enum below. Omit when the script gives no lens evidence |
+| `camera_angle` | — | enum below; alias `angle` / `cameraAngle`. May be director-inferred from intent; omit when no useful choice is motivated |
+| `lens` | — | enum below. May be director-inferred from the desired perspective; omit when no useful choice is motivated |
 | `subject` | ✅ | primary subject; ≤1000 chars |
 | `action` | ✅ | what happens in the shot; ≤2000 |
 | `context` | ✅ | environment/surroundings; ≤2000 |
@@ -55,6 +55,8 @@ Pick by story need, not formula:
 - `montage` — time passage, parallel action, accumulation
 - `abstract` — mood, theme, non-literal storytelling
 
+In the local review table, separate **shot type** from **shot scale** and **composition**. Use standard scale terms such as extreme wide shot (EWS), wide shot (WS), medium-wide shot (MWS/MW), medium shot (MS), medium close-up (MCU), close-up (CU), and extreme close-up (ECU). Terms such as over-the-shoulder (OTS), two-shot, point-of-view (POV), insert, clean single, dirty single, and master describe composition, viewpoint, or coverage role rather than scale. Choose the closest supported `shot_type` value; keep additional scale/composition detail in the local plan and map it only to an existing field that accurately represents it. Do not add a `shot_scale` or `framing` metadata key.
+
 ### `camera_angle` — optional, own axis
 
 ```
@@ -80,27 +82,60 @@ tilt_down  tracking  crane  handheld  arc  rack_focus
 
 Match the move to emotional intent: `static` for tension, contemplation, dialogue weight, formality · `tracking`/`dolly_*` for following action, revealing space, momentum · `crane` for geography, power shifts, emotional distance · `handheld` for urgency, chaos, documentary · `arc` for reveals and circling tension · `rack_focus` for shifting attention between dual subjects · `pan` for surveying and following gaze · `tilt` for scale and vertical discovery.
 
+Use these terms accurately in the review table:
+
+- `static` — locked-off camera; no camera travel or reframing.
+- `dolly_in` / `dolly_out` — camera physically travels toward / away from the subject. “Push-in” and “pull-back” may describe the intent, but use the canonical value in the synced field.
+- `tracking` — camera travels alongside, behind, ahead of, or across the subject. State the path and screen direction so it is reproducible.
+- `pan_left` / `pan_right` — camera rotates horizontally from a fixed position; distinguish this from tracking laterally.
+- `tilt_up` / `tilt_down` — camera rotates vertically from a fixed position; distinguish this from a crane move.
+- `crane` — camera travels vertically or on a crane arm to reveal or change spatial relation; describe the path in the local plan.
+- `arc` — camera travels around the subject; state direction and approximate arc when useful.
+- `handheld` — camera support/feel, not a path by itself; describe any follow or pan separately if needed.
+- `rack_focus` — focus shifts between depth planes; this is a focus pull, not physical camera movement.
+
+If a proposed move or rig has no canonical value (for example, a zoom or pedestal), keep its exact term visible in the local plan and flag the field-mapping limitation in the Studio diff. Never disguise it as a different enum or create an unsupported key. Use the canonical movement value plus path, speed, and endpoint in the review cell; if those details cannot be preserved by existing fields and that loss changes the shot, hold sync for a decision.
+
+### Shot direction language
+
+| Aspect | Use | Do not confuse with |
+|---|---|---|
+| Camera angle | `eye_level`, `low_angle`, `high_angle`, `dutch_angle` (canted), `birds_eye`, `worms_eye`, `overhead` | Shot size or camera movement |
+| Lens | `wide_angle`, `standard`, `telephoto`, `macro`, `fisheye`, `anamorphic`, `tilt_shift` | A focal-length number without a camera format/sensor basis |
+| Mood | Specific emotional atmosphere such as `ominous`, `tender`, `playful`, `claustrophobic`, `clinical`, or `triumphant`; support it with performance, light, palette, framing, and/or sound | A camera move, genre label, or vague direction such as “cinematic” |
+| Blocking and continuity | Positions, entrances/exits, screen direction, eyelines, axis, foreground/midground/background, and visible state changes | Camera travel; use movement vocabulary for camera motion |
+| Editorial handoff | `match on action`, `eyeline match`, `graphic match`, `shot/reverse shot`, `cutaway`, `J-cut`, `L-cut`, or a motivated transition | A new script fact or a Studio shot field; keep it in the local Handoff note unless a supported field represents it |
+
+Mood is free-text in the current schema, not a closed taxonomy. Choose a precise audience-facing tone, then name the visual or sound choices that create it. Mark an authored framing, camera, lens, or mood choice `INFERRED` when the source does not state it; script silence is not a reason to leave motivated direction unspecified.
+
 All four vocabularies above (`shot_type`, `camera_angle`, `lens`, `camera_movement`) are authoring conventions, not validation — the fields are plain strings server-side and an off-vocabulary value persists without complaint. Stay inside them for auditability and because the direction compiler expects them, not because a write outside them will fail.
 
-## Where the fine-grained camera detail goes
+## Local review fields and Studio mapping
 
-The shot-grammar fields map **1:1 onto canonical keys** — camera detail no longer degrades into prose. (On an older Studio, `camera_angle`, `lens`, `lighting`, `mood` and `blocking` aren't recognized as canonical fields yet — they aren't rejected, they land in passthrough same as any other unrecognized key. Write and read one back to see which behavior your Studio has.)
+The shot table is more detailed than the Studio shot metadata schema. Sync only values that have a clear mapping to existing fields. Do not create a `director_note`, `labels`, `framing`, `shot_scale`, or `handoff` metadata key. Approved functional labels use the existing shot tags object as `tags.breakdownLabels` (an array of strings); preserve `episodeId`, `sceneId`, `shotNumber`, and every unrelated tag when updating it. Set `breakdownLabels: []` on an existing shot only when the approved diff explicitly clears its labels.
 
 | Grammar field | Canonical key | Notes |
 |---|---|---|
-| shot size (`EWS`, `MCU`, `OTS`) | `shot_type` | framing **only** — the enum no longer carries angles |
-| camera angle (low/high/eye) | `camera_angle` | own axis; alias `angle` / `cameraAngle` |
-| camera motion | `camera_movement` | vocabulary, not validated |
-| lens (wide/normal/tele) | `lens` | first-class field |
-| `Lighting: as Anchor N` | `lighting` | canonical |
-| mood/atmosphere | `mood` | canonical |
-| in-frame `FG`/`MG`/`BG` layering | `blocking` | canonical; alias `subjectPosition` |
+| supported shot type | `shot_type` | Select the closest value from the closed authoring vocabulary above |
+| precise shot scale / composition | `blocking` only when it describes in-frame placement; otherwise local plan | No separate `shot_scale` field exists |
+| `Proposed action` | `action` | Visible action, not the rationale or audience purpose |
+| camera angle | `camera_angle` | Own axis; alias `angle` / `cameraAngle` |
+| canonical camera move | `camera_movement` | Use exact authoring value; do not put path/speed into a new key |
+| lens | `lens` | First-class field when supported; omit rather than invent technical specs |
+| camera placement / in-frame `FG`/`MG`/`BG` layering | `blocking` when it describes subject/camera relation in the frame; otherwise local plan | Canonical blocking; alias `subjectPosition` |
+| `Lighting` | `lighting` | Canonical |
+| mood / atmosphere | `mood` and/or `style_ambiance` | Use mood for emotional tone; use style/ambiance for the overall visual treatment |
 | `Dialogue` / `Audio` | `audio.dialogue` / `.sfx` / `.ambient` | Dialogue from cues; SFX from `[SFX: ...]`; Ambient from `[Ambient: ...]` |
+| functional Labels | shot `tags.breakdownLabels` | Existing tags object; merge after approval and read back |
+| `Director’s note`, source-beat citation/provenance, Handoff | local review plan | Do not persist as passthrough or invented metadata |
+| rhythm/pacing cue | local review plan | No canonical shot-pacing field; `duration` and visible `action` carry timing into existing checks |
 | per-character wardrobe/hair/condition/held props | `appearanceState` on the `appears_in` relation | see below |
 | scene anchor | scene `anchorRef` / `anchorRefs` | auto-attached to every shot in the scene |
-| `Cut:` hold + outgoing cut | `action` prose, or `temporal_effect` | no dedicated field |
-| `Pacing` (RAPID/PUNCHY) | passthrough `pacing` | skill-local |
+| `Handoff` / cut timing | local review plan; include a motivated action only in `action` when it is visible on screen | No dedicated per-shot transition field |
+| duration | `duration` | Seconds as a continuous 1–60 float |
 | `[M1]`/`[M2]` markers | inline in `action` | skill-local |
+
+`camera_angle`, `lens`, `lighting`, `mood`, and `blocking` may be passthrough on an older Studio version. A permissive write is not proof that a field is recognized: verify the saved field by reading it back. If it lands only in passthrough, report that limitation in the exact diff and do not claim the technical direction was persisted as a canonical field.
 
 ### Passthrough is visible — and permissive
 

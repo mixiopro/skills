@@ -1,7 +1,7 @@
 ---
 name: mixio-script-breakdown
 description: "Use when a screenplay or high-level script needs a director’s shot plan with connective coverage and an approval-ready Studio diff."
-version: 0.3.0
+version: 0.4.0
 invoke: /mixio:script-breakdown
 ---
 
@@ -45,15 +45,19 @@ Run these questions in story order. Each shot should solve an audience, action, 
 
 ## Produce the local shot table
 
-Segment the source into scenes and dramatic beats. Preserve original order and line references. Add the visual coverage needed to carry each beat through a coherent sequence. Label provenance at the shot level and split it when a row mixes source and inference—for example, `SCRIPTED beat; INFERRED framing and camera move`. Use this table in the user-visible review:
+Segment the source into scenes and dramatic beats. Preserve original order and line references. Add the visual coverage needed to carry each beat through a coherent sequence. Keep the director’s reason for a shot distinct from the visible action, and keep framing distinct from camera placement and movement. Label provenance at the shot level and split it when a row mixes source and inference—for example, `SCRIPTED action; INFERRED framing and camera move`. Use this table in the user-visible review:
 
-| Scene / shot | Source beat | Audience purpose / POV | Action, framing, and camera | Character, prop, and space state | Connection from / to | Provenance and rationale | Readiness gaps |
-|---|---|---|---|---|---|---|---|
-| Local shot number | Exact source cue or line range | What the audience learns or feels | Concrete action plus shot size, angle/move, sound, and approximate duration | Relevant entry → exit state and blocking | How the shot starts from the last and hands off to the next | `SCRIPTED`, `INFERRED`, or `OPEN DECISION`; explain inference | Missing image, sheet, anchor, or unresolved production input |
+| Scene / shot | Labels | Source beat / status | Director’s note | Proposed action | Framing | Camera | Blocking / continuity | Mood, light, sound, rhythm, duration | Handoff | Readiness / open decision |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Local shot number | 0–3 functional tags from the list below | Exact source cue or line range; mark `SCRIPTED`, `INFERRED`, or `OPEN DECISION` per part | Why the image matters: audience knowledge, feeling, anticipation, or point of view | Only observable on-screen action; do not put rationale here | Canonical `shot_type`, then shot scale and composition when useful | Angle, canonical camera move, lens when useful, camera position/path | Character, prop, costume, and space state at entry → exit; blocking, axis, and eyelines | Specific emotional tone; lighting, sound, optional rhythm cue, and approximate seconds | The visual, action, eyeline, sound, or time/space link to the next shot | Missing reference/image/anchor, feasibility gap, or the precise choice held for the user |
+
+Use zero to three labels from this controlled set: `GEOGRAPHY`, `ENTRANCE`, `EXIT`, `BRIDGE`, `STATE_CHANGE`, `PROP_INTRO`, `PROP_ACQUISITION`, `PROP_HANDOFF`, `PROP_USE`, `REACTION`, `REVEAL`, `INSERT`, `DIALOGUE_COVERAGE`, `ACTION_COVERAGE`, `TRANSITION`, `TIME_JUMP`, `SOUND_BRIDGE`. Use `—` when none applies. Labels describe a shot’s function; they do not replace source provenance, shot type, or camera terms. After approval, sync labels through the existing shot tags object as `tags.breakdownLabels`; preserve all other tags. When clearing labels on an existing shot, set this key to `[]` only if that removal is in the approved diff. Per-shot Director’s notes remain review-only in v1.
+
+Use precise, standard craft terms and the canonical vocabularies in [canonical-schema.md](references/canonical-schema.md) and [shot grammar](../mixio-pipeline/references/shot-grammar.md). In the `Camera` cell, name the angle and move separately, then give a motivated direction/path, speed or endpoint where useful; distinguish camera travel from actor blocking. For example: `angle: eye_level; move: dolly_in, 0.5 m toward the tablet; lens: standard`. Mark a proposed choice `INFERRED` when the source does not specify it. Framing scale and composition, mood, focus, and cut language can be more specific in the local plan than the current Studio schema; make any lossy mapping visible in the exact diff instead of inventing metadata keys.
 
 Example of a proposed bridge: `INFERRED — the next scripted beat shows the character drawing a sword, but no acquisition is established. Add a brief insert/medium beat showing the sword enter the character’s possession. The source does not say whether it was carried in, found, or received; list those options as an OPEN DECISION if that choice affects the story.`
 
-Use the existing canonical field map in [canonical-schema.md](references/canonical-schema.md) when preparing the approved sync payload. Each synced shot needs real values for `shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, and `duration`; never put `TBD`, `unknown`, or an unresolved story choice into a required field. Keep original dialogue and screenplay lines verbatim. Provenance labels remain in the review plan; do not invent a Studio schema to store them.
+Use the existing canonical field map in [canonical-schema.md](references/canonical-schema.md) when preparing the approved sync payload. Each synced shot needs real values for `shot_type`, `camera_movement`, `subject`, `action`, `context`, `style_ambiance`, and `duration`; never put `TBD`, `unknown`, or an unresolved story choice into a required field. Keep original dialogue and screenplay lines verbatim. Sync approved functional labels as `tags.breakdownLabels` using the existing tags object and merge semantics. Director’s notes, provenance, source-beat citations, and cut/handoff notes remain in the review plan; do not invent shot metadata keys or persist them as passthrough.
 
 ## Check the local draft
 
@@ -77,6 +81,8 @@ Read the current Studio graph again before comparison. Show a separate change ta
 | `ADD`, `UPDATE`, or `NO CHANGE` | Existing scene/shot ID or `NEW` | Exact fields and before → after values | Character, location, prop, and appearance links | Why the match is clear, or what needs resolving |
 
 Match by confirmed element ID and the current scene/shot content. Studio upserts also use scene and shot numbers, so verify each upsert key resolves to the intended ID before calling it. Flag ambiguous matches and unmatched existing shots. Never silently overwrite, renumber, or delete an existing shot. Leave uncertain changes out of the write set and ask a focused question.
+
+Include approved label changes as `tags.breakdownLabels` in the exact diff. For an existing shot, show the prior tag object and the merged result; confirm `episodeId`, `sceneId`, `shotNumber`, and unrelated tags are preserved.
 
 Show the finished shot table and the complete diff, then wait for explicit approval of that diff. If the user changes the plan, rerun the affected checks and show the revised diff before writing.
 

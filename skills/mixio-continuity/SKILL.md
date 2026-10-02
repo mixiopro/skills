@@ -1,7 +1,7 @@
 ---
 name: mixio-continuity
 description: "Use when a local shot plan needs coverage, action-state, prop, geography, eyeline, or shot-flow checks before Studio sync or generation."
-version: 0.3.0
+version: 0.4.0
 invoke: /mixio:continuity
 ---
 
@@ -16,7 +16,7 @@ Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.m
 ## Inputs and grounding
 
 - The source screenplay/script selected by `mixio-script-breakdown`.
-- The current local shot table, including source/inference provenance and the connection to neighboring shots.
+- The current local shot table, including separate Director’s note, Proposed action, Framing, Camera, functional Labels, source/inference provenance, and connections to neighboring shots. Treat the Director’s note as rationale, not as an on-screen action; audit the Proposed action.
 - Current Studio references, existing shots, and available images when scoped and accessible.
 
 Declare the evidence mode:
@@ -46,7 +46,7 @@ Check the location layout, entrances/exits, blocking, screen direction, eyelines
 
 ### 4. Flow, camera, and rhythm
 
-For each cut, state the connection: continuing action, eyeline, match, reveal, contrast, sound bridge, transition, or intentional time/space jump. Check that shot size, camera angle/movement, performance, sound, and duration serve the beat’s purpose. Add coverage only when it clarifies action, cause, geography, or audience response.
+For each cut, state the connection: continuing action, eyeline, match, reveal, contrast, sound bridge, transition, or intentional time/space jump. Check that Framing (shot type/scale/composition) and Camera (angle/movement/lens) are stated distinctly and use the shared technical vocabulary. Check that camera travel is not confused with actor blocking, and that both serve the beat’s purpose with performance, sound, and duration. Add coverage only when it clarifies action, cause, geography, or audience response.
 
 ### 5. Asset readiness
 
