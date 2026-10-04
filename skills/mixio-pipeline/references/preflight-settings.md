@@ -1,15 +1,25 @@
 # Preflight settings write
 
-Use this at Step 00 after the user confirms the six settings choices. `updates.settings` replaces
-the complete settings object, so merge from a fresh project read and read the result back. The
-episode frame contract is separate from project settings.
+Use this at Step 00 after reading the current project settings. When no model has been pinned,
+default images to `gemini_image` and ordinary video to H3 I2V (`hailuo-v3-image-to-video`). The
+production input-aware selector uses H3 Ref2Vid (`hailuo_v3_reference_to_video`) for ordered
+keyframes and compatible reference-to-video routes, and H3 T2V for prompt-only video. Existing
+project settings and explicit model selections take precedence. `updates.settings` replaces the
+complete settings object, so merge from a fresh project read and read the result back. The episode
+frame contract is separate from project settings.
 
 ```javascript
 const { settings = {} } = await studio_get_project({ projectId })
+const projectImageModel =
+  settings.generation?.defaultModelByUseCase?.["production-generate-shot-keyframes"]
+const projectVideoModel =
+  settings.generation?.defaultModelByUseCase?.["production-generate-video"] ??
+  settings.studio?.preferredVideoModel
 
 const confirmed = {
-  imageModel: userConfirmed.imageModel,
-  videoModel: userConfirmed.videoModel,
+  imageModel: userConfirmed.imageModel ?? projectImageModel ?? "gemini_image",
+  videoModel:
+    userConfirmed.videoModel ?? projectVideoModel ?? "hailuo-v3-image-to-video",
   deliveryAspectRatio: userConfirmed.deliveryAspectRatio,
   anchorAspectRatio: userConfirmed.anchorAspectRatio,
   imageResolution: userConfirmed.imageResolution,

@@ -1,25 +1,26 @@
 # Model Comparison
 
-Snapshot of `api/agent-api/shared_schemas/models.json` + `video-direction.json` + `use-cases.json` in the checked-in `mixiopro/studio` catalogs, verified **2026-09-10**. Every column here is a catalog field that **no MCP tool returns** — that is why it is written down. Re-derive with `studio_get_use_case_input_schema({ useCaseId, modelId })` before spending; if that disagrees with this file, it wins.
+Snapshot of `api/agent-api/shared_schemas/models.json` + `video-direction.json` + `use-cases.json` in the checked-in `mixiopro/studio` catalogs, verified **2026-10-04**. Every column here is a catalog field that **no MCP tool returns** — that is why it is written down. Re-derive with `studio_get_use_case_input_schema({ useCaseId, modelId })` before submitting; if that disagrees with this file, it wins.
 
 The catalog contains **no** fps field, **no** max-resolution field, and **no** quality ranking or benchmark. If asked which model is "best", the honest answer is that the catalog does not say — give `autoSelection` order and input capability instead.
 
 ## 1. Ranking — `autoSelection.rules`
 
-`models.json` → `autoSelection`. The `auto` sentinel resolves by matching rules in this order, most specific first (a rule naming the use case beats one matching only `outputTypes`), then taking the first `preferredModels` entry the use case actually supports (`packages/shared/src/schemas/generation/schema.ts:1752`). This ordered preference is the closest thing the catalog has to a recommendation.
+`models.json` → `autoSelection`. The `auto` sentinel resolves by matching rules in this order, most specific first (a rule naming the use case beats one matching only `outputTypes`), then taking the first `preferredModels` entry the use case actually supports (`packages/shared/src/schemas/generation/schema.ts:2045`). This ordered preference is the closest thing the catalog has to a recommendation.
 
 | Rule id | Applies to | Signal | Preference order |
 |---|---|---|---|
+| `keyframe-image-default` | keyframe, image-hub, and production image use cases | — | `gemini_image` → `gemini-3.1-flash-lite-image` |
 | `video-motion-transfer` | `motion-transfer` | — | `kling_motion_control_pro` → `seedance_reference_to_video_v2` → `dreamactor_v2` |
 | `video-camera-motion-reference` | `camera-motion` | `media.motionRef` present | `ltx_2_3_cameraman_lora` → `kling_camera_motion_control_pro` |
 | `video-camera-motion-default` | `camera-motion` | — | `ltx_2_3_cameraman_lora` → `kling_camera_motion_control_pro` |
 | `video-lip-sync` | `lip-sync` | — | `svara-1-0` → `omnihuman_v1_5` → `sync_lipsync_v2` → `veed_lipsync` |
-| `video-cinematic-default` | `cinematic-video` | — | `ltx_2_3_quality_image_to_video` → `gemini_omni_image_to_video` → `kling_image_to_video_2_6_pro` |
-| `video-multi-shot-default` | `multi-shot-video` | — | `gemini_omni_multishot` → `seedance_reference_to_video_v2` → `kling_o3_standard_reference_to_video` |
-| `video-image-to-video` | any `VIDEO` use case | any of `media.primary`, `endFrame`, `references` | `seedance_image_to_video_v2` → `seedance_image_to_video_pro` → `kling_image_to_video_pro` → `kling_image_to_video_2_6_pro` → `veo_3_1` |
-| `video-text-to-video` | any `VIDEO` use case | — | `gemini_omni_text_to_video` → `seedance_text_to_video_v2` → `seedance_text_to_video_pro` → `kling_text_to_video_pro` → `kling_text_to_video_2_6_pro` → `veo_3_1` |
+| `video-cinematic-default` | `cinematic-video` | — | `hailuo-v3-image-to-video` → `ltx-2-5-image-to-video` → `ltx_2_3_quality_image_to_video` → `gemini_omni_image_to_video` → `kling_image_to_video_2_6_pro` |
+| `video-multi-shot-default` | `multi-shot-video` | — | `hailuo_v3_reference_to_video` → `gemini_omni_multishot` → `seedance_reference_to_video_v2` → `kling_o3_standard_reference_to_video` |
+| `video-image-to-video` | any `VIDEO` use case | any of `media.primary`, `endFrame`, `references` | `hailuo-v3-image-to-video` → `ltx-2-5-image-to-video` → `seedance_image_to_video_v2` → `seedance_image_to_video_pro` → `kling_image_to_video_pro` → `kling_image_to_video_2_6_pro` |
+| `video-text-to-video` | any `VIDEO` use case | — | `hailuo-v3-text-to-video` → `gemini_omni_text_to_video` → `seedance_text_to_video_v2` → `seedance_text_to_video_pro` → `kling_text_to_video_pro` → `kling_text_to_video_2_6_pro` |
 
-**There is no image or keyframe rule, and none for `STUDIO`.** `supportsAutoModelSelection` returns false for `outputType: STUDIO` outright (`schema.ts:1603`), and no rule declares `outputTypes: ["IMAGE"]`, so `auto` is video-only. For an image or production use case, name the model — otherwise `get_use_case_input_schema` falls back to `models[0]` and the Studio path applies its own default (`production-job-preparation.ts`).
+Image and production keyframe use cases prefer `gemini_image` when it is supported. The UI's `auto` picker is not exposed for `STUDIO` use cases, so Studio production selection uses project settings, the ordered use-case model list, and the input-aware production defaults (`production-job-preparation.ts`). Video selection follows the H3 family by input type, with H3 Ref2Vid first for reference-to-video and multi-keyframe sequences.
 
 ## 2. Relative cost guidance
 

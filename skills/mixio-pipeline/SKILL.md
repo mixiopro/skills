@@ -40,21 +40,23 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 
 ## Step 00 — Full Project Preflight & Settings Locking
 
-Everything downstream reads project settings. If Step 00 doesn't set them, Step 06 doesn't
-fail — it inherits. `production-generate-shot-keyframes` renders at `aspect_ratio: '16:9'`
-on `gpt_image_2` because that is the production default, not because anyone chose it
-(`mixio-generate` §4). Settle the contract here, write it to the project, and gate
-Step 01 on the user confirming it.
+Everything downstream reads project settings. If Step 00 doesn't set them, later steps inherit
+defaults. Use `gemini_image` for image generation and sheets wherever the use case supports it.
+Use the H3 route that fits each video's input contract: H3 Ref2Vid for ordered keyframes and
+reference-to-video, H3 I2V for a start frame, and H3 T2V for prompt-only video. An existing
+project setting or explicit model selection takes precedence. Settle any remaining delivery
+settings here, write them to the project, and gate Step 01 on the user confirming the contract.
 
 ### 1. Confirm the contract — options in the same message as the question
 
-Six confirmations, presented the same way scope is: with the real options enumerated, so the
-answer is one character. Never let one default silently.
+Six settings, presented with their live legal options. For image and video models, show the
+defaults above as the preselected recommendations and ask only when the project already pins a
+different model or a route-specific contract makes that default unavailable.
 
 | # | Confirm | Source of the legal values |
 |---|---------|----------------------------|
-| 1 | **Image model** — the keyframe model for every `production-*` keyframe use case | The six `production-generate-shot-keyframes` supports: `gemini-3.1-flash-lite-image`, `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite`. Re-read `supportedModels` rather than trusting this list — the catalog grows |
-| 2 | **Video model** — what Step 06 uses | `supportedModels` from `studio_list_use_cases` for `production-generate-video` |
+| 1 | **Image model** — the keyframe model for every `production-*` keyframe use case | `gemini_image` is the default when supported; re-read `supportedModels` to confirm it remains available |
+| 2 | **Video model** — what Step 06 uses | Prefer H3 Ref2Vid for ordered keyframes/reference-to-video, H3 I2V for a start frame, and H3 T2V without an image; confirm against `supportedModels` and the live schema |
 | 3 | **Aspect ratios** — delivery + anchor (see §2 below) | `aspect_ratio` enum from `studio_get_use_case_input_schema({ useCaseId, modelId })` for the chosen pairs — there is no global list |
 | 4 | **Resolution** — per output type and per video use case | Same schema read, and **many models expose no `resolution` parameter at all** (`gemini_omni_multishot` and `seedream_5_pro` have none; `veo_3_1` has one defaulting to `720p`). Confirm the parameter exists before locking a value for it |
 | 5 | **Visual style / tone** — style, mood, cinematography, default style prompt | The user. This is direction, not a catalog value |
@@ -167,7 +169,7 @@ breakdown skill owns the fields, audit checks, and `metadata.pipeline.breakdown_
 
 Before batching, reconcile every broken-down shot's actual camera zone, location configuration, and selected labeled view against `metadata.pipeline.reference_pack_inventory`. If a shot requires an unlisted or unapproved row, emit a blocking reference finding, add the row to the inventory as `proposed`, and stop before writing an awaiting-generation-approval summary. Ask the user to confirm the additional image round, stage and evaluate candidates, attach only approved images, and rerun the reference audit. Re-entering Step 02 invalidates downstream work: rerun Step 02.5, Step 03, Step 04, and Step 05 before Step 06.
 
-1. **Model + live contract** — select a candidate based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.) and read its live input schema, including the duration ceiling.
+1. **Model + live contract** — use the project's explicitly pinned model when present. Otherwise prefer the compatible H3 route: Ref2Vid for ordered keyframes/reference-to-video, I2V when a start frame is supplied, and T2V for prompt-only video. If the matching H3 route is unavailable for that use case, select a supported fallback and read its live input schema, including the duration ceiling.
 2. **Archetype / Method** — classify each shot using that contract into one of 5 structural archetypes: `GRID` (multi-panel/montage), `SEQUENCE` (multi-beat sequence), `MASTER_ANCHOR_MULTI_SHOT` (coverage grounded by the wide scene-anchor reference through a derived keyframe), `SINGLE` / `DUAL_FRAME` (standard keyframe interpolation), or `T2V` (direct text-to-video).
 3. **Execution & Feasibility Audit** — validate duration vs model max, action density (`actions / duration`), dialogue speaking rate (`words / duration`), reference readiness, the shot's selected character look and location variant/view, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. The chosen location media must match the confirmed variant/view row and be approved; pass its explicit `variantId`/`variantName` with the actual view image. Every active media slot (`primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`, or a schema-added slot) must have exactly one mapped `@tag` in the effective prompt; reject missing pairs, collisions, and orphan map entries.
 
