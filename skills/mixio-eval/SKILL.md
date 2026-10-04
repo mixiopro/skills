@@ -1,23 +1,25 @@
 ---
 name: mixio-eval
-description: "Run visual continuity and consistency evaluations on generated media through the hosted Studio evaluator gateway before delivery."
-version: 0.3.0
+description: "Run visual continuity and consistency evaluations on rendered media and catalog-supported reference images through the hosted Studio evaluator gateway."
+version: 0.4.0
 invoke: /mixio:eval
 ---
 
 # Mixio Eval
 
-Evaluate rendered media before delivery. This skill uses the modern hosted
-Studio evaluator gateway. For text-only, pre-render continuity audits, use
-`mixio-continuity`.
+Evaluate rendered media before delivery, and evaluate reference-image candidates
+during Step 02.5 only when the live catalog explicitly supports still-image
+comparison. This skill uses the modern hosted Studio evaluator gateway. For
+pre-render screenplay and shot-spec continuity audits, use `mixio-continuity`.
 
 ## Boundary with `mixio-continuity`
 
 Use `mixio-continuity` for the pre-render, text-and-shot-spec audit that can
 correct screenplay or shot metadata before pixels are generated. Use this skill
-only for rendered images/video and evaluator-backed visual evidence. When a
-request is ambiguous, route it through `mixio-pipeline`; do not use a rendered
-media evaluation as a substitute for the pre-render continuity audit.
+for post-rendered sequence evidence, or for a reference candidate only when a
+listed profile and live contract accept still-image candidates plus the needed
+approved-reference/expected-state evidence. When a request is ambiguous, route
+it through `mixio-pipeline`; neither gate substitutes for the other.
 
 ## Scope and compatibility boundary
 
@@ -301,9 +303,12 @@ adjacent transition and for any cross-angle comparison:
 
 - screen direction and spatial geography, including relative subject/prop
   position and the 180-degree axis;
-- identity, pose, wardrobe, and prop state;
+- identity, pose, wardrobe, prop state, relative scale, and visible proportions;
+- requested visual style and surface/material treatment, including consistency
+  with photorealistic/hyperrealistic or stylized intent;
 - palette and color relationships;
 - lighting direction, quality, and exposure;
+- unexpected content, missing signature features, and visible image defects;
 - camera continuity, including framing, lens impression, movement, eyeline,
   and intentional angle changes; and
 - temporal artifacts such as flicker, geometry/identity morphing, ghosting,
@@ -331,13 +336,58 @@ single request.
 | `sequence-storyboard` | General storyboard/keyframe visual review and sequence context. | The strict adjacent-transition gate or final delivery QC. |
 | `video-multi-shot` | A rendered multi-shot candidate, cuts, and cross-angle geography. | Character-only review. |
 | `video-character` | Identity, pose, wardrobe, and character-state continuity. | Full temporal/delivery review. |
-| `video-general` | General visual artifacts and broad palette, lighting, camera, or motion review when the catalog exposes that coverage. | A transition-specific gate when no ordered evidence is supplied. |
+| `video-general` | General visual artifacts and broad palette, lighting, camera, motion, style/material, or scale review only when the catalog exposes that coverage. | A transition-specific gate when no ordered evidence is supplied. |
 | `delivery-qc` | Final candidate delivery/readiness review after continuity gates pass. | The strict adjacent-keyframe continuity gate. |
 
 These are catalog profile identifiers, not a new capability enum. The catalog
 may provide profile-specific skills or metrics; pass those only when the live
 catalog contract returns them. A high aggregate or average result never
 overrides a localized blocking transition finding.
+
+Before submission, derive the required review dimensions from the locked project
+style and each shot's expected state. Check that the selected profile returns
+evidence for those dimensions. If it does not, use another compatible catalog
+profile as a separate, confirmed run or route the uncovered dimensions to human
+review; keep the media gate incomplete until required coverage is resolved.
+
+### Reference-image comparison for Step 02.5
+
+The reference audit may use this evaluator for a required look/view candidate
+only if the current catalog and tool contract explicitly support `image`
+candidate inputs and an image `reference` or compatible expected-state input.
+Do not infer that `sequence-storyboard`, `video-general`, or a video-only
+profile accepts standalone sheets. If no suitable profile exists, use available
+vision or human visual review and leave the row unresolved when neither is
+available.
+
+When a relevant human-approved canonical identity/world reference exists,
+compare each required candidate look/view with it and the script's declared
+variant purpose. Use the approved `workflow.status` and exact inventory/look
+binding to pick a baseline; don't compare unrelated images or treat an
+in-review candidate as the authority. When no approved baseline exists, use
+only confirmed screenplay, inventory, locked-style, or structured expected-state
+evidence; never treat the candidate itself or another unapproved candidate as
+its own baseline. The prompt and expected-state evidence should name the
+relevant invariants and intentional differences and request separate findings
+for:
+
+- requested visual treatment, including photorealistic/hyperrealistic versus
+  stylized rendering, skin and material texture, and visible synthetic defects;
+- identity, signature features, wardrobe/state and cross-view consistency;
+- explicit height/relative-scale constraints and anatomy/proportions;
+- persistent location layout, landmarks and depth relationships;
+- lighting direction/quality/exposure and palette/color relationships; and
+- hallucinated people, objects, text/logos, omissions, warping or other image
+  defects.
+
+Judge each dimension only against evidence actually supplied: script, locked
+project style, structured reference details, approved baseline images, relevant
+scene anchors, or explicit scale records. A variant may change palette or
+lighting when its declared purpose calls for it; preserve the non-varying
+identity/world invariants. Record dimensions the profile does not support as
+unreviewed instead of implying that its aggregate score covered them. Evaluation
+does not approve or mutate a reference; preserve its raw result with the audit,
+and keep human approval as the status authority.
 
 ## Submit and poll
 
@@ -383,9 +433,11 @@ Approve only when all of the following hold:
 
 1. the run is terminal and completed;
 2. the provider/profile decision is acceptable at the requested threshold;
-3. every required adjacent transition has localized evidence;
-4. the worst transition is acceptable; and
-5. no finding is blocking, accidental drift, technical artifact, or an
+3. every required visual dimension is covered by profile output or resolved by
+   a recorded human review;
+4. every required adjacent transition has localized evidence;
+5. the worst transition is acceptable; and
+6. no finding is blocking, accidental drift, technical artifact, or an
    unexplained/unlocalized failure.
 
 The worst transition and any blocking finding win over the aggregate score. A

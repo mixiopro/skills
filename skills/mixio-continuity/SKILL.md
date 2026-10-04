@@ -1,23 +1,23 @@
 ---
 name: mixio-continuity
-description: "Audit a shot breakdown for continuity before anything is rendered — build a blocking map, run the checks, report findings against a fixed issue taxonomy, then emit corrected shots and lock them. Text and blocking logic only — Cast & World completeness is mixio-reference-audit. Unclear which step you need → mixio-pipeline."
-version: 0.2.0
+description: "Run the pre-render text and shot-spec continuity gate, then pair it with mixio-eval's post-render media gate. Build a blocking map, report findings, correct and lock shots. Cast & World readiness is mixio-reference-audit. Unclear which step you need → mixio-pipeline."
+version: 0.3.0
 invoke: /mixio:continuity
 ---
 
 # Mixio Continuity
 
-Step 04 of `mixio-pipeline`. A **text** audit of the breakdown, run before a single pixel exists. It is the highest-value step in the pipeline for one reason: a continuity break caught here costs a paragraph, and the same break caught after generation costs a re-render of every shot downstream of it.
+Step 04 of `mixio-pipeline`. This is the **pre-render text/shot-spec gate**: it checks the planned story state before a shot is rendered and corrects breaks while they are still cheap. The pipeline pairs it with `/mixio:eval`, the **post-render media gate** that checks whether generated images/video follow the plan. Together, the gates cover authored expectations and rendered execution at the appropriate stages.
 
-This is not `mixio-eval`. Two different gates:
+The pipeline uses two continuity gates:
 
 | | `mixio-continuity` | `mixio-eval` |
 |---|---|---|
 | When | after breakdown, **before** generation | after generation, before delivery |
-| Reads | shot spec text | rendered pixels |
+| Reads | script, shot specs, relations, and scene anchor when available | rendered candidate media plus ordered expected state |
 | Catches | a phone that vanishes with no put-down action | a phone that the model drew in the wrong hand |
 
-Run both. The text audit is free and catches logic; the pixel audit costs a job and catches execution.
+Run both. Step 04 catches logic and authored-state conflicts before rendering; `/mixio:eval` checks the rendered media and catches execution drift, visual style/artifacts, lighting and palette changes. Evaluation submissions are billable and require confirmation unless already authorized.
 
 Vocabulary and the issue taxonomy: `mixio-pipeline/references/shot-grammar.md`.
 
@@ -96,7 +96,7 @@ Run all of these, every time:
 4. **Posture** — a posture change needs a stated movement. Carried-forward postures count.
 5. **Wardrobe** — clothing/accessories are fixed within a scene absent a costume beat. Check the character sheet's `visualAnchor` is not contradicted.
 6. **Eyeline / axis** — two characters facing each other must not both face the same screen direction; check against the location sheet's `Depth & axes`.
-7. **Lighting** — every shot states `as Anchor N` or justifies deviating. Time-of-day drift within a scene is a break.
+7. **Lighting, palette, and visual style** — every shot states `as Anchor N` or justifies deviating. Compare shot descriptions with locked project style and the relevant approved sheet/anchor: realism vs stylization, material treatment, palette/color relationships, light direction/quality, and time of day. Undeclared drift is a break; intentional changes must be explicit in the script or shot spec.
 8. **Anchor consistency** (GROUNDED only) — does the described staging match what the anchor image actually shows?
 9. **Field completeness** — `GAP` for a missing field, `VAGUE` for a present-but-underspecified one (`seated`, `nearby`, `some light`).
 10. **Marker integrity** — every `[Mn]` referenced by another shot exists, and the referencing shot comes after it.
@@ -172,7 +172,7 @@ Prefer the relation write for facts about a *character in a shot* (they carry th
 
 Keep them separate calls, in that order: `revise_shot_specs` for creative content, `update_shot_state` for workflow — that separation is why they're two tools. Note `revise_shot_specs` validates the spec partition against the canonical shot spec, but only for a *recognized* canonical field holding a malformed value — an unrecognized key is never rejected. Use canonical keys anyway (`camera_movement`, not `Camera:`): a casing variant gets silently remapped onto the canonical key, and a cross-spec key still writes to passthrough with only a console warning, not an error — so a typo doesn't fail the write, it just fails to mean anything, and that failure is silent. See `mixio-script-breakdown` for the full mapping.
 
-When the Ralph loop converges (0 blocking continuity breaks and 0 blocking reference errors), close the step. The complete `pre_production_loop` object is canonical in `mixio-pipeline/references/pre-production-ralph-loop.md`:
+When the Ralph loop converges (0 unacknowledged blocking continuity/reference findings, with every required visual row reviewed or explicitly overridden), close the step. The complete `pre_production_loop` object is canonical in `mixio-pipeline/references/pre-production-ralph-loop.md`:
 
 ```
 studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
@@ -188,7 +188,7 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
 ```
 1. read breakdown + anchors; declare GROUNDED or TEXT-ONLY
 2. Pass 1 — blocking map, every shot × every character
-3. Pass 2 — the 11 checks, each traced, each closing FINDING or ✅
+3. Pass 2 — the 12 checks, each traced, each closing FINDING or ✅
 4. Pass 3 — counts + one line per issue + clean shot list
 5. Pass 4 — change log + full corrected shots
 6. studio_revise_shot_specs + studio_link_graph
@@ -201,4 +201,4 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
 - Audit one scene at a time, then roll up to an episode total. Cross-scene checks are limited to props and wardrobe carried between scenes.
 - Zero findings on a real 13-shot scene usually means the checks were run loosely. The vague-field check alone almost always catches something.
 - The Pre-Production Token Ralph Loop auto-corrects shot specs and re-verifies them autonomously before requesting user sign-off. Do not stop at finding an error when an automated shot spec revision can resolve it and re-verify cleanly.
-- Re-run the audit after any Step 03 edit. It is text-only, so re-running is free; assuming a stale audit still holds is not.
+- Re-run this pre-render audit after any Step 03 edit. Its text/graph reads are free; it does not replace the separately submitted, billable `/mixio:eval` media review after rendering.

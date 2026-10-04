@@ -2,7 +2,7 @@
 
 The autonomous quality gate across **Step 01 Screenplay** ↔ **Step 02.5 Reference Audit** ↔ **Step 04 Continuity Audit**. Step 02 Sheets/Anchors and Step 03 Breakdown are prerequisites and revalidation points, not loop phases.
 
-The loop only makes safe text and graph corrections. It never enters a generation use case, including sheets or anchors; those image jobs remain explicitly user-authorized. The loop corrects syntax, bindings, and continuity errors until **zero blocking errors** remain, then asks for user approval before Step 05 shot planning.
+The loop only makes safe text and graph corrections. It never enters a generation use case, including sheets or anchors; those image jobs remain explicitly user-authorized. Step 02.5 also requires visual evidence for each required look/view. A compatible still-image evaluation is billable and stays outside the autonomous loop unless the user confirms it. The loop reaches convergence only with **zero unacknowledged blocking errors and every required visual row reviewed or explicitly overridden by the user**, then asks for user approval before Step 05 shot planning.
 
 ---
 
@@ -23,7 +23,7 @@ The Token Ralph Loop makes pre-production **self-healing** without silently star
   └── safe text / policy-safe graph correction ──┘
        persist each cycle, then re-check
   ↓
-CONVERGENCE: 0 blocking findings → user approval → Step 05
+CONVERGENCE: 0 unacknowledged blockers + every required visual row reviewed/overridden → user approval → Step 05
 ```
 
 ---
@@ -34,10 +34,10 @@ Pre-production does **not** lock or advance to Step 05 until the loop converges 
 
 | Gate | Tool / Check | Required Score | Blocking Codes |
 |---|---|---|---|
-| **Reference Quality** | Step 02.5 (`mixio-reference-audit`) | **0 blocking errors** | `MISSING_REF` (entities in ≥2 shots), `MISSING_IMAGE_HIGH_USAGE`, `NO_PRIMARY_LOOK`, `STALE_LOOK_REF`, High-severity metadata gaps on core cast |
+| **Reference Quality** | Step 02.5 (`mixio-reference-audit`) | **0 unacknowledged blocking errors; every required look/view has reviewed visual evidence or a recorded user override** | `MISSING_REF` (entities in ≥2 shots), `MISSING_IMAGE_HIGH_USAGE`, `NO_PRIMARY_LOOK`, `STALE_LOOK_REF`, `VISUAL_REVIEW_UNAVAILABLE` until reviewed or overridden, high-severity metadata gaps on core cast; visual mismatch codes (`STYLE_MISMATCH`, `LIGHTING_MISMATCH`, `PALETTE_MISMATCH`, `SCALE_OR_PROPORTION_CONFLICT`, `IDENTITY_OR_VARIANT_DRIFT`, `LOCATION_GEOMETRY_DRIFT`, `HALLUCINATION_OR_IMAGE_ARTIFACT`) block only when high-confidence and contradicted by explicit source evidence/invariants |
 | **Continuity Quality** | Step 04 (`mixio-continuity`) | **0 blocking breaks** | `PROP` (vanishing/teleporting objects), `PRESENCE` (unaccounted absences), `FACING` (180° line violations), `POSTURE` (unexplained shifts), `GAP` (missing required fields), `REF_MISSING`, `REF_NO_IMAGE` |
 
-Advisory findings (e.g. subtle description differences, non-blocking prop stubs) are recorded in metadata and surfaced in the final convergence summary for user visibility, but do not block progression.
+Advisory findings (e.g. subtle description differences, non-blocking prop stubs, or subjective visual concerns) are recorded in metadata and surfaced in the final convergence summary. Unreviewed required visual rows remain unresolved and block progression; a user may explicitly override a row and continue after its reason is recorded.
 
 ---
 
@@ -56,6 +56,8 @@ At the start of every remediation cycle, read `studio_get_project({ projectId })
 
 No loop phase may call `/mixio:sheets` or submit a Studio job. An image may be attached when the user has already supplied it and policy allows; generating a new image requires explicit permission for that job type (or a persisted "Always allow" permission that covers images).
 
+The loop does not submit billable evaluator runs. A Step 02.5 still-image evaluation requires a live catalog/contract that supports the candidate and an approved baseline when one exists, or compatible confirmed expected-state evidence otherwise, plus user confirmation. Preserve the receipt with the exact inventory rows and keep human approval as the reference status authority.
+
 ## Loop phases
 
 ### Phase 1: Screenplay & Entity Binding (01)
@@ -66,12 +68,14 @@ No loop phase may call `/mixio:sheets` or submit a Studio job. An image may be a
 
 ### Phase 2: Reference Audit & Look-Binding Verification (02.5)
 - Run `mixio-reference-audit` across all script entities against registered references.
+- Inspect every image in each screenplay-required inventory look/view against its declared purpose, relevant approved baseline, and locked `settings.studio` style. Check realism/materials, lighting, palette, character identity/anatomy, explicit relative scale, location geometry, hallucinations, and visible artifacts; cite the image evidence and governing invariant for each finding.
+- If vision is unavailable, submit an evaluator run only after confirming a compatible still-image profile from the live catalog and obtaining user confirmation. Otherwise persist `VISUAL_REVIEW_UNAVAILABLE` per unresolved required row; metadata alone cannot pass it. Record reviewed coverage or a user's explicit override in `metadata.pipeline.reference_pack_inventory` / `reference_audit`.
 - **Auto-remediation (policy-gated):**
   - If `MISSING_REF` on a script entity: register it only with `createPolicy: "allow"`; with `"propose"`, persist a proposal and block for approval; with `"link_only"`, request an existing reference link.
   - If `STALE_LOOK_REF` or a missing look variant: rebind to an existing permitted name, or update only with a user-supplied asset and an allowed variant name.
   - If a HIGH-severity metadata gap (e.g. missing `visualAnchor` on core character or missing `lighting` on location) is deterministic: populate the structured detail only after the policy gate permits it.
   - If `MISSING_IMAGE_HIGH_USAGE` is blocking: use an already supplied asset when allowed; otherwise set the loop to `blocked` and request an upload or explicit image-generation permission.
-- **Re-check:** Re-run Step 02.5 until blocking errors reach `0`.
+- **Re-check:** Re-run Step 02.5 until unacknowledged blocking errors reach `0` and every required visual row has reviewed evidence or a recorded user override.
 
 ### Phase 3: Continuity Self-Healing & Verification (04)
 - Run `mixio-continuity` (Pass 1 Blocking Map → Pass 2 Checks → Pass 3 Report).
@@ -83,7 +87,7 @@ No loop phase may call `/mixio:sheets` or submit a Studio job. An image may be a
 - **Immediate Re-Audit (The Verification Loop):**
   - Immediately re-run Pass 1–3 on the revised shot specs.
   - Confirm the previous finding is cleared and verify that the edit did not introduce new breaks.
-  - Iterate until `0` continuity breaks remain.
+  - Iterate until `0` unacknowledged blocking continuity breaks remain.
 
 After a screenplay, relation, or shot-spec correction, re-run the affected Step 03 relational checks before declaring convergence. Do not silently rebuild anchors or render images.
 
@@ -206,7 +210,7 @@ studio_update_episode({
 
 When a policy, asset, generation-permission, or creative decision prevents correction, write `status: "blocked"` with `pending_user_action` naming the exact action. Resume from `last_phase` after the user responds; do not reset the cycle count.
 
-When both audits pass with 0 blocking errors, lock the breakdown and replace that record with the convergence proof:
+When both audits pass with 0 unacknowledged blocking errors and every required visual row has reviewed evidence or a recorded user override, lock the breakdown and replace that record with the convergence proof:
 
 ```javascript
 // 1. Lock shot states
@@ -241,4 +245,4 @@ studio_update_episode({
 ```
 
 Announce convergence clearly to the user:
-`Pre-Production Token Ralph Loop converged (0 blocking reference errors, 0 continuity breaks across 14 shots). Breakdown locked. Ready for Step 05 — Shot Planning.`
+`Pre-Production Token Ralph Loop converged (0 unacknowledged blocking reference errors, all required visual rows reviewed or overridden, 0 continuity breaks across 14 shots). Breakdown locked. Ready for Step 05 — Shot Planning.`

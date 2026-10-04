@@ -56,7 +56,7 @@ A **project** holds episodes and a Cast & World roster. An **episode** owns a ra
 | `mixio-episode` | `/mixio:episode` | Episode CRUD, script, scene/shot primitives, relations |
 | `mixio-generate` | `/mixio:generate` | Image, video and audio jobs |
 | `mixio-workspace` | `/mixio:workspace` | Upload local files, get permanent URLs |
-| `mixio-eval` | `/mixio:eval` | Visual continuity evaluation of rendered media |
+| `mixio-eval` | `/mixio:eval` | Post-render media continuity; compare reference images only when the live catalog supports the required evidence |
 
 **Screenplay development bridge** — use before production when the request is about story craft.
 
@@ -72,9 +72,9 @@ The `how-to-make-script` root skill is vendored under `skills/how-to-make-script
 |-------|--------|---------|
 | `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode, and whenever it's unclear which production skill applies.** Six gated steps + resumable state |
 | `mixio-sheets` | `/mixio:sheets` | Approved character defaults and script-required variants, scenario-specific location configurations with camera-view packs, prop sheets, per-scene anchors |
-| `mixio-reference-audit` | `/mixio:reference-audit` | Audit Cast & World for completeness, consistency, duplicates, metadata quality |
+| `mixio-reference-audit` | `/mixio:reference-audit` | Audit required reference looks/views for visual readiness, plus Cast & World completeness, consistency, duplicates, and metadata quality |
 | `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → scenes and shot specs against canonical schemas, entity graph linking, appearanceState, and relational audit |
-| `mixio-continuity` | `/mixio:continuity` | Four-pass text continuity audit, before anything renders |
+| `mixio-continuity` | `/mixio:continuity` | Pre-render text/shot-spec continuity; pair with `/mixio:eval` for post-render media continuity |
 | `mixio-shot-planning` | `/mixio:shot-planning` | 5 structural archetypes + model matching, execution audit (action density & speaking rate), batches, and a production plan |
 
 For story work, start with `/mixio:screenwriting`; do not look up a Studio project or episode until the screenplay handoff is ready. For a full episode, then run `/mixio:pipeline` and let it gate the production steps. Invoke a production skill directly when you only need that one step — each one's description says which of its siblings it isn't, and falls back to `mixio-pipeline` when that's still unclear.
@@ -87,16 +87,17 @@ PRE story development + screenplay handoff → Mixio-owned `how-to-make-script` 
                         resolution, visual style, reference policy into project `settings`
 01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty
 02  Reference packs + anchors → /mixio:sheets — approved character variants and location configuration/view packs before shots reference them; confirm image generation separately
+02.5 Reference audit  → /mixio:reference-audit — required looks/views, style, scale, light, palette, geometry and image defects
 03  Shot breakdown    → /mixio:script-breakdown
 ┌── Token Ralph Loop (01 ↔ 02.5 ↔ 04; text/graph corrections only) ─────────────────────┐
-│ 02.5 Reference audit → /mixio:reference-audit — policy-safe ref/binding corrections    │
+│ 02.5 Reference audit → /mixio:reference-audit — inspect visual evidence; record overrides│
 │ 04   Continuity audit → /mixio:continuity — correct specs, then re-audit               │
-└────────────────────── ↺ persist each cycle until 0 blocking errors ───────────────────┘
+└──────────── ↺ persist until 0 unacknowledged blocks + visual rows reviewed/overridden ───┘
 05  Shot planning     → /mixio:shot-planning — report that video costs the most, images next, and other operations are low-cost
 06  Generation        → /mixio:generate per batch, then /mixio:eval before delivery
 ```
 
-The Ralph Loop's corrections in Steps 01, 02.5, and 04 are text and graph changes; they do not submit generation jobs. Step 02 can submit image jobs, so it remains explicitly confirmed and outside the autonomous loop. The loop (`skills/mixio-pipeline/references/pre-production-ralph-loop.md`) applies only policy-safe corrections, updates appearance state (`studio_link_graph`), persists every cycle, and re-audits until 0 blocking reference and continuity errors remain before Step 05.
+The Ralph Loop's corrections in Steps 01, 02.5, and 04 are text and graph changes; they do not submit generation jobs. Step 02 can submit image jobs, so it remains explicitly confirmed and outside the autonomous loop. Any billable still-image evaluator run also requires confirmation. The loop (`skills/mixio-pipeline/references/pre-production-ralph-loop.md`) applies only policy-safe corrections, updates appearance state (`studio_link_graph`), persists every cycle, and re-audits until 0 unacknowledged blocking reference and continuity errors remain and every required visual row has reviewed evidence or a recorded user override before Step 05.
 
 Sheets come **before** the breakdown because the breakdown emits references as shallow stubs (`name`, `description`, `attributes`) and writes no `characterDetails` or `locationDetails`. Build the sheets first and the breakdown reuses their canonical names instead of minting near-duplicates.
 

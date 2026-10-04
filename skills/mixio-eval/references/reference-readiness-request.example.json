@@ -56,7 +56,7 @@
       { "shot-id": "shot-07", "view": "location-reverse" }
     ]
   },
-  "prompt": "Evaluate @location-front and @location-reverse against @location-anchor for landmark geometry, world-axis orientation, lighting, palette, and visual artifacts.",
+  "prompt": "Evaluate @location-front and @location-reverse against the approved @location-anchor for stable landmark geometry and world-axis orientation, consistency with the confirmed rendering style and material treatment, lighting, palette, hallucinated content, and visible image artifacts. Preserve changes declared for this configuration.",
   "threshold": 0.8,
   "background": true
 }
