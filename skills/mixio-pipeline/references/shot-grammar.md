@@ -41,31 +41,31 @@ Shot 8 — tablet already with TONY (after [M2]); POPPY's hand rests on BED FRAM
 
 Markers make state transfer explicit. Without them, shot 8 has to re-describe shot 7's action and the two descriptions drift.
 
-## Shot direction fields
+## Shot spec fields
 
-The user-visible breakdown is the structured table in `mixio-script-breakdown`. Keep these decisions in distinct fields; the table is a review plan, so its craft detail can be richer than the current Studio schema.
+Every shot, in this order. Omit nothing; write `—` for genuinely empty.
 
-| Field | Put here | Example |
-|---|---|---|
-| Director’s note | Why the image matters: audience knowledge, feeling, anticipation, or point of view | Hold the audience on TONY’s uncertainty before the handoff |
-| Proposed action | Observable action in the frame, using specific verbs and state changes | TONY sets down her phone, then takes the tablet from POPPY |
-| Framing | Canonical `shot_type`, then shot scale and composition as helpful | `over_shoulder`; MCU; TONY’s shoulder FG, tablet MG, POPPY BG |
-| Camera | Angle, canonical move, lens if motivated, and camera position/path/speed/endpoint where useful | `eye_level`; `dolly_in` 0.5 m toward the tablet; `standard`; behind TONY’s right shoulder |
-| Blocking / continuity | FG/MG/BG, screen zone, facing, posture, axis, eyeline, and entry → exit state | TONY’s shoulder holds frame-left; POPPY faces frame-left toward her |
-| Look / sound / rhythm / duration | Mood, lighting, palette, dialogue/SFX/ambience, optional pacing cue, and seconds | Intimate, warm window light; apartment tone; slow cadence; 4.5 s |
-| Handoff | The motivated cut or transition to the next shot | Cut on TONY’s eyes lifting to POPPY; eyeline match to Shot 8 |
+```
+Shot 7 — 4.5s [M2]
+  Camera:            OTS (over TONY's shoulder) / slow push-in / normal lens —
+                     placed behind TONY on the BED, shooting past her right shoulder
+                     onto the tablet screen — In frame: FG → TONY's right shoulder and
+                     hair edge; MG → tablet screen; BG → POPPY's face in soft focus
+  Action & Movement: TONY drops her phone onto the bedding beside her, then reaches
+                     with her right hand to take the tablet from POPPY [M2].
+  Lighting:          as Anchor 1
+  Cut:               hold 4.5s; cut after her eyes begin to read → Shot 8
+  Dialogue:          TONY: "..."        (or —)
+  Audio:             ambient apartment; a truck downshifting outside
+  Pacing:            NORMAL             (HOOK | RAPID | PUNCHY | NORMAL | SLOW)
+```
 
-Example camera cell: `angle: eye_level; move: dolly_in, 0.5 m toward the tablet; lens: standard; position: behind TONY’s right shoulder`. Use the exact supported vocabulary below as the machine-facing value, then add a clear path or intent. “Slow push-in” alone is ambiguous: a dolly moves the camera through space; a zoom changes focal length. Keep camera movement separate from actor blocking. `rack_focus` changes the focus plane and is not physical camera travel.
+- `Camera` must state **size / angle / movement / lens**, then **placement** (where the lens physically is, relative to CAPS set elements), then **In frame** as explicit `FG` / `MG` / `BG` layers. "Close-up on Tony" is not a camera field — it doesn't say where the lens is, so two shots can't be checked against each other.
+- `Lighting: as Anchor N` is the normal value. Any deviation must be stated and justified, because deviating from the anchor is exactly what makes a cut look like a different room.
+- `duration` in seconds, one decimal place. Batching and cost are arithmetic on it. Studio persists a continuous float 1–60 (pre-#502 it snapped to `5/8/10/12/15`) — see `mixio-script-breakdown`.
+- `Pacing` drives the rapid-pacing warning in the production summary.
 
-Use standard scale names—extreme wide shot (EWS), wide shot (WS), medium-wide shot (MWS/MW), medium shot (MS), medium close-up (MCU), close-up (CU), extreme close-up (ECU)—and standard composition terms such as over-the-shoulder (OTS), two-shot, point-of-view (POV), insert, clean/dirty single, and master. Map to the closest supported `shot_type`; precise scale or composition detail remains local unless an existing field represents it. Do not encode shot size as camera angle.
-
-Angles use `eye_level`, `low_angle`, `high_angle`, `dutch_angle` (canted), `birds_eye`, `worms_eye`, or `overhead`. Lens choices use `wide_angle`, `standard`, `telephoto`, `macro`, `fisheye`, `anamorphic`, or `tilt_shift`; never invent a focal-length number without a camera format/sensor basis.
-
-Camera moves use exactly `static`, `dolly_in`, `dolly_out`, `pan_left`, `pan_right`, `tilt_up`, `tilt_down`, `tracking`, `crane`, `handheld`, `arc`, or `rack_focus`. A pan/tilt rotates from a position; a dolly/tracking/crane/arc travels through space. State direction and path for travel; state direction for a pan/tilt. `handheld` describes support/feel, not a path. If a motivated move such as zoom or pedestal lacks a supported value, preserve its term in the local plan and flag the mapping limitation in the approval diff.
-
-Use mood words for emotional atmosphere and name what creates that effect—performance, light, palette, framing, or sound. Optional rhythm cues can be `HOOK`, `RAPID`, `PUNCHY`, `NORMAL`, or `SLOW`; they stay in the local plan because Studio has no canonical shot-pacing field. Duration and visible action remain the syncable evidence for timing and feasibility. Use editing terms such as match on action, eyeline match, graphic match, J-cut, and L-cut in Handoff, not as invented shot metadata. Functional labels are distinct from provenance and sync after approval through the existing shot tag `breakdownLabels`; source provenance and the Director’s note remain local review fields.
-
-`lighting: as Anchor N` is the default only when that anchor exists and supports the shot. State and justify any motivated deviation. `duration` is in seconds; Studio accepts a continuous float from 1–60. The exact canonical field mapping and review-only fields are in [canonical-schema.md](../../mixio-script-breakdown/references/canonical-schema.md).
+This is the **authoring** format, and it maps essentially 1:1 onto canonical keys: `Camera` splits across `shot_type` / `camera_angle` / `camera_movement` / `lens`, `In frame` becomes `blocking`, and `Lighting` is its own field. `mixio-script-breakdown` owns the field-by-field mapping — read it before writing a breakdown to Studio.
 
 ## Scene staging block
 

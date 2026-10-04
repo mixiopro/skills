@@ -1,7 +1,7 @@
 ---
 name: mixio-pipeline
 description: "Use when coordinating a full Mixio episode or deciding which production skill comes next."
-version: 0.6.0
+version: 0.5.0
 invoke: /mixio:pipeline
 ---
 
@@ -24,7 +24,7 @@ For full multi-step runs, use the current host’s native task or plan surface w
 | Step | Work | Result |
 |---|---|---|
 | 00 | Project and episode setup + read-only source snapshot | Confirmed scope; current script, project references, existing shots, settings, and available images inspected |
-| 01 | `/mixio:script-breakdown` | Local shot table with separate Director’s note, Proposed action, Framing, Camera, functional Labels, provenance, and connective coverage |
+| 01 | `/mixio:script-breakdown` | Local shot table with source/inference labels and connective coverage |
 | 02 | `/mixio:continuity` | Local coverage and continuity audit; corrections stay in the draft |
 | 03 | Review and Studio sync | Exact diff shown; explicit approval; existing primitives write it; readback verifies it |
 | 04 | Reference readiness | Audit existing references; build missing sheets/anchors as separately confirmed |

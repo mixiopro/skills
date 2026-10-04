@@ -90,7 +90,6 @@ const scenePackages = [{
   shots: [{
     shotNumber: 7,
     name: "Tony takes the tablet",
-    tags: { breakdownLabels: ["PROP_HANDOFF"] },
     metadata: {
       shot_type: "over_shoulder",
       camera_movement: "dolly_in",
@@ -179,25 +178,8 @@ if (persistedShots.some(shot => !shot.id)) {
   throw new Error("Read scoped persisted shots before the relational audit")
 }
 
-const expectedShots = scenePackages.flatMap(scene =>
-  (scene.shots ?? []).map(shot => ({ ...shot, sceneNumber: scene.sceneNumber }))
-)
+const expectedShots = scenePackages.flatMap(scene => scene.shots ?? [])
 const expectedShotCount = expectedShots.length
-const labelFailures = expectedShots.flatMap(expected => {
-  const saved = persistedShots.find(shot =>
-    Number(shot.metadata?.sceneNumber) === Number(expected.sceneNumber) &&
-    Number(shot.metadata?.shotNumber) === Number(expected.shotNumber)
-  )
-  const expectedLabels = Array.isArray(expected.tags?.breakdownLabels)
-    ? [...expected.tags.breakdownLabels].sort()
-    : []
-  const savedLabels = Array.isArray(saved?.tags?.breakdownLabels)
-    ? [...saved.tags.breakdownLabels].sort()
-    : []
-  return JSON.stringify(expectedLabels) === JSON.stringify(savedLabels)
-    ? []
-    : [`${expected.shotNumber}:breakdownLabels`]
-})
 const expectedTotalDuration = expectedShots.reduce(
   (sum, shot) => sum + Number(shot.metadata?.duration), 0
 )
@@ -254,15 +236,7 @@ const appearanceFailures = expectedAppearances.flatMap(({ characterId, shotId })
     Array.isArray(relation.metadata?.carriedProps) ? [] : [`${characterId}:${shotId}`]
 })
 
-const savedSceneIds = new Set(persistedScenes.map(scene => scene.id))
-const tagScopeFailures = persistedShots.flatMap(shot =>
-  shot.tags?.episodeId === episodeId &&
-  savedSceneIds.has(shot.tags?.sceneId) &&
-  Number(shot.tags?.shotNumber) === Number(shot.metadata?.shotNumber)
-    ? []
-    : [`${shot.id}:tag_scope`]
-)
-const scopeFailures = [...tagScopeFailures]
+const scopeFailures = []
 if (persistedShots.length !== expectedShotCount) scopeFailures.push("shot_count")
 if (Math.abs(durationDelta) > 0.01) scopeFailures.push("duration")
 const audit = {
@@ -274,15 +248,13 @@ const audit = {
   duration_delta: durationDelta,
   canonical_fields_complete: canonicalFieldFailures.length === 0,
   canonical_field_failures: canonicalFieldFailures.length,
-  functional_labels_persisted: labelFailures.length === 0,
-  functional_label_failures: labelFailures.length,
   cast_world_links_valid: graphFailures.length === 0,
   unresolved_entities: graphFailures.length,
   appearance_states_bound: expectedAppearances.length,
   appearance_state_failures: appearanceFailures.length
 }
-if (canonicalFieldFailures.length || labelFailures.length || graphFailures.length || appearanceFailures.length || scopeFailures.length) {
-  throw new Error(`Relational audit failed: ${JSON.stringify({ audit, canonicalFieldFailures, labelFailures, graphFailures, appearanceFailures, scopeFailures })}`)
+if (canonicalFieldFailures.length || graphFailures.length || appearanceFailures.length || scopeFailures.length) {
+  throw new Error(`Relational audit failed: ${JSON.stringify({ audit, canonicalFieldFailures, graphFailures, appearanceFailures, scopeFailures })}`)
 }
 
 await studio_update_episode({
@@ -300,8 +272,6 @@ await studio_update_episode({
           duration_delta: durationDelta,
           canonical_fields_complete: canonicalFieldFailures.length === 0,
           canonical_field_failures: canonicalFieldFailures.length,
-          functional_labels_persisted: labelFailures.length === 0,
-          functional_label_failures: labelFailures.length,
           cast_world_links_valid: graphFailures.length === 0,
           unresolved_entities: graphFailures.length,
           appearance_states_bound: expectedAppearances.length,

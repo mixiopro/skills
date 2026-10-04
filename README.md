@@ -120,7 +120,7 @@ Running a full episode — `/mixio:pipeline` drives this, gating on user confirm
 ```
 Step 00  Project + episode setup → resolve scope; read the existing screenplay, settings, references,
                                     Studio shots, and available images
-Step 01  Local director’s plan  → /mixio:script-breakdown — separate intent/action/framing/camera fields, functional labels, connective coverage, provenance
+Step 01  Local director’s plan  → /mixio:script-breakdown — shot table, connective coverage, provenance
 Step 02  Local continuity audit → /mixio:continuity — fix the draft and re-check state, space, and flow
 Step 03  Review and sync         → show the exact Studio diff, wait for approval, write, then read back
 Step 04  Reference readiness     → /mixio:reference-audit; /mixio:sheets for missing sheets or anchors
