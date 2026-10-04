@@ -1,7 +1,7 @@
 ---
 name: mixio-reference-audit
-description: "Audit a project's Cast & World roster for completeness, consistency, duplicates, and metadata quality before generation — catch reference problems that cost re-renders when found late. Audits what already exists — building the sheets is mixio-sheets, creating/editing entries is mixio-references. Unclear which step you need → mixio-pipeline."
-version: 0.2.0
+description: "Audit script-required reference looks and views for visual readiness, plus Cast & World completeness, consistency, duplicates, and metadata quality before generation. Builds sheets: mixio-sheets; creates/edits entries: mixio-references. Unclear which step you need → mixio-pipeline."
+version: 0.3.0
 invoke: /mixio:reference-audit
 ---
 
@@ -52,15 +52,62 @@ Completeness — 12 references checked
 
 ### 2. Visual reference readiness — sheet integrity and coverage
 
-For each required character variant, inspect every attached view—not only the
-primary thumbnail—for identity drift, face deformation, extra/fused hands or
-limbs, warped joints, hallucinated accessories, wardrobe/color changes, and
-unexplained silhouette changes. Mark hidden regions unobservable. Any
-confirmed deformation, hallucinated body part, or unexplained identity or
-wardrobe break is **BLOCKING** and routes to `image-character`; it cannot be
-waived by a strong average score. Confirm the approved character sheet remains
-the default and that every script-required age/clothing combination has its
-own approved pack; do not require unused combinations.
+Build the review set from every screenplay-required row in the confirmed
+`metadata.pipeline.reference_pack_inventory`: exact reference, look/configuration,
+view, and image. Include all candidate images attached to each required row;
+do not audit or block unrelated, unused project looks. Compare a candidate with
+its relevant approved baseline image when one exists (for a character, usually
+the approved canonical identity sheet; for a location, the approved view or
+configuration that shares its stable geometry). Also compare sibling views and
+variants when their relationship is meaningful. Use the exact row's declared
+reason for the look/configuration to distinguish intended changes from drift.
+Do not treat drafts or in-review images as an approved baseline, and do not let
+an image's approval status imply it passed this visual review.
+
+Use only evidence that applies to the row: the screenplay and confirmed variant
+reason; the locked project style in `settings.studio` (including
+`visualStyle`, `toneAndMood`, `cinematographyDirection`, and
+`defaultStylePrompt` when present); structured reference details; an approved
+baseline; and an applicable scene anchor. Keep the following checks separate so
+one strong similarity score cannot hide a specific contradiction:
+
+- **Style and materials:** Match the requested medium and realism level,
+  including photorealistic/hyperrealistic versus stylized treatment, detail,
+  and surface/material rendering. Plastic or waxy skin is a defect when it
+  conflicts with the requested realism or material treatment; preserve it when
+  it is an intentional part of the locked style.
+- **Lighting and palette:** Compare light direction, quality, temperature,
+  contrast, exposure, and shadow behavior, plus palette and color relationships.
+  Treat a change as intentional only when the screenplay or confirmed row says
+  that the look changes time, weather, mood, or lighting. Check sibling views
+  for continuity under the same declared conditions.
+- **Identity and anatomy:** Across each required character look/view, check face,
+  age, build, hair, skin, distinctive features, proportions, wardrobe, and
+  accessories. Mark hidden or off-frame features unobservable. Flag deformation,
+  extra or fused limbs/fingers, warped joints, hallucinated accessories, or
+  unexplained silhouette changes; an aggregate score cannot waive these.
+- **Scale:** Compare visible height or relative scale only with explicit source
+  evidence such as screenplay facts, structured height details,
+  `metadata.scalingLabel`, a `SCALING_SHEET`, or another confirmed measurement.
+  Account for perspective and framing; never infer an exact height from an
+  image alone or invent scale metadata to make a candidate pass.
+- **Location continuity:** Compare each required configuration and view with its
+  declared layout, depth axes, landmarks, entrances, and other persistent
+  geometry. A reverse angle or declared day/night configuration may change
+  framing, light, and palette; it must preserve the world geometry and every
+  other invariant the row does not authorize changing.
+- **Hallucinations and defects:** Check for unexplained people, props, text or
+  logos, missing signature features, duplicate or merged features, impossible
+  geometry, seams, severe blur, inconsistent materials, and other visible
+  defects that would mislead downstream generation.
+
+Record each finding against the exact reference/look/view/image and include the
+visible evidence, governing source or invariant, confidence, severity, and safe
+next action. A high-confidence contradiction of an explicit script fact,
+locked style, approved baseline, declared cross-view invariant, or scale record
+is **BLOCKING**. Subjective, weakly observable, or source-ambiguous impressions
+are **ADVISORY** for human judgment. Never auto-edit a reference or change its
+approval state from this audit.
 
 For each required location variant/configuration, compare `depthAxes`, stable
 landmarks, and every attached orientation record. Require the camera looks
@@ -75,14 +122,36 @@ top/bottom/overhead/underslung/detail views are not failures.
 Compare variants against the location inventory's declared invariants (such as
 building silhouette, fixed entrances, window/door placement, and world axes).
 Treat changes as intentional only when the screenplay or user-confirmed
-inventory names them. Unexplained geometry, landmark, palette, or orientation
-drift across views/configurations is **BLOCKING**. A rejected candidate must
+inventory names them. High-confidence geometry, landmark, palette, or
+orientation drift that contradicts an explicit invariant is **BLOCKING**;
+subjective or source-ambiguous drift is **ADVISORY**. A rejected candidate must
 never remain in `referenceVariants`, legacy `characterDetails.looks`, or flat
 `attachments`, and must not remain in top-level `thumbnailUrl`/`previewUrl` as
 the card image. Retain its feedback and evaluation receipt outside the active
 media stores. Read the reference back to verify removal before clearing the
 finding; if a rejected preview cannot be cleared through a documented
 operation, keep the reference non-approved and block generation.
+
+If no vision-capable reviewer is available, use a compatible still-image
+evaluation profile only after checking the live catalog and contract and
+receiving confirmation for the billable submission. Do not assume a video or
+storyboard profile accepts reference sheets. If neither visual path is
+available, record `VISUAL_REVIEW_UNAVAILABLE` for each affected required row,
+leave its visual status unresolved, and keep Step 02.5 open. A metadata-only
+check is not a visual pass. Progress may continue only after visual evidence is
+reviewed or the user explicitly overrides the unresolved row; record the
+override and rationale in the existing inventory/audit metadata. Evaluator
+results are evidence for human review, never approval.
+
+| Finding | Meaning |
+|---------|---------|
+| `STYLE_MISMATCH` | Candidate conflicts with the locked style or script's treatment |
+| `LIGHTING_MISMATCH` / `PALETTE_MISMATCH` | Lighting or color conflicts with the applicable confirmed evidence without an intended variant change |
+| `SCALE_OR_PROPORTION_CONFLICT` | Visible scale or proportions contradict explicit source evidence |
+| `IDENTITY_OR_VARIANT_DRIFT` | Identity or other stable character invariants drift, or the candidate fails its declared look purpose |
+| `LOCATION_GEOMETRY_DRIFT` | Persistent layout, landmarks, depth, or world axes change across required views without explanation |
+| `HALLUCINATION_OR_IMAGE_ARTIFACT` | Unwanted content or a visible generation defect undermines the reference |
+| `VISUAL_REVIEW_UNAVAILABLE` | A required row has no completed vision or compatible image-evaluation review |
 
 ### 3. Consistency — name/description vs image alignment
 
@@ -93,11 +162,15 @@ For each reference that has both structured details and at least one image, chec
 | `GENDER_MISMATCH` | `characterDetails` implies one gender but attached image presents as another |
 | `AGE_MISMATCH` | Description says "child" / "elderly" but image shows a different age bracket |
 | `BUILD_MISMATCH` | `build` field contradicts what the image shows |
-| `DESCRIPTION_CONFLICT` | `description` or `visualAnchor` text contradicts visible features in the primary image |
+| `DESCRIPTION_CONFLICT` | `description` or `visualAnchor` text contradicts visible features in a required attached image |
 
 This check is **advisory, not blocking** — it requires visual interpretation which may be wrong. Flag for human review rather than auto-fixing.
 
-Implementation: if the agent has vision capabilities, describe the primary image and compare against `characterDetails.build`, `.age`, `.hair`, `.skin`, `.distinctiveFeatures`. If no vision, skip this category and note `Consistency checks skipped — no vision capability available`.
+Implementation: inspect every required image with vision or a compatible,
+confirmed evaluation. Compare against `characterDetails.build`, `.age`, `.hair`,
+`.skin`, `.distinctiveFeatures`, the exact look purpose, and the approved
+baseline. If no visual reviewer is available, record
+`VISUAL_REVIEW_UNAVAILABLE`; do not report a metadata-only pass.
 
 ### 4. Duplicates — fuzzy matching across the roster
 
@@ -198,6 +271,8 @@ Script entities:       15
 
 Completeness:          2 MISSING_REF, 1 MISSING_IMAGE_HIGH_USAGE
 Variant/view packs:    1 MISSING_REQUIRED_VIEW, 1 REJECTED_MEDIA_ACTIVE
+Visual readiness:      1 PALETTE_MISMATCH (advisory), 1 VISUAL_REVIEW_UNAVAILABLE
+Visual coverage:       7 required rows, 6 reviewed, 1 unresolved
 Consistency:           1 GENDER_MISMATCH (advisory)
 Duplicates:            1 LIKELY_DUPLICATE, 1 ALIAS_CANDIDATE
 Metadata quality:      2 HIGH-severity gaps
@@ -209,6 +284,7 @@ BLOCKING findings (must resolve before Step 03):
   ❌ THE HOUSE / interior-living-room — MISSING_REQUIRED_VIEW — sofa-to-dining view has no approved image
   ❌ TONY — REJECTED_MEDIA_ACTIVE — rejected teen-formal candidate remains in legacy attachments
   ❌ CEREAL BOWL — MISSING_IMAGE_HIGH_USAGE — 2 shots depend on this prop
+  ❌ HALLWAY:night.reverse — VISUAL_REVIEW_UNAVAILABLE — required view has not been visually reviewed
   ❌ TONY — missing visualAnchor — every prompt mentioning TONY will lack identity anchor
 
 ADVISORY findings (review recommended):
@@ -223,7 +299,7 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 
 | Severity | Gate behavior |
 |----------|--------------|
-| BLOCKING | Must be resolved before proceeding to Step 03. In the Pre-Production Token Ralph Loop, the pipeline runner applies only policy-safe, non-generative remediation and re-checks until 0 blocking errors remain |
+| BLOCKING | Must be resolved before proceeding to Step 03, or explicitly overridden by the user with rationale recorded. The Pre-Production Token Ralph Loop applies only policy-safe, non-generative remediation and re-checks until 0 unacknowledged blocking errors remain |
 | ADVISORY | Surfaced for human decision. Recorded in metadata; does not block convergence |
 
 **Blocking criteria:**
@@ -236,8 +312,10 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 - Any `MISSING_REQUIRED_VARIANT`, `MISSING_REQUIRED_VIEW`, or `REJECTED_MEDIA_ACTIVE` for a script-required reference pack
 - Any `REFERENCE_PACK_NOT_APPROVED` for media a planned shot will use
 - Any unexplained cross-view or cross-variant location geometry/landmark drift
+- Any high-confidence contradiction of the locked visual style, lighting/palette invariants, or explicit scale evidence
 - Any confirmed character-sheet deformation, hallucinated anatomy, identity drift, or unexplained wardrobe/accessory/color break
 - Any missing or misbound location view required by a declared shot camera zone
+- Any required visual row without reviewed evidence or a recorded user override
 
 Everything else is advisory. The user may say "proceed anyway" — record that decision in metadata so a later session knows it was acknowledged, not missed.
 
@@ -298,7 +376,7 @@ Fix: STALE_LOOK_REF — TONY'S APARTMENT:night
   ]})
 ```
 
-After the pipeline runner applies a permitted fix, **re-run the audit immediately** to confirm blocking findings drop to `0`.
+After the pipeline runner applies a permitted fix, **re-run the audit immediately** to confirm unacknowledged blocking findings drop to `0` and each required visual row has reviewed evidence or a recorded user override.
 
 ## Persisting the result
 
@@ -310,7 +388,15 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
     blocking: 0,
     advisory: 1,
     clean: 11,
+    visual_coverage: { required: 7, reviewed: 7, unresolved: 0 },
+    visual_findings: [
+      { code: "PALETTE_MISMATCH", reference: "HALLWAY", look: "night", view: "reverse",
+        image: "hallway-night-reverse", evidence: "possible warm cast on a dark wall; practical lighting may explain it",
+        source: "sibling night view; no explicit palette constraint", confidence: "low", severity: "advisory",
+        next_action: "human review: confirm whether the reflection is intentional" }
+    ],
     acknowledged_advisories: ["GENDER_MISMATCH:TONY"],
+    user_overrides: [],
     timestamp: "2026-..."
   },
   // For `running`, `blocked`, and `converged` loop-state fields, copy the
@@ -326,11 +412,11 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
 2. extract CAPS entities from script text             → demand list
 3. studio_list_references({ projectId })              → supply list
 4. studio_get_project({ projectId })                  → read reference policy
-5. run 6 check categories                            → findings
+5. run all 7 check categories and inspect every required look/view image → findings + visual coverage
 6. emit REFERENCE AUDIT report
-7. ↺ Ralph Loop: hand blocking findings to the pipeline Phase 2 runner; it applies only policy-safe, non-generative remediation and re-checks until 0 blocking errors
+7. ↺ Ralph Loop: apply only policy-safe, non-generative remediation and re-check until 0 unacknowledged blocking errors remain and each required visual row is reviewed or overridden
 8. if ADVISORY only: present, record in metadata
-9. persist audit result (0 blocking) → GATE → Step 03 Panel Breakdown
+9. persist audit result (0 unacknowledged blocking; visual rows reviewed or overridden) → GATE → Step 03 Panel Breakdown
 ```
 
 ## Notes
