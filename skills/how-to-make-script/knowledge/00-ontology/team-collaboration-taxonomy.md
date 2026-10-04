@@ -20,7 +20,6 @@ If those modes are flattened into one route, the agent can still generate text, 
 
 - `team_mode`: the reusable operating model for the job.
 - `coordination_model`: how work moves between roles, for example supervisor tree, swarm, handoff chain, or review board.
-- `parallelism_budget`: how many lanes can move at once before synthesis becomes noisy.
 - `human_gate_level`: how much human approval is required before the workflow can move forward.
 - `artifact_chain`: the ordered deliverables the team is responsible for producing and reviewing.
 - `handoff_packet`: the bounded state that one role passes to the next instead of dumping all context.

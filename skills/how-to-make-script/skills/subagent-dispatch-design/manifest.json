@@ -46,7 +46,6 @@
     "ka.cross-protocol-referral-edges",
     "ka.handoff-packet-discipline",
     "ka.parallel-lane-governance",
-    "ka.subagent-context-budgeting",
     "ka.team-topology-selection",
     "ka.two-stage-review-loop"
   ],

@@ -10,7 +10,7 @@ Use this skill to expand a premise into a causally connected outline.
 ## Workflow
 1. Choose the structure family that matches the project's actual engine.
 2. Choose the beat carrier that best exposes that engine.
-3. For serial containers, lock arc budget before distributing major turns.
+3. For serial containers, map major turns across the confirmed container.
 4. Map turning points, escalation, and dual-track rhythm.
 5. Check cause-and-effect links.
 6. Output beat sheet, outline, or treatment at the requested depth.
@@ -20,7 +20,7 @@ Use this skill to expand a premise into a causally connected outline.
 - `outline`: an ordered sequence of scenes or sequences.
 - `treatment`: a prose expansion that still preserves causal structure.
 - Do not output filler beats that do not change pressure, knowledge, or choice.
-- For episodic or serial work, do not spend reveal and relationship turns before the container and arc budget are clear.
+- For episodic or serial work, place reveal and relationship turns after the container is clear.
 
 ## Posture-Adaptive Guidance
 
@@ -31,7 +31,7 @@ Ask: "What is the one event in this story that everything else is building towar
 Start from the feeling of the story's shape, not from a structure template. "Does this feel like it tightens like a vice, or like it builds to an avalanche, or like it slowly collapses inward?" Let the intuited shape select the structure family.
 
 **When `source = construct`:**
-Apply the full workflow: structure family → beat carrier → arc budget → turning points → escalation → dual-track rhythm → cause-and-effect check. For serial containers, arc budget precedes beat distribution.
+Apply the full workflow: structure family → beat carrier → major turns → turning points → escalation → dual-track rhythm → cause-and-effect check. For serial containers, map the arc across the confirmed episode structure.
 
 **When `source = generate`:**
 Give the premise a single collision event and write the beats that feel necessary without planning. Use the result to reveal the structure family that the story is trying to be.
@@ -55,6 +55,6 @@ Structure serves character transformation. Ask at each major beat: "What has thi
 - `ka.medium-animation`
 - `ka.medium-documentary`
 - `ka.pacing-rhythm`
-- `ka.serial-arc-budgeting`
+- `ka.serial-arc-progression`
 - `ka.story-goal`
 - `ka.structure-family-selection`

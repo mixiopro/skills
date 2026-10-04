@@ -1,15 +1,15 @@
 ---
 name: mixio-shot-planning
-description: "Classify each shot into 5 structural archetypes, match to model capabilities, validate duration and action density, verify prompt @ mentions and paired mention maps, and group into generation batches with a credit-costed production summary — the model-aware layer between continuity and video generation. Classification and batching only — submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
+description: "Classify each shot into 5 structural archetypes, match to model capabilities, validate duration and action density, verify prompt @ mentions and paired mention maps, and group shots into generation batches — the model-aware layer between continuity and video generation. Video generation costs the most, image generation comes next, and other operations cost little. Submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
 version: 0.3.1
 invoke: /mixio:shot-planning
 ---
 
 # Mixio Shot Planning
 
-Step 05 of `mixio-pipeline`. Sits between the continuity audit (Step 04) and video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content actually feasible for that method and budget?**
+Step 05 of `mixio-pipeline`. Sits between the continuity audit (Step 04) and video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content feasible for that method?**
 
-Fixed-ceiling batching assumed one model and one method. Shot planning acknowledges the live catalog, classifies each shot into a deterministic archetype, audits execution feasibility (action density, speaking rate, duration), and requires explicit credit budget approval before any video jobs run.
+Fixed-ceiling batching assumed one model and one method. Shot planning acknowledges the live catalog, classifies each shot into a deterministic archetype, audits execution feasibility (action density, speaking rate, duration), and prepares the production plan. Video generation costs the most, image generation comes next, and other operations cost little. Ask before video generation unless the user has already authorized it.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ For every shot, determine:
 2. **Model** — which engine produces it (the execution engine matched to shot characteristics)
 3. **Feasibility** — whether the shot's duration, action density, dialogue, and reference bindings fit model constraints
 
-Then group into deterministic batches, calculate estimated credit costs, and request user approval.
+Then group into deterministic batches and prepare the production plan for user review.
 
 ---
 
@@ -203,7 +203,7 @@ character appearance and actual camera zone/linked location with
 `metadata.pipeline.reference_pack_inventory`.
 If the shot needs a new or unapproved view, report a blocking
 `REFERENCE_VARIANT_VIEW_NOT_READY`, add a `proposed` row to the inventory, and
-stop before the cost-approval gate. Return to Step 02 only after the user
+stop before Step 05 planning. Return to Step 02 only after the user
 confirms the additional render round; then evaluate and approve the pack, rerun
 `mixio-reference-audit`, and restart Steps 03–05 because their outputs are stale.
 
@@ -221,7 +221,7 @@ Pull character bindings once via `studio_get_production_context`'s `lookBindings
 
 ### Prompt mention & mention map validation (Universal Invariant across all models & methods)
 
-Regardless of the model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX) or generation method (SINGLE, DUAL_FRAME, MULTI_KF, GRID, T2V), the prompt materializer and provider compilers require prompt text to contain explicit `@` mention tokens to map media references to model-specific tokens (`Image 1`, `@Image1`, `@tag`) or perform subject grounding. Failure to include `@` tokens or omitting `mentionMap` causes models to guess identity and waste generation credits (e.g. incident `b463831e-ac6f-4a40-a2b2-0ebde2527c92`). Run this check before batching and carry zero blocking findings into the Step 05 gate:
+Regardless of the model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX) or generation method (SINGLE, DUAL_FRAME, MULTI_KF, GRID, T2V), the prompt materializer and provider compilers require prompt text to contain explicit `@` mention tokens to map media references to model-specific tokens (`Image 1`, `@Image1`, `@tag`) or perform subject grounding. Failure to include `@` tokens or omitting `mentionMap` causes models to guess identity and waste generation work (e.g. incident `b463831e-ac6f-4a40-a2b2-0ebde2527c92`). Run this check before batching and carry zero blocking findings into the Step 05 gate:
 
 ```
 for each shot with media references (primary, endFrame, references, character_ref,
@@ -294,13 +294,12 @@ historical [batch profiles](references/execution-audit.md#batch-profiles) are lo
 
 ---
 
-## Production summary & credit cost estimation
+## Production summary
 
-Before asking for generation budget approval, calculate current credit costs from
-`mixio-generate/references/model-comparison.md` (`models.json` → `pricing`) and present totals,
-per-model and per-archetype accounting, job counts, and high-risk boundaries. Use the worked
-[production-summary format](references/execution-audit.md#production-summary) as the report
-shape. Do not submit a generation job until the user approves this estimate.
+Report model assignments, archetype distribution, job counts, execution risks, and high-risk
+cross-model boundaries. State the relative cost order once: video generation costs the most,
+image generation comes next, and other operations cost little. Omit per-job price itemization.
+Generation authorization follows `mixio-generate` and the user's stated permission level.
 
 ---
 
@@ -312,17 +311,16 @@ alone may change it to `step_05: "complete"`; see the [field shape and writes](r
 
 ---
 
-## Gate: Budget & Execution Approval
+## Gate: Production Plan Approval
 
-**Step 06 cannot proceed without explicit user approval of the Production Summary and credit budget.**
+**Step 06 cannot proceed until the user has reviewed and approved the production plan.**
 
-Before asking, persist `step_05: "awaiting_approval"` plus the presented estimate and a
-`budget_approval.status: "awaiting_approval"` record. On an explicit approval, write the same
-amount and an approval timestamp with `budget_approval.status: "approved"`, then change
-`step_05` to `"complete"`. On resume, do not enter Step 06 unless that approved record exists.
+Before asking, persist `step_05: "awaiting_approval"`, the production plan, and a stable plan
+digest. On approval, re-read the plan, verify the digest has not changed, and set
+`step_05: "complete"`. Step 06 handles video authorization under `mixio-generate`.
 
-Announce the close with the exact, current credit estimate, for example:
-`Step 05 — Shot Planning awaits budget approval. 13 shots / 7 planning batches / 53.0s rendered runtime. Estimated cost: 2,159 credits across gpt_image_2, veo_3_1, seedance_image_to_video_v2, sora_2, and seedance_text_to_video_pro. Please confirm budget approval to proceed to Step 06 Video Generation.`
+Announce the close with the production plan, for example:
+`Step 05 — Shot Planning complete. 13 shots / 7 planning batches / 53.0s rendered runtime. Video generation is the highest-cost operation, image generation comes next, and other operations cost little. Please review the plan to proceed to Step 06.`
 
 ---
 
@@ -335,9 +333,9 @@ Announce the close with the exact, current credit estimate, for example:
 4. run execution audit (duration limits, action density, speaking rate, references, prompt @ mentions + mentionMap)
 5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions, pair slotTags + mentionMap, remove orphans)
 6. group into contiguous batches per model-specific ceilings
-7. emit PRODUCTION SUMMARY with archetype distribution, model assignments, and credit cost estimate
-8. studio_revise_shot_specs → persist plan in shot metadata; persist `step_05: "awaiting_approval"` and the presented cost in episode metadata.pipeline
-9. GATE — user explicitly approves production plan & credit spend → persist approved amount/timestamp and `step_05: "complete"` → Step 06 Video Generation
+7. emit PRODUCTION SUMMARY with archetype distribution, model assignments, job counts, and execution risks
+8. studio_revise_shot_specs → persist plan in shot metadata; persist `step_05: "awaiting_approval"` and a plan digest in episode metadata.pipeline
+9. GATE — user reviews the production plan → verify plan digest and persist `step_05: "complete"` → Step 06 Video Generation
 ```
 
 ## Notes

@@ -25,7 +25,7 @@
     "定义 voice anchors：世界观倾向、关系策略、羞耻点、表达节奏、常见回避方式。",
     "定义 lived pressure：角色如何把身体压力、社会风险和时间成本带进语言。",
     "定义 register envelope：允许的词汇层级、抽象度、修辞密度，以及明确禁行区。",
-    "若涉及 IP、系列角色或品牌人格，写出 continuity anchors、variability budget 和 drift warnings。",
+    "若涉及 IP、系列角色或品牌人格，写出 continuity anchors、variation range 和 drift warnings。",
     "输出 guide：包含该怎么写、不要怎么写、为什么、以及这份 guide 只是一组可生成约束而不是模板。"
   ],
   "fallbacks": [
@@ -51,7 +51,6 @@
     "ka.register-adaptation",
     "ka.tone-writing-moves"
   ],
-  "budget_class": "L",
   "mandatory_atom_count": 7,
   "expansion_allowed": true
 }

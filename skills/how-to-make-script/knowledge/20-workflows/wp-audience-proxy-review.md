@@ -47,7 +47,6 @@
     "ka.platform-attention-economy",
     "ka.scene-function"
   ],
-  "budget_class": "L",
   "mandatory_atom_count": 7,
   "expansion_allowed": true
 }

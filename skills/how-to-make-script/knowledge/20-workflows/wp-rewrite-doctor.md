@@ -45,7 +45,6 @@
     "ka.setup-and-payoff",
     "ka.weak-opening-diagnosis"
   ],
-  "budget_class": "L",
   "mandatory_atom_count": 11,
   "expansion_allowed": true
 }

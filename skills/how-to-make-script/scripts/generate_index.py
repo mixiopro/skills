@@ -83,7 +83,6 @@ ADJUNCT_TRIGGERS: Dict[str, Dict[str, str]] = {
     "shot_granularity":    {"bundle": "visual-lens",     "mode": "smallest_adjunct"},
     "team_mode":           {"bundle": "team-lens",       "mode": "smallest_adjunct"},
     "coordination_model":  {"bundle": "team-lens",       "mode": "smallest_adjunct"},
-    "parallelism_budget":  {"bundle": "team-lens",       "mode": "smallest_adjunct"},
     "human_gate_level":    {"bundle": "team-lens",       "mode": "smallest_adjunct"},
     "subagent_family":     {"bundle": "subagent-lens",   "mode": "smallest_adjunct"},
     "persona_policy":      {"bundle": "subagent-lens",   "mode": "smallest_adjunct"},
@@ -159,7 +158,6 @@ def build_runtime_index(root: Path) -> Dict[str, Any]:
         atom_by_protocol[proto["id"]] = {
             "mandatory": linked,
             "optional": [],
-            "budget_class": proto.get("budget_class", "M"),
         }
 
     # atom_by_tag — keyword-based inverted index from atom kind/summary

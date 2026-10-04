@@ -44,7 +44,6 @@
     "ka.screenwriting-history-shift",
     "ka.writer-development-loop"
   ],
-  "budget_class": "L",
   "mandatory_atom_count": 7,
   "expansion_allowed": true
 }

@@ -14,7 +14,6 @@
   "output_contract": [
     "research_background_map"
   ],
-  "budget_class": "L",
   "mandatory_atom_count": 10,
   "expansion_allowed": true,
   "preconditions": [

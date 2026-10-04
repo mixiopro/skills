@@ -1,4 +1,4 @@
-"""Tests for all phases: runtime index, route robustness, NL routing, loading budget."""
+"""Tests for all phases: runtime index, route robustness, NL routing, workflow protocol integrity."""
 import json
 import subprocess
 import sys
@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from scripts.check_nl_routing import check_nl_routing
-from scripts.check_loading_budget import check_loading_budget
+from scripts.check_workflow_protocols import check_workflow_protocols
 from scripts.lib import (
     collect_skill_manifests,
     load_router_matrix,
@@ -78,11 +78,11 @@ class NLRoutingBenchTest(unittest.TestCase):
         )
 
 
-class LoadingBudgetPhaseTest(unittest.TestCase):
+class WorkflowProtocolPhaseTest(unittest.TestCase):
     root = Path(__file__).resolve().parents[1]
 
-    def test_loading_budgets_declared(self):
-        report = check_loading_budget(self.root)
+    def test_workflow_packets_declared(self):
+        report = check_workflow_protocols(self.root)
         self.assertEqual(report["errors"], [])
         self.assertEqual(report["protocol_count"], 33)
 

@@ -9,7 +9,7 @@ This pack is synthetic and callable. It is meant to help an agent recognize bran
 - `player_need`: agency, deduction, romance, mastery, status, or exploration.
 - `state_model`: relationship, resource, reputation, time, memory, or faction control.
 - `replay_behavior`: single run, repeat run, route contrast, or puzzle revisit.
-- `integration_pressure`: UI, save system, quest flow, pacing, or content budget.
+- `integration_pressure`: UI, save system, quest flow, pacing, or content scope.
 
 ## Scenario I01: Branching Mystery With Irreversible Evidence
 
@@ -142,7 +142,7 @@ BEAT 3: The player finally proceeds with no new meaning.
 
 Why the weaker version fails: gating becomes delay instead of transformation.
 
-Non-dogma note: some quest structures should be linear if the budget or platform cannot support meaningful re-entry.
+Non-dogma note: some quest structures should be linear if the content requirements or platform cannot support meaningful re-entry.
 
 ## Scenario I05: Faction Reputation and Political Alignment
 

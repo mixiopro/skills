@@ -8,7 +8,7 @@ Match each shot to the best available model based on what it needs. This is a re
 
 ## Model capability profiles
 
-Read the real per-model contract with `studio_get_use_case_input_schema({ useCaseId, modelId })` — that is the only authoritative source, and it gives the model's actual `duration` and `aspect_ratio` options. Do **not** call `studio_list_generation_models` for this: it returns `{ id, label }` and nothing else (see `mixio-generate`). Capability facts that live only in the catalog JSON — input roles, credits, `autoSelection` ranking — are tabulated in `mixio-generate/references/model-comparison.md`. Characteristics to match against:
+Read the real per-model contract with `studio_get_use_case_input_schema({ useCaseId, modelId })` — that is the only authoritative source, and it gives the model's actual `duration` and `aspect_ratio` options. Do **not** call `studio_list_generation_models` for this: it returns `{ id, label }` and nothing else (see `mixio-generate`). Capability facts that live only in the catalog JSON — input roles, relative cost, and `autoSelection` ranking — are tabulated in `mixio-generate/references/model-comparison.md`. Characteristics to match against:
 
 | What you need to know | Where it actually comes from |
 |------------|---------------|
@@ -16,7 +16,7 @@ Read the real per-model contract with `studio_get_use_case_input_schema({ useCas
 | What input shapes the model accepts | the `media` slots in the same schema, and `supportedInputRoles` / `unsupportedInputRoles` in `video-direction.json` (`mixio-generate/references/model-comparison.md`) |
 | Supported aspect ratios | the `aspect_ratio` enum in the same schema — per model, not global (`veo_3_1` is `16:9`/`9:16` only) |
 | Whether references are used at all | presence of `character_ref` / `location_ref` / `references` slots in the schema; `promptMode: none` models ignore prompt text entirely |
-| Cost | `pricing` in `models.json`, credits — not exposed over MCP |
+| Relative cost | Video generation costs the most, image generation comes next, and other operations cost little |
 | Ranking | `autoSelection.rules` in `models.json` — ordered preference per use case, video-only |
 
 ## Strength-area matching

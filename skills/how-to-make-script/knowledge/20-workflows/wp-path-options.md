@@ -42,7 +42,6 @@
     "ka.divergence-convergence-loop",
     "ka.false-universal-warning"
   ],
-  "budget_class": "M",
   "mandatory_atom_count": 5,
   "expansion_allowed": true
 }

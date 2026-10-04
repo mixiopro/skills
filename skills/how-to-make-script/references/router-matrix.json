@@ -768,8 +768,7 @@
         "team_mode",
         "coordination_model",
         "human_gate_level",
-        "artifact_chain",
-        "parallelism_budget"
+        "artifact_chain"
       ],
       "required_constraint_signals": [],
       "skill_id": "skill.team-orchestration",
@@ -812,7 +811,6 @@
         "subagent_family",
         "persona_policy",
         "selection_strategy",
-        "context_budget",
         "team_mode"
       ],
       "required_constraint_signals": [],
@@ -853,8 +851,7 @@
       "constraint_signals": [
         "phase_focus",
         "continuity_invariants",
-        "traceability_level",
-        "context_budget"
+        "traceability_level"
       ],
       "required_constraint_signals": [],
       "skill_id": "skill.story-memory-checkpoint",

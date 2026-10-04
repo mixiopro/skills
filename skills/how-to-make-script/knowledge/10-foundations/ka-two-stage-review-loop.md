@@ -49,8 +49,7 @@
   ],
   "links": [
     "ka.process-node-specialization",
-    "ka.convergence-owner-discipline",
-    "ka.subagent-context-budgeting"
+    "ka.convergence-owner-discipline"
   ],
   "source_status": "synthesized"
 }

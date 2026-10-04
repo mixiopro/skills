@@ -25,7 +25,7 @@
     "补世界观、关系策略、羞耻点和表达禁区等 voice anchors",
     "把情绪标签改写成处境压力和具身反应",
     "明确允许区间、禁行区和 off-model 红旗",
-    "把模板式示例降级为参考片段，并补 variability budget"
+    "把模板式示例降级为参考片段，并补 variation range"
   ]
 }
 ---

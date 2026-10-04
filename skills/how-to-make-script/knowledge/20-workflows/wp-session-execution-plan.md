@@ -22,7 +22,7 @@
     "判断请求是否真的跨越两个以上阶段——如果不是，退出本协议，用常规单路由处理。",
     "把任务分解为有序段落列表，每段包含：stage（阶段）、output（输出合同）、protocol_id（使用的协议）、stop_condition（完成标准）。",
     "为每个段落之间的接缝指定一个交接合同：下一段必须接收什么，必须忽略什么。",
-    "为每个段落标注 budget_class（S/M/L），标出哪些段落可以延后。",
+    "标出哪些段落可以延后。",
     "在任何跨越 `structure→scene` 或 `scene→rewrite` 边界的两个段落之间插入一次 `wp.story-memory-checkpoint` 调用。",
     "输出计划；**只执行第一段**；在每个后续段落前重新评估计划是否仍然有效。"
   ],
@@ -44,7 +44,6 @@
     "ka.cross-protocol-referral-edges",
     "ka.story-memory-checkpoint"
   ],
-  "budget_class": "S",
   "mandatory_atom_count": 4,
   "expansion_allowed": false
 }

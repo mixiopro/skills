@@ -49,7 +49,6 @@
   ],
   "links": [
     "ka.source-of-truth-runtime-split",
-    "ka.subagent-context-budgeting",
     "ka.handoff-packet-discipline"
   ],
   "source_status": "synthesized"

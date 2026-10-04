@@ -44,7 +44,6 @@
     "ka.false-universal-warning",
     "ka.scope-correction"
   ],
-  "budget_class": "M",
   "mandatory_atom_count": 5,
   "expansion_allowed": true
 }

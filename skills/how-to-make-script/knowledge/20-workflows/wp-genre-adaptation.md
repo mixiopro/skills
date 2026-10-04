@@ -53,7 +53,6 @@
     "ka.medium-commercial",
     "ka.medium-feature-film"
   ],
-  "budget_class": "L",
   "mandatory_atom_count": 14,
   "expansion_allowed": true
 }

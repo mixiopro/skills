@@ -43,7 +43,7 @@ It root SKILL.md loads this at runtime only when needed, not at entry.
 ### Internal Infrastructure
 These skills support the routing, loading, and collaboration infrastructure. They are not directly routable from user-facing entrypoints.
 
-- **context-governor** — manages context loading budget and expansion gating (skills/context-governor/SKILL.md)
+- **context-governor** — manages context loading scope and expansion gating (skills/context-governor/SKILL.md)
 - **project-surface-design** — designs project surface maps and navigation structures (skills/project-surface-design/SKILL.md)
 - **subagent-dispatch-design** — designs expert subagent dispatch plans (skills/subagent-dispatch-design/SKILL.md)
 - **team-workflow-design** — designs team collaboration workflows and blueprints (skills/team-workflow-design/SKILL.md)

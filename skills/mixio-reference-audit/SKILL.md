@@ -9,7 +9,7 @@ invoke: /mixio:reference-audit
 
 Step 02.5 of `mixio-pipeline`. Runs after sheets (Step 02) and before the panel breakdown (Step 03), then runs again during Step 05 reconciliation if breakdown exposes camera zones missing from the confirmed matrix. The question it answers: **are the references this episode will generate against actually ready?**
 
-A missing character image found here costs one upload. The same gap found in Step 06 costs every shot that character appears in — re-generated blind, or blocked until someone notices.
+A missing character image found here is one asset issue. The same gap found in Step 06 affects every shot that character appears in — re-generated blind, or blocked until someone notices.
 
 ## Prerequisites
 
@@ -269,7 +269,7 @@ This skill audits; it does not create or mutate references. When called directly
 
 Before any reference write, the runner reads `studio_get_project({ projectId })` and enforces `settings.references.createPolicy`, `variantPolicy`, and the type-specific `variantVocabulary`. If policy prevents the write, it persists `pre_production_loop.status: "blocked"` with the finding and exact next user action; it never overrides policy.
 
-`MISSING_IMAGE_HIGH_USAGE` has no zero-credit synthetic fix. Attach a permitted existing user-supplied asset when available; otherwise persist `blocked` and request an upload or explicit image-generation permission. Do not call `/mixio:sheets` or submit a generation job from this audit.
+`MISSING_IMAGE_HIGH_USAGE` has no free synthetic fix. Attach a permitted existing user-supplied asset when available; otherwise persist `blocked` and request an upload or explicit image-generation permission. Do not call `/mixio:sheets` or submit a generation job from this audit.
 
 The remediation plan identifies the required action:
 

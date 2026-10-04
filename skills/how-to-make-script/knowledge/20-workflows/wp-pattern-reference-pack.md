@@ -44,7 +44,6 @@
     "ka.reference-pattern-usage",
     "ka.scenario-factorization"
   ],
-  "budget_class": "M",
   "mandatory_atom_count": 5,
   "expansion_allowed": true
 }

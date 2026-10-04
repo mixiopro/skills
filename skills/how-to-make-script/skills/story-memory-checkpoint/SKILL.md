@@ -28,7 +28,7 @@ A minimal `story_memory_checkpoint` must include:
 3. **Open questions**: what is unresolved and must be carried forward as pending debt
 4. **Next planned step**: which stage comes next, with the entry surface（e.g., "beat sheet → scene draft for Act II opening"）
 
-For serial or long-form work, also include arc-budget spend and remaining high-value turns.
+For serial or long-form work, also include major turns that have occurred and unresolved story promises.
 
 ### How to Resume from a Checkpoint
 
@@ -44,11 +44,11 @@ When reloading from a checkpoint:
 2. Compress current story state instead of retelling the plot.
 3. Record unresolved promises, invariants, and canon-vs-hypothesis boundaries.
 4. Separate external pressure rhythm from internal emotional or cognitive rhythm.
-5. For serial work, note current arc-budget spend and remaining high-value turns.
+5. For serial work, note current major turns that have occurred and unresolved story promises.
 6. Return a checkpoint with next safe entrypoint, priority source surfaces, and drift risks.
 
 ## Output Contract
-- `story_memory_checkpoint`: current state, unresolved promises, invariants, dual-track rhythm, arc-budget status when relevant, next safe entrypoint, priority source surfaces, and drift warnings.
+- `story_memory_checkpoint`: current state, unresolved promises, invariants, dual-track rhythm, major story events when relevant, next safe entrypoint, priority source surfaces, and drift warnings.
 - Keep it short enough to replace a broad reload.
 - Do not turn the checkpoint into a prose summary of the whole story.
 
@@ -61,7 +61,7 @@ Ask: "What is the last thing you were certain about in this story before you got
 Apply the full checkpoint workflow: lock span → compress current state → record unresolved promises and invariants → separate dual-track rhythms → return with next safe entrypoint and drift warnings.
 
 **When `focus = event`:**
-Event-layer checkpoints should record: what has already been spent (turns, reveals, escalations) and what arc budget remains. Do not retell the plot; record the pressure-state.
+Event-layer checkpoints should record: which turns, reveals, and escalations have occurred and which promises remain unresolved. Do not retell the plot; record the pressure-state.
 
 **When `focus = character`:**
 Character-layer checkpoints should record: active wants, outstanding lies, unresolved wounds, and open relationship debts. These are the continuity liabilities that cause drift in resumed work.
@@ -76,5 +76,5 @@ World-layer checkpoints should record: which world rules have been explicitly es
 - `ka.dual-track-rhythm`
 - `ka.room-artifact-ladder`
 - `ka.script-as-coordination-artifact`
-- `ka.serial-arc-budgeting`
+- `ka.serial-arc-progression`
 - `ka.story-memory-checkpoint`

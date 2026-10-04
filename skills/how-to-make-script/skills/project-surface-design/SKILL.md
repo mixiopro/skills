@@ -35,7 +35,7 @@ Offer two surface architectures: one optimised for solo long-form work, one opti
 Long-form world-consistency problems are often project-surface problems in disguise: canonical world rules are being silently overwritten in runtime drafts. Locate the drift source before fixing the rules.
 
 **When `focus = event`:**
-Episodic and serial projects often suffer from arc-budget drift between surface layers. Checkpoint surfaces and canon-vs-hypothesis boundaries are the highest-value elements of the map.
+Episodic and serial projects often suffer from arc continuity drift between surface layers. Checkpoint surfaces and canon-vs-hypothesis boundaries are the highest-value elements of the map.
 
 ## References
 - `wp.project-surface-map`
@@ -49,4 +49,3 @@ Episodic and serial projects often suffer from arc-budget drift between surface 
 - `ka.script-as-coordination-artifact`
 - `ka.source-of-truth-runtime-split`
 - `ka.story-memory-checkpoint`
-- `ka.subagent-context-budgeting`

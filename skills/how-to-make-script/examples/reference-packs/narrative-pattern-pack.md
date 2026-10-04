@@ -367,7 +367,7 @@ The dialogue must not flatten everyone into the same opinion.
 ```text
 INT. SCHOOL AUDITORIUM - DAY
 
-The fundraiser budget sits on the projector.
+The fundraising target sits on the projector.
 
 PRINCIPAL
 We either cut the play or cut the buses.
@@ -389,7 +389,7 @@ Each speaker represents a different value system. The scene gains energy because
 ```text
 INT. SCHOOL AUDITORIUM - DAY
 
-Everyone agrees the budget is bad.
+Everyone agrees the fundraising target is unrealistic.
 They all worry about the school.
 They all want the same solution.
 ```

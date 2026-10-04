@@ -171,7 +171,7 @@ Each card gives a signature factor stack, a strong fragment that demonstrates th
 - **Strong fragment:** "She holds the broken blender to camera, presses one button, and the kitchen goes quiet instead of loud."
 - **Why it works:** the proof arrives before explanation.
 - **Weak fragment:** "Let me tell you about a product that could improve your routine."
-- **Why it fails:** spends the hook budget on setup.
+- **Why it fails:** uses too much of the opening on setup.
 - **Non-dogma note:** some short-form pieces win through intrigue or charisma instead of utility.
 
 ### 13. Game Narrative Quest Loop

@@ -1,7 +1,6 @@
 # Execution Audit Reference
 
-Lookup material for `mixio-shot-planning`. Live Studio schemas and live pricing always override
-these examples.
+Lookup material for `mixio-shot-planning`. Live Studio schemas always override these examples.
 
 ## Project-level defaults
 
@@ -71,12 +70,12 @@ Planning batches:                7  (contiguous orchestration groups)
 Generation submissions:         28  (15 keyframe submissions + 13 shot-scoped video submissions)
 
 Per-model breakdown:
-  veo_3_1 (fast, 4s):          5 shots / 20.0s /   900 credits
+  veo_3_1 (fast, 4s):          5 shots / 20.0s
   seedance_image_to_video_v2 (720p, 4s):
-                                6 shots / 24.0s /   792 credits
-  sora_2 (4s):                 1 shot  /  4.0s /    40 credits
+                                6 shots / 24.0s
+  sora_2 (4s):                 1 shot  /  4.0s
   seedance_text_to_video_pro (5s):
-                                1 shot  /  5.0s /    67 credits
+                                1 shot  /  5.0s
 
 Archetype breakdown:
   SINGLE (1 keyframe → video):         6 shots
@@ -89,10 +88,8 @@ Keyframe submissions:                 15 (6 single + 3×2 dual + 2 master-derive
 Keyframe outputs:                     18 (the sequence parent orchestrates 4 child frame jobs)
 Video generation jobs:                13 (one scoped video submission per shot; batches do not replace them)
 
-Credit cost estimate:
-  Keyframes (gpt_image_2, medium): 18 outputs × 20 credits = 360 credits
-  Video (declared model/duration/resolution above):                       1,799 credits
-  Total estimate:                                                         2,159 credits
+Relative cost note: Video generation costs the most, image generation comes next,
+and other operations cost little.
 
 High-risk boundaries:
   Batch 3→4: cross-model (Seedance→Veo) — continuity frame critical
@@ -144,7 +141,7 @@ const episode = await studio_get_episode({ episodeId })
 const pipeline = episode.metadata?.pipeline ?? {}
 const presentedPlanDigest = calculate_plan_digest(plannedShots) // stable hash of the planned shot contracts
 
-// Before asking for approval: this state must block Step 06, including on resume.
+// Mark the plan for user review before continuing to Step 06.
 await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   ...pipeline,
   step_05: "awaiting_approval",
@@ -152,49 +149,29 @@ await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipel
     ...pipeline.shot_plan,
     total_batches: 7,
     total_runtime: 53.0,
-    estimated_credits: 2159,
     models_used: ["gpt_image_2", "veo_3_1", "seedance_image_to_video_v2", "sora_2", "seedance_text_to_video_pro"],
     archetypes: { SINGLE: 6, DUAL_FRAME: 3, MASTER_ANCHOR_MULTI_SHOT: 2, SEQUENCE: 1, T2V: 1 },
     keyframe_submissions: 15,
     keyframe_outputs: 18,
     video_jobs: 13,
-    plan_digest: presentedPlanDigest,
-    budget_approval: {
-      status: "awaiting_approval",
-      presented_credits: 2159,
-      presented_at: new Date().toISOString()
-    }
+    plan_digest: presentedPlanDigest
   }
 }}}})
 
-// Only after the user explicitly approves the presented budget, read again in case another
-// pipeline step wrote state while the approval was pending.
+// After the user approves the production plan, re-read in case another pipeline step wrote state.
 const approvedEpisode = await studio_get_episode({ episodeId })
 const approvedPipeline = approvedEpisode.metadata?.pipeline ?? {}
 const approvedPlan = approvedPipeline.shot_plan ?? {}
 if (approvedPipeline.step_05 !== "awaiting_approval" ||
-    approvedPlan.budget_approval?.status !== "awaiting_approval" ||
-    approvedPlan.budget_approval?.presented_credits !== 2159 ||
     approvedPlan.plan_digest !== presentedPlanDigest) {
   throw new Error("plan changed while approval was pending; re-present the current plan and await new approval")
 }
 await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   ...approvedPipeline,
   step_05: "complete",
-  shot_plan: {
-    ...approvedPipeline.shot_plan,
-    budget_approval: {
-      ...approvedPlan.budget_approval,
-      status: "approved",
-      approved_credits: 2159,
-      approved_at: new Date().toISOString()
-    }
-  }
+  shot_plan: approvedPipeline.shot_plan
 }}}})
 ```
 
-The example uses the documented pricing snapshot: `gpt_image_2` at medium quality (20 credits
-per output), Veo fast at 4 seconds (180), Seedance I2V at 720p for 4 seconds (132), Sora at 4
-seconds (40), and Seedance T2V Pro at 5 seconds (67). Pricing and schemas change, so recompute
-the exact itemization from the current catalog and selected parameters before presenting a real
-approval request.
+The relative cost order is the operational guidance: video generation costs the most, image
+generation comes next, and other operations cost little. Use this relative order in planning.

@@ -73,4 +73,4 @@ When the output language is Chinese, add these checks on top of the six writerly
 ## Guardrail
 
 The expression lens is not a style template engine.
-It should preserve a voice anchor, a register envelope, and a variability budget at the same time.
+It should preserve a voice anchor, a register envelope, and a variation range at the same time.

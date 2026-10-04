@@ -52,7 +52,7 @@ flowchart TD
 | **Medium** | feature_film, episodic, commercial, interactive, etc. | "TVC script" → commercial |
 | **Stage** | ideation, premise, structure, scene, dialogue, rewrite, etc. | "I have an idea" → ideation |
 | **Output** | 29 contracts in supported-outputs.md | "give me a logline" → logline |
-| **Constraints** | genre, tone, audience, budget, platform, IP, voice, etc. | "PG-13 action" → genre:action, rating:PG-13 |
+| **Constraints** | genre, tone, audience, platform, IP, voice, etc. | "PG-13 action" → genre:action, rating:PG-13 |
 
 **Order matters.** Each dimension narrows the next. If the request is ambiguous, ask ONE question — the one that changes the route.
 
@@ -101,7 +101,7 @@ Specialized lenses load **only when they actually change the answer:**
 
 | Lens | Load When |
 |------|-----------|
-| Reality lenses | Audience/platform/commissioning/budget/writer-growth constraints present |
+| Reality lenses | Audience/platform/commissioning/writer-growth constraints present |
 | Expression calibration | Producing `voice_style_guide` or explicit tone/register constraint |
 | Visual bridge | Producing `visual_language_pack` or `screen_to_video_brief` |
 | Team lenses | Designing collaboration — NOT for single-artifact generation |
@@ -153,11 +153,11 @@ When the user says something like "帮我写个剧本" (write me a script) with 
 
 ### Contradictory constraints
 
-When the request contains internal contradictions ("3D IMAX short film with no budget limit — and also a game version"):
+When the request contains internal contradictions ("3D IMAX short film with no dialogue — and also a game version"):
 
 1. **Detect, don't silently resolve.** Flag the contradiction openly: "短片的规模和游戏版的互动复杂度对故事结构有完全不同的要求 — 你想先做哪一个？" (A short film's scale and a game's interactive complexity need completely different story structures — which do you want first?)
 2. **One output at a time.** Don't try to produce both. Pick the one the user clarifies, or if they insist on both, produce them sequentially with a `story_memory_checkpoint` in between.
-3. **For impossible time/budget constraints** (e.g., "120-page script in 3 days"): acknowledge the constraint, then offer the practical path — "I can draft the beat sheet and first 10 pages now. That gives you enough to assess the direction."
+3. **For impossible time or production constraints** (e.g., "120-page script in 3 days"): acknowledge the constraint, then offer the practical path — "I can draft the beat sheet and first 10 pages now. That gives you enough to assess the direction."
 
 ### Multi-turn routing recovery
 

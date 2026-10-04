@@ -48,8 +48,7 @@
   ],
   "links": [
     "ka.review-lens-isolation",
-    "ka.handoff-packet-discipline",
-    "ka.subagent-context-budgeting"
+    "ka.handoff-packet-discipline"
   ],
   "source_status": "synthesized"
 }

@@ -42,7 +42,6 @@
     "ka.story-goal",
     "ka.theme-pressure"
   ],
-  "budget_class": "M",
   "mandatory_atom_count": 5,
   "expansion_allowed": true
 }

@@ -15,7 +15,6 @@
   "output_contract": [
     "story_memory_checkpoint"
   ],
-  "budget_class": "M",
   "mandatory_atom_count": 6,
   "expansion_allowed": false,
   "preconditions": [
@@ -26,7 +25,7 @@
     "先锁定检查点覆盖的 span 和目的：resume、room handoff、review handoff、lane handoff 还是 adaptation bridge。",
     "压缩当前角色/关系状态、进行中的目标与阻力、未兑现承诺、连续性不变量和稳定 canon。",
     "分开写外部推进节奏和内部情绪/认知节奏，避免把节奏压扁成一条线。",
-    "如果项目具有连续容器，写出当前 arc budget 消耗情况：哪些 reveal、turn、payoff 已花掉，哪些仍保留。",
+    "如果项目具有连续容器，写出已发生的 reveal、turn、payoff，以及仍未兑现的故事承诺。",
     "给出 next safe entrypoint、最该优先回看的 source surfaces，以及不该误当 canon 的临时假设。",
     "输出 story_memory_checkpoint，并说明它取代了哪些不必要的全量重载。"
   ],
@@ -36,7 +35,7 @@
     "若当前材料太少，不足以形成状态压缩，先要求最小必要 span，而不是编造检查点。"
   ],
   "stop_conditions": [
-    "检查点已经覆盖状态、未兑现承诺、不变量、双轨节奏、arc budget 和 next entrypoint",
+    "检查点已经覆盖状态、未兑现承诺、不变量、双轨节奏、主要故事事件和 next entrypoint",
     "内容足以支撑下一轮安全续写或 handoff，但明显短于原始材料",
     "已经明确哪些只是临时工作假设，不可误写成 canon"
   ],
@@ -48,7 +47,7 @@
     "ka.dual-track-rhythm",
     "ka.room-artifact-ladder",
     "ka.script-as-coordination-artifact",
-    "ka.serial-arc-budgeting",
+    "ka.serial-arc-progression",
     "ka.story-memory-checkpoint"
   ]
 }

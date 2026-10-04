@@ -48,7 +48,6 @@
     "ka.scenario-factorization",
     "ka.story-memory-checkpoint"
   ],
-  "budget_class": "M",
   "mandatory_atom_count": 6,
   "expansion_allowed": false
 }

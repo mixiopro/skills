@@ -42,7 +42,6 @@
     "ka.cross-protocol-referral-edges",
     "ka.scene-function"
   ],
-  "budget_class": "M",
   "mandatory_atom_count": 5,
   "expansion_allowed": true
 }

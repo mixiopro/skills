@@ -20,7 +20,6 @@
 
 ## Production Constraints
 
-- `budget_band`：小体量、中体量、大体量。
 - `episode_count` / `duration_seconds` / `episode_minutes`：时长容器。
 - `rating`：分级边界。
 - `franchise_ip_limits`：是否可改写核心世界观与角色设定。
@@ -60,7 +59,6 @@
 
 - `team_mode`：当前任务更适合 feature development pod、showrunner room、animation story trust、brand content studio、interactive branch lab，还是 hybrid。
 - `coordination_model`：是 supervisor tree、swarm parallel、handoff chain、review board，还是 hybrid。
-- `parallelism_budget`：允许多少并行 lanes 同时存在而不失控。
 - `human_gate_level`：人类是只做最终审批、关键节点审批，还是全程高频介入。
 - `artifact_chain`：团队需要串联哪些产物，例如 premise -> outline -> rewrite report -> production handoff。
 
@@ -71,7 +69,6 @@
 - `selection_strategy`：是最小可运行阵容、最大覆盖阵容，还是先小后扩的 staged cast。
 - `dispatch_topology`：是 specialist ring、writers room tree、debate board、dual track，还是 two-stage review loop。
 - `convergence_owner`：谁拥有 merge / lock / reopen 的最终权责。
-- `context_budget`：每条 lane 可以加载多大 bundle，以及何时允许扩容。
 
 ## Project Surface Constraints
 

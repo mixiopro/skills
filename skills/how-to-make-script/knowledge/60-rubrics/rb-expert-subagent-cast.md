@@ -10,10 +10,10 @@
     {"name": "authority_clarity", "question": "谁拥有 merge / veto / review / human gate authority 是否明确"},
     {"name": "persona_governance", "question": "参考 persona 是否说明了 allowed use、blocked use、loading cap 和 non-dogma note"},
     {"name": "cast_economy", "question": "阵容是否保持克制，并给出扩容与裁剪规则"},
-    {"name": "context_discipline", "question": "每个 subagent 是否有清楚的上下文预算和 handoff 方式"}
+    {"name": "handoff_clarity", "question": "每个 subagent 是否有清楚的 handoff 方式"}
   ],
   "scoring_bands": {
-    "excellent": "阵容既专业又克制，角色差异清楚，persona 使用受控，authority 与 budget 都明确，可直接进入部署讨论。",
+    "excellent": "阵容既专业又克制，角色差异清楚，persona 使用受控，authority 与 handoff 方式都明确，可直接进入部署讨论。",
     "workable": "基本可用，但仍有角色重叠、persona 过泛、authority 模糊或裁剪逻辑不足的问题。",
     "weak": "更像角色愿望清单或名家拼盘，无法真正指导 subagent 选型。"
   },
@@ -28,7 +28,7 @@
     "删减重叠角色，改写为最小可运行 cast",
     "补写 authority、merge owner、human gate 和 trim order",
     "把 persona 改成治理过的 craft lens，而不是模仿目标",
-    "为每个 subagent 增加 mandate、context budget 和 deactivate 条件"
+    "为每个 subagent 增加 mandate、handoff 和 deactivate 条件"
   ]
 }
 ---

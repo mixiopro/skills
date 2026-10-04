@@ -28,7 +28,7 @@ Every usable expression layer should preserve four things at once:
 1. **A voice anchor** -- worldview, strategy, status position, shame line, and default rhythm
 2. **A lived-pressure layer** -- what the body, situation, and risk do to language
 3. **A register envelope** -- what kinds of diction, abstraction, and polish fit this medium and what breaks it
-4. **A variability budget** -- what can change scene to scene without breaking identity
+4. **A variation range** -- what can change scene to scene without breaking identity
 
 If any of these is missing, the result becomes either generic advice or rigid imitation.
 

@@ -60,7 +60,7 @@ bash scripts/check-npx-install.sh
   python3 scripts/check_links.py . && \
   python3 scripts/validate_assets.py . && \
   python3 scripts/check_routes.py . && \
-  python3 scripts/check_loading_budget.py . && \
+  python3 scripts/check_workflow_protocols.py . && \
   python3 -m pytest -q tests)
 ```
 

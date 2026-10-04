@@ -96,7 +96,7 @@ flowchart LR
 **Symptoms of overload:**
 - The answer starts summarizing docs instead of solving the request
 - Multiple loaded sources conflict but the response does not resolve the conflict
-- The response becomes generic because the model spent its budget on irrelevant breadth
+- The response becomes generic because the model spent too much attention on irrelevant breadth
 
 **Symptoms of underload:**
 - The response becomes brittle because it loaded only one favorite example and no contrast

@@ -1,6 +1,6 @@
 ---
 name: mixio-generate
-description: "Generate images, video and audio through Mixio Studio jobs — which use cases exist, which models each supports, what each accepts as input, what it costs, and when a Studio production use case beats a Generate one."
+description: "Generate images, video and audio through Mixio Studio jobs — which use cases exist, which models each supports, what each accepts as input, the relative cost of generation types, and when a Studio production use case beats a Generate one."
 version: 0.4.1
 invoke: /mixio:generate
 ---
@@ -46,12 +46,12 @@ Registrations: `apps/app-kalaasetu/src/app/api/mcp/server.ts`.
 
 | Fact | Where it lives | What to do instead |
 |---|---|---|
-| **Credits / cost** | `models.json` → `pricing.base.credits`, `pricing.modifiers`, `pricing.minCredits`; fallback `defaults.pricing` (15 credits) | Read `references/model-comparison.md`, or the file. Spread is ~70×: `veo_3_1` base **360** / floor 180 against `nano_banana_2` and `seedream_5_lite` at **5**, `gemini_image` 10, `gpt_image_2` 20. **A model swap is a cost decision, not a quality one** — say the number before you spend it |
+| **Relative generation cost** | Generation use case and output type | Video generation costs the most, image generation comes next, and other operations cost little. |
 | **Model ranking / "when to use what"** | `models.json` → `autoSelection.rules`: ordered `preferredModels` per use case, output type and media signal | The 8 rules are reproduced in `references/model-comparison.md`. `auto` resolves through them; there is **no** rule for `IMAGE`, and `supportsAutoModelSelection` returns false for `STUDIO`, so `auto` is video-only (`schema.ts:1603`, `:1752`) |
 | **Per-model input capability** | `video-direction.json` → `capabilityProfiles` + `modelBindings`: `profileId`, `supportedInputRoles`, `unsupportedInputRoles`, `promptMode`, `aspectHandling`, `lifecycle`, `routeId` | This is the real strengths/limits layer. A `prompted-frame-anchored-video` model (Seedance I2V, Kling 2.6 Pro, LTX, Grok) takes `primary` + `endFrame` and **rejects 7 other roles**; `prompted-text-video` models reject all 9. Table in `references/model-comparison.md`. Bindings inherit their profile's roles unless they override them (`packages/shared/src/schemas/generation/index.ts:resolveGenerationDirectionInputPolicy`) |
-| **Reference budgets** | `models.json` → `defaults.stillImageReferencePolicy.maxProviderImages` (**10**) with `coverageOrder`/`fillOrder`/`slotByRole`; `defaults.videoReferenceBudget.maxProviderImages` (**9**) with `coverageOrder`/`reserve`, overridden per model — `kling_multi_image_to_video`, `kling_o3_standard_reference_to_video`, `kling_o3_pro_reference_to_video` cap at **4** | Over-budget references are **truncated by policy order, not rejected**: `api/agent-api/src/workflows/generation/reference_budget.py` and `apps/app-kalaasetu/src/lib/studio/video-reference-budget.ts` (`droppedIds`). Attach 20 refs and most are silently dropped, with coverage roles winning over fill order. Send the ones that matter, in role order |
+| **Reference caps** | `models.json` → `defaults.stillImageReferencePolicy.maxProviderImages` (**10**) with `coverageOrder`/`fillOrder`/`slotByRole`; `defaults.videoReferenceBudget.maxProviderImages` (**9**), overridden per model — listed Kling routes cap at **4** | Excess references are truncated by policy order, not rejected. Attach only the references that matter, in role order. |
 | **Prompt length ceiling** | `models.json` → `prompting.promptMaxCharacters`, present on **15** of 75 models (nine Kling routes at 2500, four Svara/LTX routes at 5000, Grok at 4096, and ElevenLabs sound effects at 450); MiniMax H3 deliberately has no Mixio ceiling | Models without the field have no declared ceiling. Studio's own production path truncates against it (`getPromptMaxCharacters` in `production-job-preparation.ts`); you cannot read it over MCP |
-| **Speed / quality tradeoff** | `models.json` → `providers[].requirements`: `balanced \| speed \| cost \| quality` | The **only** such signal in the catalog. There is no fps field, no max-resolution field, no benchmark or quality ranking anywhere in it. If asked which model is "best", say the catalog does not rank models and offer `autoSelection` order plus credits instead of inventing a comparison |
+| **Speed / quality tradeoff** | `models.json` → `providers[].requirements`: `balanced \| speed \| cost \| quality` | The **only** such signal in the catalog. There is no fps field, no max-resolution field, no benchmark or quality ranking anywhere in it. If asked which model is "best", say the catalog does not rank models and offer `autoSelection` order instead of inventing a comparison |
 | **`surfaces` (studio vs generate)** | `use-cases.json` → `surfaces` | See §3. **`outputType` is not a proxy for it**: `image-edit`, `character-locking`, `refine-character-image`, `character-multi-angle` are `outputType: IMAGE` but `surfaces: ["studio"]`; the two `avgc-*` use cases are on both; `kling-multi-shot-video` has `surfaces: []` and appears in neither UI while still being submittable |
 
 ## 3. Generate use case vs Studio production use case
@@ -175,7 +175,7 @@ For **Audio / Gemini TTS** (`text-to-speech`), raw transcript reading is control
 `settings.generation`: `defaultModelByUseCase`, `defaultParametersByUseCase`, `defaultDurationByUseCase`, `defaultAspectRatioByOutputType`, `defaultResolutionByOutputType`, `recommendedStylePresetIds`, `inferenceMode`.
 `settings.studio`: `preferredVideoModel`, `videoDurationSeconds`, `defaultStylePrompt`, `defaultVideoShotMode`, `visualStyle`, `toneAndMood`, `cinematographyDirection`.
 
-A real project reads `{ "production-generate-video": "gemini_omni_multishot" }` with `VIDEO` aspect `9:16` — submitting `veo_3_1` at `16:9` there is both wrong and far more expensive (base 360 credits against a 14-credit floor). Also read `settings.references` before creating references (`mixio-references`).
+A real project reads `{ "production-generate-video": "gemini_omni_multishot" }` with `VIDEO` aspect `9:16` — submitting `veo_3_1` at `16:9` there uses the wrong model and aspect ratio. Also read `settings.references` before creating references (`mixio-references`).
 
 ## 6. Getting reference image URLs
 
@@ -201,7 +201,7 @@ Slot ids come from the schema, not from memory. Common ones: `primary`, `endFram
 | `mentionMap` | `{ "@tag": "Human Label" }` | Binds that tag to a subject. **Both maps are required** for a tag to bind |
 | `input.media` | `{ <slot>: { url } }` | Raw URLs, no provenance. Production workflows may seed derived references from it, but explicit `slotTags` + `mentionMap` pairs remain required |
 
-The MCP submit arguments `prompt`, `slotTags`, and `mentionMap` are serialized with `input.media` into backend `userInput`; keep all three in the same submission and validate the serialized shape before spending credits.
+The MCP submit arguments `prompt`, `slotTags`, and `mentionMap` are serialized with `input.media` into backend `userInput`; keep all three in the same submission and validate the serialized shape before submitting.
 
 ### Mentions — binding an image to a subject (Universal across all models)
 
@@ -214,7 +214,7 @@ This is a universal architectural requirement across every image, keyframe, stor
 In job `b463831e-ac6f-4a40-a2b2-0ebde2527c92` (`hailuo_v3_reference_to_video`), `userInput.media` carried `primary` (Gary Player reference image) and `enhancer_context` (Scene 7 anchor) with `slotTags` (`@asset1`, `@scene1`), but:
 1. The prompt text contained plain descriptive prose (`"Gary Player (white athletic golfer in signature all-black polo)..."`) with **zero** `@` mention tokens.
 2. `mentionMap` was missing from `userInput`.
-3. Consequently, the prompt materializer and provider compiler could not map `@asset1` to Hailuo's required `Image 1` token in `providerRequest.prompt`. The video model received `reference_image_urls` but an ungrounded prompt, causing the model to guess identity and waste generation credits.
+3. Consequently, the prompt materializer and provider compiler could not map `@asset1` to Hailuo's required `Image 1` token in `providerRequest.prompt`. The video model received `reference_image_urls` but an ungrounded prompt, causing the model to guess identity and waste generation work.
 
 #### Mandatory Invariants
 
@@ -334,8 +334,8 @@ A resolved variant is still an active media asset. `variantId`/`variantName` sel
 
 ## Audio
 
-Reachable, undiscoverable by filter. `text-to-speech` and `voice-change` are `outputType: AUDIO`, which `list_use_cases`' enum cannot express — call it with `outputType: "all"`. Then the normal path: `get_use_case_input_schema({ useCaseId: "text-to-speech", modelId: "elevenlabs_tts_multilingual_v2" })` → `submit_studio_job`. Models: `elevenlabs_tts_multilingual_v2`, `gemini_3_1_flash_tts_preview` (8 credits each), `elevenlabs_speech_to_speech` (10). Lip-sync is `outputType: VIDEO`, not audio. Mixing and final assembly are not on the MCP surface at all.
+Reachable, undiscoverable by filter. `text-to-speech` and `voice-change` are `outputType: AUDIO`, which `list_use_cases`' enum cannot express — call it with `outputType: "all"`. Then the normal path: `get_use_case_input_schema({ useCaseId: "text-to-speech", modelId: "elevenlabs_tts_multilingual_v2" })` → `submit_studio_job`. Models: `elevenlabs_tts_multilingual_v2`, `gemini_3_1_flash_tts_preview`, `elevenlabs_speech_to_speech`. Lip-sync is `outputType: VIDEO`, not audio. Mixing and final assembly are not on the MCP surface at all.
 
 ## References
 
-`references/model-comparison.md` — `autoSelection` ranking, credits per model, and per-model input-role capability. All three are catalog facts no MCP tool exposes.
+`references/model-comparison.md` — `autoSelection` ranking, model capability data, and per-model input-role capability. All three are catalog facts no MCP tool exposes.

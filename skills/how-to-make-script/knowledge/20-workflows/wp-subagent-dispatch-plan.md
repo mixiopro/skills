@@ -3,7 +3,7 @@
   "id": "wp.subagent-dispatch-plan",
   "type": "workflow_protocol",
   "title": "Subagent 调度计划协议",
-  "goal": "根据当前项目和所选阵容，输出一份 subagent_dispatch_plan，明确多层级调度结构、phase ladder、dispatch topology、handoff packet、review loop、human gates 和 context budget。",
+  "goal": "根据当前项目和所选阵容，输出一份 subagent_dispatch_plan，明确多层级调度结构、phase ladder、dispatch topology、handoff packet、review loop 和 human gates。",
   "input_contract": [
     "project brief",
     "medium",
@@ -26,7 +26,6 @@
     "确认 control plane 顺序：route -> team mode -> cast -> dispatch topology。",
     "根据 medium、risk profile 和 artifact chain 选择合适的 topology 与 phase pattern。",
     "为每一层写清 owner、parallel lanes、merge 节点、truth packet 和 stop condition。",
-    "规定每个 lane 的 context budget，以及哪些信息只能通过 handoff packet 共享。",
     "如果任务需要 review loop，优先拆成 spec compliance 与 quality review 两阶段。",
     "标出 human gates、fallback topology、collapse trigger 和 mode-switch trigger。"
   ],
@@ -36,7 +35,7 @@
     "若团队规模极小，输出最小 dispatch：one owner + one specialist + one review gate。"
   ],
   "stop_conditions": [
-    "计划已经说明 topology、phase ladder、lane budget、handoff packet、merge owner、review loop 和 human gates",
+    "计划已经说明 topology、phase ladder、handoff packet、merge owner、review loop 和 human gates",
     "系统知道何时扩容、何时裁剪、何时切换模式",
     "没有任何关键节点默认共享全量上下文"
   ],
@@ -48,12 +47,10 @@
     "ka.cross-protocol-referral-edges",
     "ka.handoff-packet-discipline",
     "ka.parallel-lane-governance",
-    "ka.subagent-context-budgeting",
     "ka.team-topology-selection",
     "ka.two-stage-review-loop"
   ],
-  "budget_class": "L",
-  "mandatory_atom_count": 7,
+  "mandatory_atom_count": 6,
   "expansion_allowed": true
 }
 ---

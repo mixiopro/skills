@@ -57,8 +57,8 @@ jobs:
       - name: Check canonical terms
         run: python scripts/check_canonical_terms.py
 
-      - name: Check loading budget
-        run: python scripts/check_loading_budget.py
+      - name: Check loading scope
+        run: python scripts/check_workflow_protocols.py
 
       - name: Check NL routing
         run: python scripts/check_nl_routing.py

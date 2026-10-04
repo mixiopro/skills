@@ -53,7 +53,6 @@
     "ka.video-generation-shot-economy",
     "ka.visible-asset-grounding"
   ],
-  "budget_class": "L",
   "mandatory_atom_count": 8,
   "expansion_allowed": true
 }

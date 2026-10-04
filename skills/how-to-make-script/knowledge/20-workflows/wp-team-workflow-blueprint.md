@@ -52,7 +52,6 @@
     "ka.team-mode-recipes",
     "ka.team-topology-selection"
   ],
-  "budget_class": "L",
   "mandatory_atom_count": 8,
   "expansion_allowed": true
 }

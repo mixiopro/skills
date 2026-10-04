@@ -78,7 +78,7 @@ jobs:
           python scripts/check_links.py .
           python scripts/validate_assets.py .
           python scripts/check_routes.py .
-          python scripts/check_loading_budget.py .
+          python scripts/check_workflow_protocols.py .
           python -m pytest -q tests
 
       - name: Audit npx discovery and clean install

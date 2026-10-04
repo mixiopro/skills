@@ -8,7 +8,6 @@
     {"name": "sequence_validity", "question": "每个段落的阶段顺序是否合理，前段产物是否是后段的有效输入"},
     {"name": "handoff_completeness", "question": "每个段落间的交接合同是否明确写出了必须传递和必须忽略的内容"},
     {"name": "posture_consistency", "question": "计划是否与当前创作态势一致——lost 态势不应生成多段计划"},
-    {"name": "budget_realism", "question": "每个段落的 budget_class 标注是否反映了真实的加载复杂度"},
     {"name": "checkpoint_placement", "question": "是否在需要的接缝处插入了 story-memory-checkpoint 调用"}
   ],
   "scoring_bands": {

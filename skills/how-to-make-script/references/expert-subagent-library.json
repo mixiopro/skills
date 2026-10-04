@@ -27,7 +27,6 @@
       "primary_function": "Generate and stress-test premise engines before convergence.",
       "process_role": "explore",
       "best_for": ["feature_film", "episodic", "short_drama", "animation"],
-      "context_budget": "small",
       "selection_signals": ["premise still open", "need multiple engines", "early-stage divergence"],
       "composes_with": ["story_architect", "subagent.counterexample-keeper", "audience_strategy_lead"]
     },
@@ -38,7 +37,6 @@
       "primary_function": "Map drives, fractures, desire conflicts, and relationship engines.",
       "process_role": "design",
       "best_for": ["feature_film", "episodic", "animation", "short_drama"],
-      "context_budget": "small",
       "selection_signals": ["flat character motive", "ensemble conflict weak", "arc unclear"],
       "composes_with": ["character_lead", "subagent.scene-runner", "subagent.dialogue-subtext-doctor"]
     },
@@ -49,7 +47,6 @@
       "primary_function": "Convert structural intent into playable scene packets and scene passes.",
       "process_role": "draft",
       "best_for": ["feature_film", "episodic", "short_drama", "animation", "commercial", "branded_film"],
-      "context_budget": "medium",
       "selection_signals": ["scene objective is known", "outline exists", "local execution matters"],
       "composes_with": ["scene_specialist", "subagent.dialogue-subtext-doctor", "continuity_keeper"]
     },
@@ -60,7 +57,6 @@
       "primary_function": "Increase line pressure, separation, concealment, and alive-feeling speech.",
       "process_role": "polish",
       "best_for": ["feature_film", "episodic", "short_drama", "animation", "branded_film"],
-      "context_budget": "small",
       "selection_signals": ["samey lines", "NPC feel", "subtext missing", "voice drift"],
       "composes_with": ["dialogue_specialist", "character_lead", "subagent.table-read-synthesizer"]
     },
@@ -71,7 +67,6 @@
       "primary_function": "Pressure-test payoff, promise, retention, and fit against target viewer needs.",
       "process_role": "review",
       "best_for": ["feature_film", "episodic", "commercial", "branded_film", "shortform_video", "branching_interactive"],
-      "context_budget": "small",
       "selection_signals": ["audience mismatch risk", "hook density concern", "commissioning pressure"],
       "composes_with": ["audience_strategy_lead", "development_producer", "subagent.counterexample-keeper"]
     },
@@ -82,7 +77,6 @@
       "primary_function": "Protect message singularity while keeping storytelling alive.",
       "process_role": "review",
       "best_for": ["commercial", "branded_film", "shortform_video"],
-      "context_budget": "small",
       "selection_signals": ["campaign work", "brand brief pressure", "premium-tone drift"],
       "composes_with": ["brand_platform_strategist", "subagent.variant-lane-operator", "human_decision_owner"]
     },
@@ -93,7 +87,6 @@
       "primary_function": "Translate narrative problems into staging, visual beats, and sequence logic.",
       "process_role": "design",
       "best_for": ["animation", "feature_film", "branded_film", "shortform_video"],
-      "context_budget": "medium",
       "selection_signals": ["visual storytelling matters", "storyboard pressure", "sequence clarity gap"],
       "composes_with": ["visual_story_partner", "subagent.storyboard-bridge-director", "subagent.scene-runner"]
     },
@@ -104,7 +97,6 @@
       "primary_function": "Bridge screenplay intent into shot-scale or clip-scale visual planning without collapsing into tool syntax.",
       "process_role": "adapt",
       "best_for": ["animation", "commercial", "branded_film", "shortform_video"],
-      "context_budget": "medium",
       "selection_signals": ["previz request", "screen-to-video bridge", "shot packet need"],
       "composes_with": ["subagent.visual-story-partner", "subagent.production-reality-reviewer", "continuity_keeper"]
     },
@@ -115,8 +107,7 @@
       "primary_function": "Check whether creative paths still survive production, delivery, and rights pressure.",
       "process_role": "review",
       "best_for": ["feature_film", "episodic", "animation", "commercial", "branded_film", "game_narrative"],
-      "context_budget": "small",
-      "selection_signals": ["budget or schedule pressure", "rights/IP pressure", "handoff to production near"],
+      "selection_signals": ["production resource or schedule pressure", "rights/IP pressure", "handoff to production near"],
       "composes_with": ["development_producer", "continuity_keeper", "human_decision_owner"]
     },
     {
@@ -126,7 +117,6 @@
       "primary_function": "Stress-test branching logic, state integrity, and playability before expansion.",
       "process_role": "review",
       "best_for": ["game_narrative", "branching_interactive"],
-      "context_budget": "medium",
       "selection_signals": ["branch explosion", "state inconsistency", "interactive testing pressure"],
       "composes_with": ["interactive_systems_narrative", "subagent.counterexample-keeper", "subagent.review-board-auditor"]
     },
@@ -137,7 +127,6 @@
       "primary_function": "Create controlled option space before convergence.",
       "process_role": "explore",
       "best_for": ["all"],
-      "context_budget": "small",
       "selection_signals": ["need contrasted paths", "premature convergence risk"],
       "composes_with": ["subagent.premise-scout", "story_architect", "subagent.counterexample-keeper"]
     },
@@ -148,7 +137,6 @@
       "primary_function": "Keep live alternatives and edge cases visible long enough to challenge weak certainty.",
       "process_role": "challenge",
       "best_for": ["all"],
-      "context_budget": "tiny",
       "selection_signals": ["universal claim risk", "fast convergence risk", "one path dominating too early"],
       "composes_with": ["subagent.divergence-facilitator", "subagent.convergence-editor", "subagent.review-board-auditor"]
     },
@@ -159,7 +147,6 @@
       "primary_function": "Identify failure layer, rewrite order, and what not to touch yet.",
       "process_role": "diagnose",
       "best_for": ["feature_film", "episodic", "animation", "commercial", "branded_film", "branching_interactive"],
-      "context_budget": "small",
       "selection_signals": ["rewrite pressure", "many possible fixes", "symptom vs cause ambiguity"],
       "composes_with": ["subagent.scene-runner", "subagent.dialogue-subtext-doctor", "subagent.production-reality-reviewer"]
     },
@@ -170,7 +157,6 @@
       "primary_function": "Merge lanes, lock surviving core, and name dropped paths plus reopen triggers.",
       "process_role": "converge",
       "best_for": ["all"],
-      "context_budget": "small",
       "selection_signals": ["multiple lanes active", "merge cost rising", "decision lock needed"],
       "composes_with": ["room_captain", "showrunner_orchestrator", "human_decision_owner"]
     },
@@ -181,7 +167,6 @@
       "primary_function": "Translate read-through friction into ranked rewrite actions.",
       "process_role": "diagnose",
       "best_for": ["feature_film", "episodic", "animation", "short_drama", "branded_film"],
-      "context_budget": "small",
       "selection_signals": ["line rhythm concern", "scene energy doubt", "ensemble balance issue"],
       "composes_with": ["subagent.dialogue-subtext-doctor", "subagent.rewrite-triage-lead", "character_lead"]
     },
@@ -192,7 +177,6 @@
       "primary_function": "Run controlled variant generation without losing the campaign or story spine.",
       "process_role": "explore",
       "best_for": ["commercial", "branded_film", "shortform_video"],
-      "context_budget": "small",
       "selection_signals": ["variant pressure", "cross-platform cuts", "campaign experimentation"],
       "composes_with": ["subagent.brand-message-guardian", "brand_platform_strategist", "audience_strategy_lead"]
     },
@@ -203,7 +187,6 @@
       "primary_function": "Run final pressure checks against contract, boundary, and delivery risk.",
       "process_role": "review",
       "best_for": ["all"],
-      "context_budget": "small",
       "selection_signals": ["high-risk output", "external approval gate", "final lock"],
       "composes_with": ["human_decision_owner", "continuity_keeper", "subagent.convergence-editor"]
     },
@@ -214,7 +197,6 @@
       "primary_function": "Check whether the current deliverable actually matches the requested contract and scope.",
       "process_role": "review",
       "best_for": ["all"],
-      "context_budget": "tiny",
       "selection_signals": ["clear output contract", "overbuild risk", "underbuild risk"],
       "composes_with": ["subagent.quality-reviewer", "subagent.convergence-editor", "subagent.review-board-auditor"]
     },
@@ -225,7 +207,6 @@
       "primary_function": "Check craft, composition, readability, and operational quality after spec is confirmed.",
       "process_role": "review",
       "best_for": ["all"],
-      "context_budget": "small",
       "selection_signals": ["spec already fixed", "quality or coherence risk", "final polish gate"],
       "composes_with": ["subagent.spec-reviewer", "subagent.review-board-auditor", "subagent.convergence-editor"]
     },
@@ -238,8 +219,7 @@
       "craft_strengths": ["moral compromise pressure", "social power reading", "earned escalation"],
       "misuse_risks": ["prestige fog", "imitative cynicism", "slow-burn affect without engine"],
       "allowed_use": ["pressure-test theme and character choices", "challenge easy moral framing"],
-      "blocked_use": ["write as the real person", "treat as final convergence owner"],
-      "context_budget": "tiny"
+      "blocked_use": ["write as the real person", "treat as final convergence owner"]
     },
     {
       "id": "persona.romantic-verbal-precision",
@@ -250,8 +230,7 @@
       "craft_strengths": ["verbal sparring", "emotional deflection", "lightness over exposition"],
       "misuse_risks": ["adorable banter without conflict", "period-mismatch polish", "talking past medium constraints"],
       "allowed_use": ["pressure dialogue separation", "test charm versus evasiveness"],
-      "blocked_use": ["quote-like style imitation", "use as generic romance authority"],
-      "context_budget": "tiny"
+      "blocked_use": ["quote-like style imitation", "use as generic romance authority"]
     },
     {
       "id": "persona.animation-humanist-visual",
@@ -262,8 +241,7 @@
       "craft_strengths": ["visual-emotional clarity", "human warmth", "world detail serving feeling"],
       "misuse_risks": ["surface whimsy", "gentleness without pressure", "brand-safe flattening"],
       "allowed_use": ["sequence review", "visual story pressure", "character feeling check"],
-      "blocked_use": ["treat as house style template", "directly imitate living creator voice"],
-      "context_budget": "tiny"
+      "blocked_use": ["treat as house style template", "directly imitate living creator voice"]
     },
     {
       "id": "persona.high-concept-clockwork",
@@ -274,8 +252,7 @@
       "craft_strengths": ["engine discipline", "causal tension", "constraint-driven payoff"],
       "misuse_risks": ["cold puzzle worship", "overmechanized character behavior"],
       "allowed_use": ["engine pressure", "structure review", "reveal-chain testing"],
-      "blocked_use": ["flatten every project into mechanism-first plotting"],
-      "context_budget": "tiny"
+      "blocked_use": ["flatten every project into mechanism-first plotting"]
     },
     {
       "id": "persona.social-satire-thriller",
@@ -286,8 +263,7 @@
       "craft_strengths": ["social tension", "genre collision", "symbolic pressure with payoff"],
       "misuse_risks": ["thesis over drama", "prestige posing", "symbolism without mechanism"],
       "allowed_use": ["tone pressure", "social reading", "contrastive path generation"],
-      "blocked_use": ["use as generic thriller replacement"],
-      "context_budget": "tiny"
+      "blocked_use": ["use as generic thriller replacement"]
     },
     {
       "id": "persona.poetic-observational-minimalism",
@@ -298,8 +274,7 @@
       "craft_strengths": ["patience", "negative space", "environmental emotional weight"],
       "misuse_risks": ["empty slowness", "static drift", "borrowed solemnity"],
       "allowed_use": ["pace recalibration", "silence design", "scene pressure through absence"],
-      "blocked_use": ["force slow-cinema aesthetics on platform-first work"],
-      "context_budget": "tiny"
+      "blocked_use": ["force slow-cinema aesthetics on platform-first work"]
     },
     {
       "id": "persona.kinetic-pop-energy",
@@ -310,8 +285,7 @@
       "craft_strengths": ["rhythmic propulsion", "needle-drop timing", "compressed visual wit"],
       "misuse_risks": ["surface coolness", "tempo without point", "music-video emptiness"],
       "allowed_use": ["shortform pacing", "comic timing pressure", "visual snap review"],
-      "blocked_use": ["replace story engine with style pulse"],
-      "context_budget": "tiny"
+      "blocked_use": ["replace story engine with style pulse"]
     },
     {
       "id": "persona.luxury-restraint-brand-film",
@@ -322,8 +296,7 @@
       "craft_strengths": ["premium restraint", "texture-led emotion", "brand aura without hard sell"],
       "misuse_risks": ["fake-premium vagueness", "aesthetic perfume", "storylessness"],
       "allowed_use": ["brand film tonality check", "mood-pressure review", "image-language selection"],
-      "blocked_use": ["use as blank check for vague prestige language"],
-      "context_budget": "tiny"
+      "blocked_use": ["use as blank check for vague prestige language"]
     },
     {
       "id": "persona.branching-systemic-choice",
@@ -334,8 +307,7 @@
       "craft_strengths": ["choice consequence", "narrative-system coupling", "player discovery structure"],
       "misuse_risks": ["cinematic monologue in place of interactivity", "branch inflation without state meaning"],
       "allowed_use": ["interactive narrative pressure", "choice-value review", "branch scope challenge"],
-      "blocked_use": ["treat as linear script stylistic filter"],
-      "context_budget": "tiny"
+      "blocked_use": ["treat as linear script stylistic filter"]
     }
   ],
   "cast_templates": [

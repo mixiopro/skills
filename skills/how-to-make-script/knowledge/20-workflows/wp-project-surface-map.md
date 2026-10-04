@@ -53,11 +53,9 @@
     "ka.project-surface-taxonomy",
     "ka.script-as-coordination-artifact",
     "ka.source-of-truth-runtime-split",
-    "ka.story-memory-checkpoint",
-    "ka.subagent-context-budgeting"
+    "ka.story-memory-checkpoint"
   ],
-  "budget_class": "L",
-  "mandatory_atom_count": 10,
+  "mandatory_atom_count": 9,
   "expansion_allowed": true
 }
 ---

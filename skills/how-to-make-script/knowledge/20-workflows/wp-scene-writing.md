@@ -53,7 +53,6 @@
     "ka.setup-and-payoff",
     "ka.verbal-rhythm"
   ],
-  "budget_class": "L",
   "mandatory_atom_count": 11,
   "expansion_allowed": true
 }

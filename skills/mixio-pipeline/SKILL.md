@@ -7,7 +7,7 @@ invoke: /mixio:pipeline
 
 # Mixio Pipeline
 
-The orchestrator. The other Mixio skills are tool surfaces (`mixio-episode`, `mixio-generate`, …); this one is the **order and the gates**. Generation is billable and non-deterministic, so the whole point is to burn tokens on text passes until the plan is airtight, then spend credits once.
+The orchestrator. The other Mixio skills are tool surfaces (`mixio-episode`, `mixio-generate`, …); this one is the **order and the gates**. Generation is non-deterministic, so use text passes to resolve production issues before rendering. Video generation costs the most, image generation comes next, and other operations cost little.
 
 Read the [native screenplay grammar](../mixio-episode/references/screenplay-grammar.md) before Step 01 and `references/shot-grammar.md` before authoring or auditing a breakdown. The former is Studio-parsed source syntax; the latter is the authored production vocabulary that `mixio-sheets`, `mixio-continuity`, and `mixio-shot-planning` assume.
 
@@ -36,15 +36,14 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 | 05 | **Shot Planning** | `mixio-shot-planning` | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
 | 06 | **Video Generation** | `mixio-generate` | VIDEO elements + workspace uploads |
 
-**Gate rule: never start step N+1 until step N is confirmed by the user.** The Pre-Production Token Ralph Loop is limited to safe text and graph corrections across Step 01, Step 02.5, and Step 04; Step 03 is re-audited only when one of those corrections changes a shot or relation. Step 02's reference renders and anchors remain a separately confirmed step: do not enter an image-generation use case from the loop. The loop re-checks every safe correction until it reaches **0 blocking errors**, then asks the user to approve the converged breakdown before Step 05 cost approval (see `references/pre-production-ralph-loop.md`). Step 05 performs a final check against actual camera zones; a newly required view returns to Step 02 for user confirmation and image review before downstream steps resume. Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Ready for Step 05 approval.`
+**Gate rule: never start step N+1 until step N is confirmed by the user.** The Pre-Production Token Ralph Loop is limited to safe text and graph corrections across Step 01, Step 02.5, and Step 04; Step 03 is re-audited only when one of those corrections changes a shot or relation. Step 02's reference renders and anchors remain a separately confirmed step: do not enter an image-generation use case from the loop. The loop re-checks every safe correction until it reaches **0 blocking errors**, then asks the user to approve the converged breakdown before Step 05 shot planning (see `references/pre-production-ralph-loop.md`). Step 05 performs a final check against actual camera zones; a newly required view returns to Step 02 for user confirmation and image review before downstream steps resume. Announce the close explicitly, e.g. `Step 04 — Continuity Audit complete (0 blocking breaks). Pre-production Ralph loop converged. Breakdown locked. Ready for Step 05 approval.`
 
 ## Step 00 — Full Project Preflight & Settings Locking
 
 Everything downstream reads project settings. If Step 00 doesn't set them, Step 06 doesn't
 fail — it inherits. `production-generate-shot-keyframes` renders at `aspect_ratio: '16:9'`
 on `gpt_image_2` because that is the production default, not because anyone chose it
-(`mixio-generate` §4). Model spread is roughly 70× on credits, so a model nobody picked is a
-cost decision nobody made. Settle the contract here, write it to the project, and gate
+(`mixio-generate` §4). Settle the contract here, write it to the project, and gate
 Step 01 on the user confirming it.
 
 ### 1. Confirm the contract — options in the same message as the question
@@ -55,7 +54,7 @@ answer is one character. Never let one default silently.
 | # | Confirm | Source of the legal values |
 |---|---------|----------------------------|
 | 1 | **Image model** — the keyframe model for every `production-*` keyframe use case | The six `production-generate-shot-keyframes` supports: `gemini-3.1-flash-lite-image`, `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite`. Re-read `supportedModels` rather than trusting this list — the catalog grows |
-| 2 | **Video model** — what Step 06 spends on | `supportedModels` from `studio_list_use_cases` for `production-generate-video`; quote credits from `mixio-generate/references/model-comparison.md` **before** the user picks |
+| 2 | **Video model** — what Step 06 uses | `supportedModels` from `studio_list_use_cases` for `production-generate-video` |
 | 3 | **Aspect ratios** — delivery + anchor (see §2 below) | `aspect_ratio` enum from `studio_get_use_case_input_schema({ useCaseId, modelId })` for the chosen pairs — there is no global list |
 | 4 | **Resolution** — per output type and per video use case | Same schema read, and **many models expose no `resolution` parameter at all** (`gemini_omni_multishot` and `seedream_5_pro` have none; `veo_3_1` has one defaulting to `720p`). Confirm the parameter exists before locking a value for it |
 | 5 | **Visual style / tone** — style, mood, cinematography, default style prompt | The user. This is direction, not a catalog value |
@@ -166,20 +165,20 @@ breakdown skill owns the fields, audit checks, and `metadata.pipeline.breakdown_
 
 → `mixio-shot-planning`. Three decisions per shot, then batching:
 
-Before batching, reconcile every broken-down shot's actual camera zone, location configuration, and selected labeled view against `metadata.pipeline.reference_pack_inventory`. If a shot requires an unlisted or unapproved row, emit a blocking reference finding, add the row to the inventory as `proposed`, and stop before writing an awaiting-budget-approval summary. Ask the user to confirm the additional image round, stage and evaluate candidates, attach only approved images, and rerun the reference audit. Re-entering Step 02 invalidates downstream work: rerun Step 02.5, Step 03, Step 04, and Step 05 before Step 06.
+Before batching, reconcile every broken-down shot's actual camera zone, location configuration, and selected labeled view against `metadata.pipeline.reference_pack_inventory`. If a shot requires an unlisted or unapproved row, emit a blocking reference finding, add the row to the inventory as `proposed`, and stop before writing an awaiting-generation-approval summary. Ask the user to confirm the additional image round, stage and evaluate candidates, attach only approved images, and rerun the reference audit. Re-entering Step 02 invalidates downstream work: rerun Step 02.5, Step 03, Step 04, and Step 05 before Step 06.
 
 1. **Model + live contract** — select a candidate based on shot characteristics (action density → Seedance, cinematic camera → Veo, establishing → Sora, etc.) and read its live input schema, including the duration ceiling.
 2. **Archetype / Method** — classify each shot using that contract into one of 5 structural archetypes: `GRID` (multi-panel/montage), `SEQUENCE` (multi-beat sequence), `MASTER_ANCHOR_MULTI_SHOT` (coverage grounded by the wide scene-anchor reference through a derived keyframe), `SINGLE` / `DUAL_FRAME` (standard keyframe interpolation), or `T2V` (direct text-to-video).
 3. **Execution & Feasibility Audit** — validate duration vs model max, action density (`actions / duration`), dialogue speaking rate (`words / duration`), reference readiness, the shot's selected character look and location variant/view, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. The chosen location media must match the confirmed variant/view row and be approved; pass its explicit `variantId`/`variantName` with the actual view image. Every active media slot (`primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`, or a schema-added slot) must have exactly one mapped `@tag` in the effective prompt; reject missing pairs, collisions, and orphan map entries.
 
-Then group consecutive shots only when their model, generation use case, and input contract all match; the planner's live schema limits still apply. Emit a `PRODUCTION SUMMARY` with per-model costs, archetype distribution, keyframe/video job counts, estimated credit costs, and high-risk cross-model boundaries. Preserve a bound CHARACTER look as relation `lookRef`; Step 06 must resolve it through `selectedElements` or pass `variantId`/`variantName` on the media reference. For locations, pass the confirmed configuration variant and exact approved view image; do not encode the camera angle as character `lookRef` or inert plan metadata (see `mixio-generate`). Gate: require explicit user budget approval before Step 06.
+Then group consecutive shots only when their model, generation use case, and input contract all match; the planner's live schema limits still apply. Emit a `PRODUCTION SUMMARY` with archetype distribution, keyframe/video job counts, high-risk cross-model boundaries, and the relative cost order: video generation costs the most, image generation comes next, and other operations cost little. Preserve a bound CHARACTER look as relation `lookRef`; Step 06 must resolve it through `selectedElements` or pass `variantId`/`variantName` on the media reference. For locations, pass the confirmed configuration variant and exact approved view image; do not encode the camera angle as character `lookRef` or inert plan metadata (see `mixio-generate`).
 
 ## Step 06 — Video Generation
 
-→ `mixio-generate`, batch by batch, keyframes first then video. Ask before spending unless the user has said otherwise. Offer the three permission levels once, at the top of Step 06, and record the answer:
+→ `mixio-generate`, batch by batch, keyframes first then video. Ask before video generation unless the user has said otherwise. Offer the three permission levels once, at the top of Step 06, and record the answer:
 
 - **Always allow** — generate without asking.
-- **Ask before video** — images are cheap, video is not; this is the sensible default.
+- **Ask before video** — video generation costs the most, image generation comes next, and other operations cost little.
 - **Always ask** — confirm every job.
 
 **Preflight Gating (Mandatory Invariant across all models before submit):**
@@ -276,13 +275,13 @@ exists; avoid `studio_get_production_context` until its graph detail is actually
 │ 04. /mixio:continuity → correct specs/relations, then re-audit                          │
 └────────────────────────────────────── ↺ persist every cycle until 0 errors ────────────┘
   → GATE: Pre-production converged & breakdown locked
-05. /mixio:shot-planning                           → method + model + feasibility + batches + PRODUCTION SUMMARY → GATE (cost approval)
+05. /mixio:shot-planning                           → method + model + feasibility + batches + PRODUCTION SUMMARY → GATE (plan review)
 06. /mixio:generate per batch → studio_update_shot_state → /mixio:eval before delivery
 ```
 
 ## Notes
 
-- The Ralph Loop's corrective reads and text/graph writes are token-only. Step 02 can render anchor or sheet images, so it is never entered automatically; a continuity break found in Step 04 costs a paragraph, the same break found in Step 06 costs a re-render.
+- The Ralph Loop's corrective reads and text/graph writes never start generation. Step 02 can render anchor or sheet images, so it is never entered automatically; a continuity break found in Step 04 is easier to correct than the same break found after a Step 06 render.
 - The Ralph Loop stops after three automated correction cycles per scene. If a blocking issue persists, present a focused user decision rather than silently forcing a creative change; persist `running` or `blocked` state at each cycle boundary so a later session resumes honestly.
 - If the user jumps straight to "generate this script", still run 01→05 — just run them fast and present each gate as a short confirm rather than a discussion.
 - Re-entering an earlier step invalidates the later ones. Editing Step 03 after Step 05 means re-planning; say so instead of patching one batch.

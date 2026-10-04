@@ -37,7 +37,7 @@
   ],
   "stop_conditions": [
     "阵容已经说明 core cast、optional cast、process nodes、persona lenses、human-owned nodes 和 trim order",
-    "每个 subagent 都有清楚 mandate、authority 和 context budget",
+    "每个 subagent 都有清楚 mandate、authority 和 handoff",
     "阵容既丰富又克制，没有滑向全员上场或 persona 主导"
   ],
   "rubrics": [
@@ -49,11 +49,9 @@
     "ka.process-node-specialization",
     "ka.reference-persona-governance",
     "ka.subagent-cast-composition",
-    "ka.subagent-context-budgeting",
     "ka.team-topology-selection"
   ],
-  "budget_class": "L",
-  "mandatory_atom_count": 7,
+  "mandatory_atom_count": 6,
   "expansion_allowed": true
 }
 ---

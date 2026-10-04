@@ -32,7 +32,7 @@ This repository contains two distinct categories. They live in the same director
 
 **Screenplay Craft** — Knowledge that directly helps produce or evaluate script content. This is what an Agent loads when asked to write, rewrite, or review a screenplay. Character arcs, scene function, dialogue subtext, exposition control, medium constraints, genre mechanics.
 
-**Agent Orchestration** — Knowledge about how to organize the work itself. Context loading budgets, subagent dispatch topologies, team workflow blueprints, handoff packet formats, session execution planning. This loads when an Agent needs to coordinate multi-step or multi-agent work.
+**Agent Orchestration** — Knowledge about how to organize the work itself. Context loading scopes, subagent dispatch topologies, team workflow blueprints, handoff packet formats, session execution planning. This loads when an Agent needs to coordinate multi-step or multi-agent work.
 
 A craft workflow (like `wp.scene-writing`) should never pull in orchestration atoms. The manifests enforce this: craft skills link only to craft atoms, orchestration skills link to orchestration atoms. The two categories are designed to stay separate at load time.
 

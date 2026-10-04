@@ -133,7 +133,7 @@ Guild, lab, and industry sources all show that screenplay creation is often coll
 
 - development rooms can exist before greenlight;
 - TV rooms have staffing, duration, continuity, and production-involvement rules;
-- script editors and development producers translate notes, budget, continuity, and commissioner needs into rewrite action;
+- script editors and development producers translate notes, delivery constraints, continuity, and commissioner needs into rewrite action;
 - support staff and continuity roles preserve ideas, version lineage, timing, and traceability;
 - writing teams, credit rules, and handoff continuity are formal parts of the work, not soft background context.
 

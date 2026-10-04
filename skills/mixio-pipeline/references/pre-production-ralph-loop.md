@@ -2,7 +2,7 @@
 
 The autonomous quality gate across **Step 01 Screenplay** ↔ **Step 02.5 Reference Audit** ↔ **Step 04 Continuity Audit**. Step 02 Sheets/Anchors and Step 03 Breakdown are prerequisites and revalidation points, not loop phases.
 
-The loop only makes safe text and graph corrections. It never enters a generation use case, including sheets or anchors; those image jobs remain explicitly user-authorized. The loop corrects syntax, bindings, and continuity errors until **zero blocking errors** remain, then asks for user approval before Step 05 shot planning and cost approval.
+The loop only makes safe text and graph corrections. It never enters a generation use case, including sheets or anchors; those image jobs remain explicitly user-authorized. The loop corrects syntax, bindings, and continuity errors until **zero blocking errors** remain, then asks for user approval before Step 05 shot planning.
 
 ---
 
@@ -10,9 +10,9 @@ The loop only makes safe text and graph corrections. It never enters a generatio
 
 Without an autonomous loop, each step halts on findings or passes flawed data downstream:
 - A missing prop put-down action in Step 04 gets flagged, but without an auto-correction and re-audit loop, the agent either asks the user for permission on a trivial text fix or applies a single unverified edit that introduces a new eyeline break.
-- A stale look binding (`STALE_LOOK_REF`) or missing character look in Step 02.5/04 fails soft and degrades silently to the default look during Step 06 video generation, wasting render credits.
+- A stale look binding (`STALE_LOOK_REF`) or missing character look in Step 02.5/04 fails soft and degrades silently to the default look during Step 06 video generation, wasting a render.
 
-The Token Ralph Loop makes pre-production **self-healing** without silently spending credits:
+The Token Ralph Loop makes pre-production **self-healing** without silently starting generation:
 ```
 02 Sheets & Anchor Frames (separately user-confirmed; never auto-entered)
   ↓
@@ -241,4 +241,4 @@ studio_update_episode({
 ```
 
 Announce convergence clearly to the user:
-`Pre-Production Token Ralph Loop converged (0 blocking reference errors, 0 continuity breaks across 14 shots). Breakdown locked. Ready for Step 05 — Shot Planning & Cost Approval.`
+`Pre-Production Token Ralph Loop converged (0 blocking reference errors, 0 continuity breaks across 14 shots). Breakdown locked. Ready for Step 05 — Shot Planning.`

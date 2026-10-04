@@ -115,7 +115,7 @@
     "Route first, then team mode, then cast, then topology.",
     "Do not let reference personas become default merge owners.",
     "Keep one explicit convergence owner whenever more than one lane exists.",
-    "If context budgets start widening without changing the answer, collapse the topology.",
+    "If adding agents does not change the answer, collapse the topology.",
     "Prefer fresh_task_review_loop for repo asset implementation or any task where contract drift is expensive."
   ]
 }

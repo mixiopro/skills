@@ -79,7 +79,6 @@
 - `draft_stage`
 - `participation_mode`
 - `deliverable_mode`
-- `budget_band`
 - `writer_maturity`
 - `research_scope`
 - `failure_layer`
@@ -107,7 +106,6 @@
 - `text_mode`
 - `team_mode`
 - `coordination_model`
-- `parallelism_budget`
 - `human_gate_level`
 - `artifact_chain`
 - `subagent_family`
@@ -115,7 +113,6 @@
 - `selection_strategy`
 - `dispatch_topology`
 - `convergence_owner`
-- `context_budget`
 - `project_horizon`
 - `phase_focus`
 - `truth_surface_policy`

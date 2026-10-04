@@ -42,7 +42,6 @@
     "ka.platform-attention-economy",
     "ka.screenwriting-history-shift"
   ],
-  "budget_class": "M",
   "mandatory_atom_count": 5,
   "expansion_allowed": true
 }

@@ -8,12 +8,11 @@
     {"name": "topology_fit", "question": "所选 dispatch topology 是否匹配媒介、风险结构、artifact chain 和 team mode"},
     {"name": "phase_clarity", "question": "phase ladder、lane 边界、merge 节点和 stop condition 是否清楚"},
     {"name": "packet_precision", "question": "handoff packet、truth packet 和共享字段是否明确且可操作"},
-    {"name": "context_budget_control", "question": "不同 lane 的 context budget 是否有清楚上限与扩容触发"},
     {"name": "review_and_gate_design", "question": "review loop 与 human gates 是否放在真正该放的位置"},
     {"name": "collapse_and_fallback", "question": "是否说明何时裁剪 lanes、何时切换 topology、何时降级成更保守模式"}
   ],
   "scoring_bands": {
-    "excellent": "调度结构贴题、阶段清楚、交接可执行、预算受控、审查位置合理，并且知道何时收缩与切换。",
+    "excellent": "调度结构贴题、阶段清楚、交接可执行、审查位置合理，并且知道何时收缩与切换。",
     "workable": "能基本运行，但 merge、packet、gate 或 fallback 仍有模糊地带。",
     "weak": "更像抽象组织图，而不是可真正执行的调度计划。"
   },
@@ -27,7 +26,7 @@
   "rewrite_actions": [
     "补写 topology 选择理由和备选 topology",
     "明确 phase ladder、merge 节点、handoff packet 和 stop rules",
-    "为每个 lane 增加 context budget、扩容触发和 collapse trigger",
+    "为每个 lane 标明职责、handoff packet 和 collapse trigger",
     "把 review loop 改写成 spec-first、quality-second 的两阶段结构"
   ]
 }
