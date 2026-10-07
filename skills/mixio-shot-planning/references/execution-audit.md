@@ -8,11 +8,11 @@ Read these from `projects.settings` with `studio_get_project`:
 
 | Setting path | Effect on planning |
 |---|---|
-| `settings.generation.defaultModelByUseCase` | Pinned model per use case, such as `production-generate-video` or `production-generate-shot-keyframes`. |
-| `settings.studio.preferredVideoModel` | Default fallback video generation engine. |
+| `settings.generation.defaultModelByUseCase` | Pinned model per normal video use case, such as `cinematic-video` or `multi-shot-video`, plus image use cases used for keyframes. |
+| `settings.studio.preferredVideoModel` | General Studio preference; do not use it as a substitute for a model pinned to the selected video use case. |
 | `settings.studio.defaultVideoShotMode` | UI preference: `single-shot` biases to `SINGLE`/`DUAL_FRAME`, `multi-keyframe` to `SEQUENCE`, and `grid` to `GRID`. Only these three biases are known — the multi-cut mode lives in episode metadata (next row), not here. |
 | `settings.studio.videoDurationSeconds` | Open string (no enum): the locked shot-length band, e.g. `"10-15"` (multi-cut default) or `"2.5-4.5"` (panel). Set in Step 00; read it to confirm the band still matches `shot_contract`. |
-| episode `metadata.pipeline.shot_contract` | `{ mode: "multi_cut"\|"panel", band }` — when `mode` is `multi_cut`, shots with `cuts[]` (or durations in the band) classify as `MULTI_CUT`. |
+| episode `metadata.pipeline.shot_contract` | `{ mode: "multi_cut"\|"panel", band }` — a `multi_cut` shot in the locked duration band needs non-empty authored `cuts[]` before it can be classified as `MULTI_CUT`. |
 | `settings.generation.defaultAspectRatioByOutputType` | Step 00's locked output ratios. |
 | `settings.generation.defaultParametersByUseCase` | Pinned per-use-case parameters, such as video `resolution`. |
 
@@ -113,8 +113,9 @@ Write per-shot planning metadata alongside the batch assignment. Keep `chunk_ind
 for `batch_index` for backwards compatibility. `MULTI_CUT` shots persist
 `generation_method: "MULTI_CUT"`, `generation_use_case: "multi-shot-video"`, and
 `generation_input_contract: "multi-cut"`; the `cuts[]` array itself is authored at Step 03/04
-and stays untouched by planning (route changes never edit cut specs — only a feasibility
-fallback snaps boundaries, and that snap is recorded alongside `generation_model`). Keep a bound CHARACTER look on the existing
+and stays untouched by planning. A fallback to `SEQUENCE` is planned as separate jobs whose
+whole-job durations come from the selected model schema and sum to the intended shot length; it
+does not snap or rewrite authored cut durations. Keep a bound CHARACTER look on the existing
 relation's `lookRef`; Step 06 either supplies that reference through `selectedElements` so Studio
 resolves the cascade, or passes `variantId` / `variantName` on its media reference. For a
 LOCATION, persist the selected configuration variant and exact approved camera-view URL from the
@@ -125,26 +126,26 @@ confirmed inventory; do not encode the angle as a character `lookRef`. Do not in
 studio_revise_shot_specs({ projectId, shots: [
   { shotId: s1, metadata: {
     generation_method: "SINGLE",
-    generation_model: "seedance_image_to_video_v2",
-    generation_use_case: "production-generate-video",
+    generation_model: "hailuo-v3-image-to-video",
+    generation_use_case: "cinematic-video",
     generation_input_contract: "single-start-frame",
     batch_index: 1,
     batch_position: 1,
-    batch_duration: 9.5,
+    batch_duration: 10.0,
     keyframe_count: 1,
     continuity_input: null
   }},
   { shotId: s4, metadata: {
     generation_method: "MASTER_ANCHOR_MULTI_SHOT",
     generation_model: "veo_3_1",
-    generation_use_case: "production-generate-video",
-    generation_input_contract: "scene-anchor-reference-to-derived-keyframe",
+    generation_use_case: "cinematic-video",
+    generation_input_contract: "scene-anchor-reference-to-derived-keyframe-then-cinematic-video",
     keyframe_generation_use_case: "production-generate-shot-keyframes",
     batch_index: 2,
     batch_position: 1,
     batch_duration: 8.0,
     keyframe_count: 1,
-    continuity_input: "scene.anchorRef resolved by the Studio production path"
+    continuity_input: "scene.anchorRef resolved by the skill and passed as explicit media/context"
   }}
 ]})
 

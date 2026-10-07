@@ -39,15 +39,15 @@ the two input shapes in one standard i2v family; persist the concrete code on th
 Classify by inspecting `camera_movement`, `action`, `duration`, markers, scene anchors,
 `cuts[]`, and project settings.
 
-| Archetype | Code | Target Studio Use Case / Shape | When to use |
+| Archetype | Code | Target Video Use Case / Shape | When to use |
 |-----------|------|--------------------------------|-------------|
 | **Grid / Montage** | `GRID` | `production-generate-shot-keyframe-grid` (multi-panel) | Turnaround sheets, montages, multi-angle grids, comic/storyboard panels |
-| **Multi-Cut** | `MULTI_CUT` | one native `multi-shot-video` job (H3 Ref2Vid first) from persisted `cuts[]` | 10–15s shots in a `multi_cut` band with authored per-cut specs (see `references/model-matching.md#multi-cut-routing`) |
-| **Sequence** | `SEQUENCE` | `production-generate-shot-keyframe-sequence` (one of `4`/`6`/`8`/`10`/`12` frames) | Long or complex shots: multiple distinct beats, multi-marker choreographies, extended camera moves |
-| **Master Anchor Multi-Shot** | `MASTER_ANCHOR_MULTI_SHOT` | Scene anchor as a reference → one derived `production-generate-shot-keyframes` job → video | Coverage (CU, MCU, OTS) spatially grounded by the wide scene anchor |
-| **Single-frame i2v** | `SINGLE` | 1 keyframe image → video (`production-generate-shot-keyframes` / `-video`) | Static/simple shots: holds, reactions, gentle camera moves (static, pan, tilt), single continuous action |
-| **Start+End i2v** | `DUAL_FRAME` | Start + end frame → video (`production-generate-shot-keyframes` / `-video`) | Complex transitions: significant blocking change, subject enters/exits, major camera framing change |
-| **Text-to-video** | `T2V` | Prompt only, no start frame (`production-generate-video`) | Abstract, establishing shots with no prior frame, mood pieces |
+| **Multi-Cut** | `MULTI_CUT` | one `multi-shot-video` job from persisted `cuts[]` | 10–15s shots in a `multi_cut` band with authored per-cut specs (see `references/model-matching.md#multi-cut-routing`) |
+| **Sequence** | `SEQUENCE` | keyframe planning as needed, then standard video passes through `cinematic-video` | Long or complex shots: multiple distinct beats, multi-marker choreographies, extended camera moves |
+| **Master Anchor Multi-Shot** | `MASTER_ANCHOR_MULTI_SHOT` | scene anchor + derived keyframe/reference → `cinematic-video` | Coverage (CU, MCU, OTS) spatially grounded by the wide scene anchor |
+| **Single-frame i2v** | `SINGLE` | 1 keyframe image → `cinematic-video` | Static/simple shots: holds, reactions, gentle camera moves (static, pan, tilt), single continuous action |
+| **Start+End i2v** | `DUAL_FRAME` | start + end frames → `cinematic-video` | Complex transitions: significant blocking change, subject enters/exits, major camera framing change |
+| **Text-to-video** | `T2V` | prompt-only `cinematic-video` model | Abstract, establishing shots with no prior frame, mood pieces |
 
 ### Classification rules
 
@@ -56,13 +56,29 @@ Select the model and read its live duration schema before applying these rules. 
 matching.
 
 ```
-if shot is a multi-panel layout, montage sequence, or storyboard grid:
-    → GRID
+mode = episode metadata.pipeline.shot_contract.mode
+in_band = shot.duration is inside the episode's locked band
+has_cuts = cuts[] exists
 
-if episode metadata.pipeline.shot_contract.mode == "multi_cut"
-   AND (shot has authored cuts[] OR shot.duration is in the locked band, default 10–15s):
+if has_cuts AND (mode != "multi_cut" OR NOT in_band):
+    → BLOCKING: cuts[] is only valid for a multi_cut shot inside its locked band;
+      resolve the episode contract or re-author/remove cuts[] with approval before routing
+
+if shot is a multi-panel layout, montage sequence, or storyboard grid:
+    if has_cuts:
+        → BLOCKING: GRID cannot consume MULTI_CUT cuts[]; resolve the conflicting shot contract
+    else:
+        → GRID
+
+if mode == "multi_cut":
+    if NOT in_band:
+        → BLOCKING: shot duration is outside the locked multi_cut band; do not route it as another archetype
+    if cuts[] is missing or empty:
+        → BLOCKING: author and persist non-empty cuts[] before classifying or generating
+    if cuts[] fails the canonical invariant:
+        → BLOCKING: fix cuts[] before classifying or generating
     → MULTI_CUT (one native multi-shot-video job; validate the route in
-      references/model-matching.md#multi-cut-routing and the cuts[] sum rule in
+      references/model-matching.md#multi-cut-routing and the cuts[] invariant in
       pipeline shot-grammar.md)
 
 if shot has no preceding shot/anchor in the scene and is an abstract or atmospheric establishing shot:
@@ -104,7 +120,7 @@ Read `projects.settings` through `studio_get_project` before selecting a fallbac
 ## 2. Model matching
 
 Match each shot to the best available model based on what it needs. This is a recommendation, not a hard constraint — the user may override. Read the real per-model contract with `studio_get_use_case_input_schema({ useCaseId, modelId })` — that is the only authoritative source. Do **not** call `studio_list_generation_models` for this: it returns `{ id, label }` and nothing else (see `mixio-generate`).
-Full capability profiles, strength-area matching guidance, and the conflicting-needs pattern: `references/model-matching.md`. `MULTI_CUT` shots follow their own fixed route table — [`references/model-matching.md#multi-cut-routing`](references/model-matching.md#multi-cut-routing) — starting with H3 Ref2Vid on `multi-shot-video`.
+Full capability profiles, task-to-use-case routing, strength-area matching guidance, and the conflicting-needs pattern: `references/model-matching.md`. `MULTI_CUT` shots follow the route table in [`references/model-matching.md#multi-cut-routing`](references/model-matching.md#multi-cut-routing), starting with H3 Ref2Vid on the normal `multi-shot-video` use case. The video-use-case routing reference explains how Step 06 passes the full shot context and explicit inputs: [`mixio-generate/references/video-use-case-routing.md`](../mixio-generate/references/video-use-case-routing.md).
 
 ---
 
@@ -116,13 +132,14 @@ ceilings, so they are advisory.
 
 ### Duration feasibility
 
-A numeric duration contract is exact values (`enum`/`const`, including `anyOf`) or numeric bounds.
+A duration contract is its exact allowed values (`enum`/`const`, including `anyOf`) or bounds.
+Normalize numeric strings for comparison, but preserve the schema's declared wire type when
+submitting. Treat `auto` as an inexact value; do not use it for a shot with a locked duration.
 
 For `MULTI_CUT` shots, derive the contract from the **`multi-shot-video` use case** on the routed
-model (H3 Ref2Vid `auto,5–15`), not from `production-generate-video` — the latter's H3 enum
-`{5,6,8,10,12}` cannot express 13–15s. Also verify the `cuts[]` invariant: ≤5 cuts, contiguous
-from 0.0, each ≥1.5s (or snapped to the fallback model's per-cut floor), sum within ±0.05s of
-`shot.duration`; report `CUTS_SUM_MISMATCH` / `CUT_COUNT_EXCEEDED` as BLOCKING.
+model (H3 Ref2Vid `auto,5–15`). Require non-empty authored `cuts[]` and validate the canonical
+[`cuts[]` invariant](../mixio-script-breakdown/references/canonical-schema.md), including its
+duration sum; report missing cuts, `CUTS_SUM_MISMATCH`, and `CUT_COUNT_EXCEEDED` as BLOCKING.
 
 ```
 duration_schema = schema?.properties?.parameters?.properties?.duration
@@ -131,13 +148,18 @@ if duration_contract is unreadable:
     FINDING: DURATION_SCHEMA_UNAVAILABLE — selected model exposes no readable duration contract
     → BLOCKING: stop planning until the live schema is resolved or the user selects another model
 
-if duration_contract.allowed_values exists AND shot.duration not in allowed_values:
+if duration_contract.allowed_values exists AND shot.duration not in numeric_allowed_values:
     FINDING: DURATION_NOT_SUPPORTED — Shot 9 (6s) is not one of [4s, 8s]
     → BLOCKING: Use an allowed duration, split the shot, or select another model
 
 if duration_contract.bounds exist AND shot.duration is outside [minimum, maximum]:
     FINDING: DURATION_OUT_OF_RANGE — Shot 9 (18s) > model max (8s)
     → BLOCKING: Split into segments or reassign to model with a compatible range
+
+For MULTI_CUT, the route's duration is the whole video output. The authored `cuts[].duration`
+values define the planned cut timing and prompt timestamps; they are not model duration controls.
+If an enum cannot express the exact shot duration, mark that route incompatible and re-author the
+shot duration plus cuts sum under approval before generation.
 
 if shot.duration < 2.0 and method in (SINGLE, DUAL_FRAME):
     FINDING: DURATION_TOO_SHORT — most video models produce minimum 3-4s
@@ -234,7 +256,7 @@ for each character_link with a bound lookRef:
         → BLOCKING: Re-bind variant or fix in Step 02.5 (STALE_LOOK_REF)
 ```
 
-Pull character bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. Carry each approved character `variantId`/`variantName` into the persisted plan. For locations, record the confirmed configuration `variantId`/`variantName` and exact labeled view URL; a generic `lookRef` check does not prove camera-view readiness (see `mixio-generate` §7).
+Pull character bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. Carry each approved character `variantId`/`variantName` into the persisted plan. For locations, record the confirmed configuration `variantId`/`variantName` and exact labeled view URL; a generic `lookRef` check does not prove camera-view readiness (see `mixio-generate/references/reference-media.md`).
 
 ### Prompt mention & mention map validation (Universal Invariant across all models & methods)
 
@@ -244,8 +266,8 @@ Regardless of the model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan,
 for each shot with media references (primary, endFrame, references, character_ref,
 location_ref, style_ref, asset_ref, clothing_ref, image_urls, motionRef, audioRef,
 enhancer_context, and every other schema-declared media slot):
-    assets = flatten_media_slots(input.media)  # stable key: elementId/mediaId/url;
-                                               # retain slot/index for diagnostics
+    assets = flatten_media_slots(input.media)  # referenceIdentityKey = exact elementId/mediaId/url;
+                                               # retain slot/index for diagnostics only
     effective_prompt = prompt if prompt is present else materialized_prompt(sequence_notes, shot_spec)
     if assets.length == 0:
         continue
@@ -253,7 +275,7 @@ enhancer_context, and every other schema-declared media slot):
         FINDING: MENTION_MAP_UNPAIRED — media requires both maps
         → BLOCKING: create one slotTags + mentionMap pair for every asset
     for each assetKey, asset in assets:
-        tag = slotTags[assetKey]
+        tag = slotTags[asset.referenceIdentityKey]
         if tag is missing OR tag does not start with '@' OR effective_prompt contains tag zero times:
             FINDING: PROMPT_MENTION_MISSING — asset has no prompt @tag
             → BLOCKING: embed @tag where that asset acts
@@ -298,10 +320,9 @@ After archetype/model assignment and feasibility resolution, group shots into **
 ### Batch rules (per model)
 
 **Confirm per-shot limits from `studio_get_use_case_input_schema({ useCaseId, modelId })`**;
-historical [batch profiles](references/execution-audit.md#batch-profiles) are lookup material, not a live contract.
-`studio_plan_shot_batch` exposes `maxBatchDuration` (1–60, default **15**), `maxBatchShots`
-(1–50, default **5**), and `targetModel`; a `MULTI_CUT` shot in the 10–15s band consumes the
-default 15s ceiling by itself, so expect one multi-cut shot per batch.
+historical [batch profiles](references/execution-audit.md#batch-profiles) are lookup material,
+not a live contract. The planner's configurable batch limits and the `MULTI_CUT` consequence
+are in the [batch-planning reference](references/batch-planning.md).
 
 ### Batch formation algorithm
 

@@ -84,17 +84,20 @@ Shot 12 — 12.0s [M1]  MULTI_CUT
                           | slow push-in past TONY's right shoulder
 ```
 
-- **≤5 cuts.** Each cut ≥1.5s natively; cut boundaries contiguous from `0.0`; the durations sum to
-  within ±0.05s of the shot `duration`. One decimal place throughout.
+- Validate the persisted array against the single [canonical `cuts[]` invariant](../../mixio-script-breakdown/references/canonical-schema.md).
 - Each line carries: cut index, shot type, time range, action (with its markers), and camera +
-  in-frame layers for that cut. `audio` per cut is optional.
+  in-frame layers for that cut. Preserve optional angle, lens, and `audio` fields per cut as well.
 - **The sub-block is authoring syntax.** It maps to the canonical passthrough key `cuts[]` on the
   shot (`mixio-script-breakdown` owns the object shape). `cuts[]` is never woven into the 400-char
-  shot prompt — `mixio-generate` serializes it per model route instead (H3 Ref2Vid: six-section
-  composer plus `[Shot {n}] At MM:SS.mmm` lines).
-- **Fallback snap:** if a Step 05 fallback model's duration enum floors cuts below 1.5s, snap cut
-  boundaries to that model's per-cut minimum (gemini ≥3s, seedance/kling ≥4s, H3 I2V ≥5s),
-  re-check the sum rule, and record the snap in shot metadata.
+  shot prompt — `mixio-generate` serializes every populated per-cut field per model route. For H3
+  Ref2Vid, `[Shot 1]` has no timestamp; later cut headers carry their cumulative start time inside
+  the six-section composer.
+- The routed model's `duration` schema describes the whole output job, not per-cut duration
+  controls or a per-cut minimum. `cuts[].duration` defines planned timing and prompt timestamps.
+  If no model accepts the whole multi-cut job, keep `cuts[]` unchanged and plan a separately
+  approved `SEQUENCE` of schema-valid jobs whose durations sum to the intended shot length; this
+  creates segments, not one assembled multi-cut asset. If no exact sum is supported, re-author
+  the timing under approval.
 - `mixio-continuity` checks blocking per **shot × cut** for these shots (`12.1`, `12.2`, …).
 
 ## Scene staging block

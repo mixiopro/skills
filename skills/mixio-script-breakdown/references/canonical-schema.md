@@ -99,12 +99,13 @@ keep the invariant yourself:
 | `camera_angle`, `lens` | optional; same axes as the shot |
 | `action` | what happens in this cut; ≤2000 |
 | `blocking` | in-frame `FG`/`MG`/`BG` layers for this cut; ≤2000 |
-| `duration` | seconds, one decimal; ≥1.5s native (or snapped to the routed model's per-cut floor) |
+| `duration` | seconds, one decimal; ≥1.5s per authored cut |
 | `audio` | optional `{ dialogue?, sfx?, ambient? }`; `dialogue` ≤4000 |
 
-**Invariant (skill-enforced, not schema-enforced):** ≤5 cuts, cut boundaries contiguous from
-`0.0`, and the sum of cut durations within **±0.05s** of the shot's `duration`. Break it and
-`mixio-shot-planning` reports `CUTS_SUM_MISMATCH` / `CUT_COUNT_EXCEEDED` as blocking.
+**Invariant (skill-enforced, not schema-enforced):** `cuts` is non-empty and contains no more
+than 5 cuts; boundaries are contiguous from `0.0`, and cut durations sum to within **±0.05s**
+of the shot's `duration`. Break it and `mixio-shot-planning` reports the missing/invalid cuts,
+`CUTS_SUM_MISMATCH`, or `CUT_COUNT_EXCEEDED` as blocking.
 
 Author `cuts` only on the composed path — the managed `script_breakdown` job cannot emit it.
 Persistence is verbatim (the 400-char prompt-weave cap in the passthrough section above applies

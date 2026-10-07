@@ -17,11 +17,16 @@ Fill one row per asset in `input.media` (every schema-declared slot: `primary`,
 `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`,
 `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`, …):
 
-| assetKey (slot + index) | slot | `@tag` | mentionMap label | compiled token (routed model) | where the tag appears in the prompt |
+| Studio reference identity key (`slotTags` key) | `input.media` source | `@tag` | mentionMap label | compiled token (routed model) | where the tag appears in the prompt |
 |---|---|---|---|---|---|
-| `primary` | primary | `@scene1` | Scene 1 kitchen wide / approved view cam-a | H3: semantic tag (compiler-mapped) | context + shot plan |
-| `references[0]` | references | `@tony` | Tony / `tony.v2.suit` | H3: semantic tag | subject |
-| `references[1]` | references | `@watch` | Tony's watch (prop) | H3: semantic tag | subject |
+| `sceneAnchorId` | `image_urls[0]` | `@scene1` | Scene 1 kitchen wide / approved view cam-a | H3: semantic tag (compiler-mapped) | context + shot plan |
+| `tonyId` | `image_urls[1]` | `@tony` | Tony / `tony.v2.suit` | H3: semantic tag | subject |
+| `watchId` | `image_urls[2]` | `@watch` | Tony's watch (prop) | H3: semantic tag | subject |
+
+`slotTags` is keyed by Studio's reference identity key, not the `input.media` slot name or
+array index. Use `selectedElements.identityKey` when one is supplied; for URL-only media with no
+identity key, use the exact URL string as the key. `slotReferences` is keyed by media slot and
+does not change the `slotTags` key format. Do not guess a key from `primary` or `references[0]`.
 
 Rules (all blocking):
 
@@ -41,7 +46,7 @@ Rules (all blocking):
 
 | Route / model family | Tag form authored | Compiled to | Caps |
 |---|---|---|---|
-| H3 Ref2Vid `hailuo_v3_reference_to_video` (`multi-shot-video`) | semantic `@tag` | semantic tag, compiler-mapped per section | no Mixio prompt ceiling; media image ≤9, video ≤3, audio ≤3 |
+| H3 Ref2Vid `hailuo_v3_reference_to_video` (`multi-shot-video`) | semantic `@tag` | `<Picture N>` / `<Video N>` / `<Audio N>` by backend upload order | no Mixio prompt ceiling; media image ≤9, video ≤3, audio ≤3 |
 | Seedance `seedance_reference_to_video_v2` | semantic `@tag` | `@Image{n}` / `@Video{n}` / `@Audio{n}` | 3–15s |
 | Kling `kling_o3_standard_reference_to_video` / `_pro_` | semantic `@tag` | `@Element{n}` / `@Image{n}`; audio `<<<voice_{n}>>>` | ≤2 voice tokens; references cap 4 |
 | Gemini `gemini_omni_multishot` | semantic `@tag` | `<IMAGE_REF_{n}>` / `@Image{n}` | ≤9 image refs; 3–10s; 16:9 / 9:16 only |
@@ -49,34 +54,49 @@ Rules (all blocking):
 
 ## Multi-cut cut-line grammar (H3 six-section composer)
 
-For a `MULTI_CUT` shot, append one line per `cuts[]` member after the six sections:
+For a `MULTI_CUT` shot, place one cut line per `cuts[]` member inside
+`detailed_description`, in cut order. Preserve every populated field; do not reduce the saved
+direction to just framing and action:
 
 ```
-[Shot {cut_index}] At MM:SS.mmm — {shot_type}: {action}
+[Shot 1] {shot_type}; angle: {camera_angle}; lens: {lens}; camera: {camera_movement}; action: {action}; blocking: {blocking}; dialogue: {audio.dialogue}; SFX: {audio.sfx}; ambient: {audio.ambient}
+[Shot {cut_index}] At MM:SS.mmm {shot_type}; angle: {camera_angle}; lens: {lens}; camera: {camera_movement}; action: {action}; blocking: {blocking}; dialogue: {audio.dialogue}; SFX: {audio.sfx}; ambient: {audio.ambient}
 ```
 
-Timestamps are cumulative cut starts (cut 1 at `00:00.000`); action text is `cuts[].action`
-(+ `blocking` when present), unabridged — the cuts were persisted for exactly this. Seedance,
-Kling, and Gemini multi-cut prompts use the same cut lines as plain prose sections (no
-bracket grammar), with tags compiled per the table above.
+`[Shot 1]` has no timestamp. Every later header uses the cumulative start time from the sum of
+preceding `cuts[].duration` values (`MM:SS.mmm`). Omit an optional label when that field is
+absent; never omit or shorten a populated camera, blocking, action, or audio value. Keep all
+`@tag`s in the effective prompt. Seedance, Kling, and Gemini multi-cut prompts express the same
+complete cut details as plain prose rather than H3's bracketed shot headers.
 
 ## Worked example (12s MULTI_CUT, H3)
 
 ```
-slotTags   { "primary": "@scene1", "references[0]": "@tony", "references[1]": "@watch" }
+slotTags   { [sceneAnchorId]: "@scene1", [tonyId]: "@tony", [watchId]: "@watch" }
 mentionMap {
   "@scene1": "Scene 1 kitchen wide / approved view cam-a",
   "@tony":   "Tony / tony.v2.suit",
   "@watch":  "Tony's watch (prop)"
 }
 
-prompt (six sections + cut lines):
-  Context: …  References: @scene1 …  Subject: @tony (MC, …) holds @watch …
-  Shot plan:
-    [Shot 1] At 00:00.000 — MS: Tony enters, @watch catching the window light.
-    [Shot 2] At 00:06.500 — CU: @watch fills frame as the hand stops.
-    [Shot 3] At 00:10.000 — WS: Tony turns, @scene1 visible behind.
-  Style: …  Constraints: …
+prompt (six exact H3 sections; abbreviated example):
+subject_definitions
+<Subject 1> Tony, an adult man matching @tony; <Subject 2> a wristwatch matching @watch; <Subject 3> the kitchen matching @scene1.
+
+summary
+[reference generation] A 12-second, three-cut kitchen action with Tony and the watch.
+
+retention_analysis
+<Subject 1>: fully_preserved; <Subject 2>: fully_preserved; <Subject 3>: fully_preserved.
+
+detailed_description
+Keep the same Tony, watch, and kitchen identity. [Shot 1] MS; angle: eye-level; lens: 35mm; camera: slow lateral track; action: @tony enters and checks @watch; blocking: @tony in MG, counter in FG; dialogue: none; SFX: quiet footsteps; ambient: kitchen room tone. [Shot 2] At 00:06.500 CU; angle: top-down; lens: 50mm; camera: locked-off; action: @watch fills frame as @tony's hand stops; blocking: watch in FG; dialogue: none; SFX: strap click; ambient: kitchen room tone. [Shot 3] At 00:10.000 WS; angle: eye-level; lens: 35mm; camera: slow pull-back; action: @tony turns toward @scene1; blocking: @tony in MG, kitchen in BG; dialogue: none; SFX: none; ambient: kitchen room tone.
+
+overall_soundscape
+Quiet kitchen room tone, soft footsteps, one clear strap click.
+
+non_diegetic_music
+N/A.
 ```
 
 Before submitting, run the sheet through the same checks as
