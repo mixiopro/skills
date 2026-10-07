@@ -10,7 +10,9 @@ Read these from `projects.settings` with `studio_get_project`:
 |---|---|
 | `settings.generation.defaultModelByUseCase` | Pinned model per use case, such as `production-generate-video` or `production-generate-shot-keyframes`. |
 | `settings.studio.preferredVideoModel` | Default fallback video generation engine. |
-| `settings.studio.defaultVideoShotMode` | UI preference: `single-shot` biases to `SINGLE`/`DUAL_FRAME`, `multi-keyframe` to `SEQUENCE`, and `grid` to `GRID`. |
+| `settings.studio.defaultVideoShotMode` | UI preference: `single-shot` biases to `SINGLE`/`DUAL_FRAME`, `multi-keyframe` to `SEQUENCE`, and `grid` to `GRID`. Only these three biases are known — the multi-cut mode lives in episode metadata (next row), not here. |
+| `settings.studio.videoDurationSeconds` | Open string (no enum): the locked shot-length band, e.g. `"10-15"` (multi-cut default) or `"2.5-4.5"` (panel). Set in Step 00; read it to confirm the band still matches `shot_contract`. |
+| episode `metadata.pipeline.shot_contract` | `{ mode: "multi_cut"\|"panel", band }` — when `mode` is `multi_cut`, shots with `cuts[]` (or durations in the band) classify as `MULTI_CUT`. |
 | `settings.generation.defaultAspectRatioByOutputType` | Step 00's locked output ratios. |
 | `settings.generation.defaultParametersByUseCase` | Pinned per-use-case parameters, such as video `resolution`. |
 
@@ -44,6 +46,11 @@ Blocking: 3 (must resolve)
 Advisory: 2 (Studio's universal pacing heuristics; not per-model limits)
 ```
 
+Episodes with `shot_contract.mode: "multi_cut"` add a `MULTI_CUT` line to the archetype
+distribution and report the routed model per multi-cut shot (H3 Ref2Vid first — see
+`model-matching.md#multi-cut-routing`). Any `CUTS_SUM_MISMATCH` or `CUT_COUNT_EXCEEDED`
+finding is blocking, exactly like a duration finding.
+
 ## Batch profiles
 
 These are historical family profiles only. Confirm the selected model's duration and batch
@@ -56,6 +63,7 @@ contract with `studio_get_use_case_input_schema` before assigning work.
 | Veo 3.1 | 8s | 3 | Shorter ceiling, high fidelity |
 | Sora 2 | 20s | 4 | Longer single-pass output |
 | Kling 2.6 Pro | 10s | 5 | Similar to Seedance |
+| multi-shot-video (H3 Ref2Vid) | 15s (enum `auto,5–15`) | 5 (`maxBatchShots` default) | A `MULTI_CUT` shot in the 10–15s band fills the default `maxBatchDuration` alone |
 
 ## Production summary
 
@@ -102,7 +110,11 @@ Rapid pacing sections:
 ## Plan persistence
 
 Write per-shot planning metadata alongside the batch assignment. Keep `chunk_index` as an alias
-for `batch_index` for backwards compatibility. Keep a bound CHARACTER look on the existing
+for `batch_index` for backwards compatibility. `MULTI_CUT` shots persist
+`generation_method: "MULTI_CUT"`, `generation_use_case: "multi-shot-video"`, and
+`generation_input_contract: "multi-cut"`; the `cuts[]` array itself is authored at Step 03/04
+and stays untouched by planning (route changes never edit cut specs — only a feasibility
+fallback snaps boundaries, and that snap is recorded alongside `generation_model`). Keep a bound CHARACTER look on the existing
 relation's `lookRef`; Step 06 either supplies that reference through `selectedElements` so Studio
 resolves the cascade, or passes `variantId` / `variantName` on its media reference. For a
 LOCATION, persist the selected configuration variant and exact approved camera-view URL from the

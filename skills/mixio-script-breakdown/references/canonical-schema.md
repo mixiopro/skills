@@ -19,7 +19,8 @@ Seven required fields. Persisting a shot without them throws `Shot metadata miss
 | `lighting` | — | key lighting setup and quality; ≤2000 |
 | `mood` | — | emotional tone and atmosphere; ≤2000 |
 | `blocking` | — | subject positioning and movement in frame; ≤2000. Alias `subjectPosition` |
-| `duration` | ✅ | seconds, **continuous float 1–60** (typical 3–15) |
+| `duration` | ✅ | seconds, **continuous float 1–60** (typical 3–15; `multi_cut` band 10–15) |
+| `cuts` | — | `cuts[]` per-cut array for `MULTI_CUT` shots — see [`cuts[]` below](#cuts--multi-cut-passthrough); composed-path only |
 | `temporal_effect` | — | defaults `"normal"`; ≤256 |
 | `audio` | — | `{ dialogue?, sfx?, ambient? }`. A bare string is coerced to `{ sfx }` |
 | `character_links` | — | canonical **names**, not ids |
@@ -82,6 +83,35 @@ Match the move to emotional intent: `static` for tension, contemplation, dialogu
 
 All four vocabularies above (`shot_type`, `camera_angle`, `lens`, `camera_movement`) are authoring conventions, not validation — the fields are plain strings server-side and an off-vocabulary value persists without complaint. Stay inside them for auditability and because the direction compiler expects them, not because a write outside them will fail.
 
+### `cuts[]` — multi-cut passthrough
+
+For a `MULTI_CUT` shot (the `multi_cut` band, 10–15s), the per-cut plan persists under the
+snake_case shot key **`cuts`** as an array of objects. It is a passthrough key: the write
+boundary accepts it (`revise_shot_specs` metadata is `additionalProperties: {}`), nothing
+validates its members, and reads return it verbatim — so read the shot back after writing, and
+keep the invariant yourself:
+
+| Member | Notes |
+|---|---|
+| `cut_index` | 1-based, contiguous, no gaps |
+| `shot_type` | framing for this cut (shot-grammar vocabulary) |
+| `camera_movement` | this cut's move (same vocabulary as the shot) |
+| `camera_angle`, `lens` | optional; same axes as the shot |
+| `action` | what happens in this cut; ≤2000 |
+| `blocking` | in-frame `FG`/`MG`/`BG` layers for this cut; ≤2000 |
+| `duration` | seconds, one decimal; ≥1.5s native (or snapped to the routed model's per-cut floor) |
+| `audio` | optional `{ dialogue?, sfx?, ambient? }`; `dialogue` ≤4000 |
+
+**Invariant (skill-enforced, not schema-enforced):** ≤5 cuts, cut boundaries contiguous from
+`0.0`, and the sum of cut durations within **±0.05s** of the shot's `duration`. Break it and
+`mixio-shot-planning` reports `CUTS_SUM_MISMATCH` / `CUT_COUNT_EXCEEDED` as blocking.
+
+Author `cuts` only on the composed path — the managed `script_breakdown` job cannot emit it.
+Persistence is verbatim (the 400-char prompt-weave cap in the passthrough section above applies
+only when the Tier 2 materializer gathers context), which is why `mixio-generate` serializes
+`cuts` into the effective prompt itself per model route instead of relying on the weave. The
+authoring syntax for the block is the `Cuts:` sub-block in `mixio-pipeline`'s `shot-grammar.md`.
+
 ## Where the fine-grained camera detail goes
 
 The shot-grammar fields map **1:1 onto canonical keys** — camera detail no longer degrades into prose. (On an older Studio, `camera_angle`, `lens`, `lighting`, `mood` and `blocking` aren't recognized as canonical fields yet — they aren't rejected, they land in passthrough same as any other unrecognized key. Write and read one back to see which behavior your Studio has.)
@@ -98,7 +128,7 @@ The shot-grammar fields map **1:1 onto canonical keys** — camera detail no lon
 | `Dialogue` / `Audio` | `audio.dialogue` / `.sfx` / `.ambient` | Dialogue from cues; SFX from `[SFX: ...]`; Ambient from `[Ambient: ...]` |
 | per-character wardrobe/hair/condition/held props | `appearanceState` on the `appears_in` relation | see below |
 | scene anchor | scene `anchorRef` / `anchorRefs` | auto-attached to every shot in the scene |
-| `Cut:` hold + outgoing cut | `action` prose, or `temporal_effect` | no dedicated field |
+| `Cut:` hold + outgoing cut | `action` prose, or `temporal_effect` | single-cut shots; `MULTI_CUT` shots use `cuts[]` (below) |
 | `Pacing` (RAPID/PUNCHY) | passthrough `pacing` | skill-local |
 | `[M1]`/`[M2]` markers | inline in `action` | skill-local |
 

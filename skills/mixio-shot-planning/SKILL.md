@@ -1,7 +1,7 @@
 ---
 name: mixio-shot-planning
-description: "Classify each shot into 5 structural archetypes, match to model capabilities, validate duration and action density, verify prompt @ mentions and paired mention maps, and group shots into generation batches — the model-aware layer between continuity and video generation. Video generation costs the most, image generation comes next, and other operations cost little. Submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
-version: 0.3.1
+description: "Classify each shot into 6 structural archetypes (incl. MULTI_CUT for 10–15s multi-cut shots), match to model capabilities, validate duration and action density, verify prompt @ mentions and paired mention maps, and group shots into generation batches — the model-aware layer between continuity and video generation. Video generation costs the most, image generation comes next, and other operations cost little. Submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
+version: 0.4.0
 invoke: /mixio:shot-planning
 ---
 
@@ -31,17 +31,18 @@ Then group into deterministic batches and prepare the production plan for user r
 
 ---
 
-## 1. Structural Shot Typology (The 5 Archetype Families)
+## 1. Structural Shot Typology (The 6 Archetype Families)
 
-Every shot falls into exactly one generation archetype family: `GRID`, `SEQUENCE`,
+Every shot falls into exactly one generation archetype family: `GRID`, `MULTI_CUT`, `SEQUENCE`,
 `MASTER_ANCHOR_MULTI_SHOT`, `SINGLE`/`DUAL_FRAME`, or `T2V`. `SINGLE` and `DUAL_FRAME` are
 the two input shapes in one standard i2v family; persist the concrete code on the shot.
-Classify by inspecting `camera_movement`, `action`, `duration`, markers, scene anchors, and
-project settings.
+Classify by inspecting `camera_movement`, `action`, `duration`, markers, scene anchors,
+`cuts[]`, and project settings.
 
 | Archetype | Code | Target Studio Use Case / Shape | When to use |
 |-----------|------|--------------------------------|-------------|
 | **Grid / Montage** | `GRID` | `production-generate-shot-keyframe-grid` (multi-panel) | Turnaround sheets, montages, multi-angle grids, comic/storyboard panels |
+| **Multi-Cut** | `MULTI_CUT` | one native `multi-shot-video` job (H3 Ref2Vid first) from persisted `cuts[]` | 10–15s shots in a `multi_cut` band with authored per-cut specs (see `references/model-matching.md#multi-cut-routing`) |
 | **Sequence** | `SEQUENCE` | `production-generate-shot-keyframe-sequence` (one of `4`/`6`/`8`/`10`/`12` frames) | Long or complex shots: multiple distinct beats, multi-marker choreographies, extended camera moves |
 | **Master Anchor Multi-Shot** | `MASTER_ANCHOR_MULTI_SHOT` | Scene anchor as a reference → one derived `production-generate-shot-keyframes` job → video | Coverage (CU, MCU, OTS) spatially grounded by the wide scene anchor |
 | **Single-frame i2v** | `SINGLE` | 1 keyframe image → video (`production-generate-shot-keyframes` / `-video`) | Static/simple shots: holds, reactions, gentle camera moves (static, pan, tilt), single continuous action |
@@ -57,6 +58,12 @@ matching.
 ```
 if shot is a multi-panel layout, montage sequence, or storyboard grid:
     → GRID
+
+if episode metadata.pipeline.shot_contract.mode == "multi_cut"
+   AND (shot has authored cuts[] OR shot.duration is in the locked band, default 10–15s):
+    → MULTI_CUT (one native multi-shot-video job; validate the route in
+      references/model-matching.md#multi-cut-routing and the cuts[] sum rule in
+      pipeline shot-grammar.md)
 
 if shot has no preceding shot/anchor in the scene and is an abstract or atmospheric establishing shot:
     → T2V
@@ -97,7 +104,7 @@ Read `projects.settings` through `studio_get_project` before selecting a fallbac
 ## 2. Model matching
 
 Match each shot to the best available model based on what it needs. This is a recommendation, not a hard constraint — the user may override. Read the real per-model contract with `studio_get_use_case_input_schema({ useCaseId, modelId })` — that is the only authoritative source. Do **not** call `studio_list_generation_models` for this: it returns `{ id, label }` and nothing else (see `mixio-generate`).
-Full capability profiles, strength-area matching guidance, and the conflicting-needs pattern: `references/model-matching.md`.
+Full capability profiles, strength-area matching guidance, and the conflicting-needs pattern: `references/model-matching.md`. `MULTI_CUT` shots follow their own fixed route table — [`references/model-matching.md#multi-cut-routing`](references/model-matching.md#multi-cut-routing) — starting with H3 Ref2Vid on `multi-shot-video`.
 
 ---
 
@@ -110,6 +117,12 @@ ceilings, so they are advisory.
 ### Duration feasibility
 
 A numeric duration contract is exact values (`enum`/`const`, including `anyOf`) or numeric bounds.
+
+For `MULTI_CUT` shots, derive the contract from the **`multi-shot-video` use case** on the routed
+model (H3 Ref2Vid `auto,5–15`), not from `production-generate-video` — the latter's H3 enum
+`{5,6,8,10,12}` cannot express 13–15s. Also verify the `cuts[]` invariant: ≤5 cuts, contiguous
+from 0.0, each ≥1.5s (or snapped to the fallback model's per-cut floor), sum within ±0.05s of
+`shot.duration`; report `CUTS_SUM_MISMATCH` / `CUT_COUNT_EXCEEDED` as BLOCKING.
 
 ```
 duration_schema = schema?.properties?.parameters?.properties?.duration
@@ -207,6 +220,10 @@ stop before Step 05 planning. Return to Step 02 only after the user
 confirms the additional render round; then evaluate and approve the pack, rerun
 `mixio-reference-audit`, and restart Steps 03–05 because their outputs are stale.
 
+When these checks pass, emit the resolved rows as the episode's Reference Pull List
+([references/reference-pull-list.md](references/reference-pull-list.md)) — it is the
+handoff artifact Step 06 reads to attach the exact approved images.
+
 ### Look-binding readiness
 
 ```
@@ -221,7 +238,7 @@ Pull character bindings once via `studio_get_production_context`'s `lookBindings
 
 ### Prompt mention & mention map validation (Universal Invariant across all models & methods)
 
-Regardless of the model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX) or generation method (SINGLE, DUAL_FRAME, MULTI_KF, GRID, T2V), the prompt materializer and provider compilers require prompt text to contain explicit `@` mention tokens to map media references to model-specific tokens (`Image 1`, `@Image1`, `@tag`) or perform subject grounding. Failure to include `@` tokens or omitting `mentionMap` causes models to guess identity and waste generation work (e.g. incident `b463831e-ac6f-4a40-a2b2-0ebde2527c92`). Run this check before batching and carry zero blocking findings into the Step 05 gate:
+Regardless of the model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX) or generation method (SINGLE, DUAL_FRAME, MULTI_KF, GRID, MULTI_CUT, T2V), the prompt materializer and provider compilers require prompt text to contain explicit `@` mention tokens to map media references to model-specific tokens (`Image 1`, `@Image1`, `@tag`) or perform subject grounding. Failure to include `@` tokens or omitting `mentionMap` causes models to guess identity and waste generation work (e.g. incident `b463831e-ac6f-4a40-a2b2-0ebde2527c92`). Run this check before batching and carry zero blocking findings into the Step 05 gate:
 
 ```
 for each shot with media references (primary, endFrame, references, character_ref,
@@ -251,7 +268,7 @@ enhancer_context, and every other schema-declared media slot):
         → BLOCKING: remove orphan entries or bind them to a real asset
 ```
 
-For a sequence use case that intentionally leaves the caller `prompt` unset, validate the effective materialized prompt (`sequence_notes` plus the shot-spec prompt); an omitted caller field is not a grounding bypass. Descriptive prose may supplement a tag, never replace it. Any `PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or `MENTION_MAP_ORPHANED` finding blocks the production summary and Step 06 approval until corrected.
+For a sequence use case that intentionally leaves the caller `prompt` unset, validate the effective materialized prompt (`sequence_notes` plus the shot-spec prompt); an omitted caller field is not a grounding bypass. Descriptive prose may supplement a tag, never replace it. Record every validated pairing in the [Prompt & Mention Sheet](../mixio-generate/references/prompt-mention-sheet.md), which also carries the per-route token vocabulary (`<Picture n>`, `@Image{n}`, `<IMAGE_REF_{n}>`, …) that Step 06's compilers expect. Any `PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or `MENTION_MAP_ORPHANED` finding blocks the production summary and Step 06 approval until corrected.
 
 ### Continuity handoff feasibility
 
@@ -282,10 +299,13 @@ After archetype/model assignment and feasibility resolution, group shots into **
 
 **Confirm per-shot limits from `studio_get_use_case_input_schema({ useCaseId, modelId })`**;
 historical [batch profiles](references/execution-audit.md#batch-profiles) are lookup material, not a live contract.
+`studio_plan_shot_batch` exposes `maxBatchDuration` (1–60, default **15**), `maxBatchShots`
+(1–50, default **5**), and `targetModel`; a `MULTI_CUT` shot in the 10–15s band consumes the
+default 15s ceiling by itself, so expect one multi-cut shot per batch.
 
 ### Batch formation algorithm
 
-1. Group consecutive shots only when they share the **same model, generation use case, and input contract**. `GRID`, `SEQUENCE`, `SINGLE`, `DUAL_FRAME`, and `T2V` are separate input contracts unless the live schema explicitly supports batching them together.
+1. Group consecutive shots only when they share the **same model, generation use case, and input contract**. `GRID`, `MULTI_CUT`, `SEQUENCE`, `SINGLE`, `DUAL_FRAME`, and `T2V` are separate input contracts unless the live schema explicitly supports batching them together.
 2. Within each compatible group, start a batch with the first shot and keep adding consecutive shots as long as the running duration and count remain under the model's ceilings.
 3. The moment either limit is exceeded, close the batch and open a new one beginning with that shot.
 4. A shot whose duration exceeds model max becomes a multi-segment batch (`SEQUENCE` forced).
@@ -329,7 +349,7 @@ Announce the close with the production plan, for example:
 ```
 1. read corrected breakdown (Step 04) + project settings + live model catalog
 2. match each shot to the best model based on characteristics; read its live input schema and duration ceiling
-3. classify each shot into one of 5 archetype families (GRID / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V), using the selected model ceiling
+3. classify each shot into one of 6 archetype families (GRID / MULTI_CUT / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V), using the selected model ceiling
 4. run execution audit (duration limits, action density, speaking rate, references, prompt @ mentions + mentionMap)
 5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions, pair slotTags + mentionMap, remove orphans)
 6. group into contiguous batches per model-specific ceilings

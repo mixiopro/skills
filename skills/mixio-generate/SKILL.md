@@ -1,7 +1,7 @@
 ---
 name: mixio-generate
 description: "Generate images, video and audio through Mixio Studio jobs — which use cases exist, which models each supports, what each accepts as input, the relative cost of generation types, and when a Studio production use case beats a Generate one."
-version: 0.4.1
+version: 0.5.0
 invoke: /mixio:generate
 ---
 
@@ -138,7 +138,9 @@ A job that "succeeded" with warnings ran **with your parameters removed**. Check
                                                           → job id + tracking + schemaWarnings
 6. read schemaWarnings; if non-empty, fix and resubmit before polling
 7. studio_get_job_status({ jobId, projectId })             → poll to COMPLETED
-8. mixio-eval before delivery; upload_file for local renders
+8. append the completed take to episode metadata.pipeline.generation_log
+                                                          → [references/job-take-report.md](references/job-take-report.md)
+9. mixio-eval before delivery; upload_file for local renders
 ```
 
 ### Step 2 — honor project defaults before you choose anything
@@ -228,7 +230,7 @@ Different model compilers transform `@tag` tokens into proprietary provider prom
 | Model / Family | Wire Compiler Output | Token Grammar & Behavior |
 |----------------|----------------------|--------------------------|
 | **Hailuo reference-to-video** (`hailuo_v3_reference_to_video`) | `Image 1`, `Image 2` | Requires discrete `Image N` tokens in `providerRequest.prompt` matching the order in `reference_image_urls`. If prompt omits `@asset1`, compiler cannot inject `Image 1` and identity anchoring fails completely. |
-| **Kling** (`kling_o3_reference_to_video`, `kling_multi_image_to_video`, `kling_2_6_pro`) | `@Image1`, `@Element1` | The authored prompt uses semantic `@tag`; the compiler emits `@Image1` / `@Element1` in `providerRequest.prompt` to bind elements sequentially. Do not hand-author provider tokens. |
+| **Kling** (`kling_o3_standard_reference_to_video`, `kling_multi_image_to_video`, `kling_image_to_video_2_6_pro`) | `@Image1`, `@Element1` | The authored prompt uses semantic `@tag`; the compiler emits `@Image1` / `@Element1` in `providerRequest.prompt` to bind elements sequentially. Do not hand-author provider tokens. |
 | **Seedance** (`seedance_image_to_video_v2`, `seedance_video_prior_i2v`) | `@tag` / slot references | Binds `@tag` tokens to image slots directly or maps them to subject descriptions. |
 | **Gemini Multi-Panel** (Storyboard & keyframe grids) | Panel indexing (`Panel 1`, `Image 1`) | Maps reference assets and character looks across distinct grid panels. |
 
@@ -242,6 +244,30 @@ Different model compilers transform `@tag` tokens into proprietary provider prom
 - `@scene`, `@shot`, `@style`, `@pose` prefixes are bookkeeping, not bindable subjects.
 
 Put per-character staging inline next to the mention — `@tony (MC, three-quarter-left, seated cross-legged, on BED)`. Structured staging fields get flattened on the way to the model; the mention token survives with its position intact.
+
+#### Multi-cut prompt serialization (`MULTI_CUT` shots)
+
+A multi-cut shot persists its per-cut plan in the shot's passthrough `cuts[]`
+(`mixio-script-breakdown`'s canonical-schema.md owns the shape). `cuts[]` is **never** the
+prompt: the 400-char passthrough weave cannot carry it reliably, so serialize it into the
+effective prompt yourself, per the routed model:
+
+- **H3 Ref2Vid (`hailuo_v3_reference_to_video` on `multi-shot-video`)** — use the six-section
+  composer (context → references → subject → shot plan → style → constraints) and append the
+  cut lines from `cuts[]` as `[Shot {n}] At MM:SS.mmm — <shot type>: <action>` in order. There
+  is no Mixio prompt ceiling on H3. Do **not** hand-write provider tokens (`Image 1`, …) —
+  author semantic `@tag`s and let the compiler map them.
+- **Seedance** — cut lines as plain prose sections; tags compile to `@Image{n}` /
+  `@Video{n}` / `@Audio{n}`.
+- **Kling** — same cut prose; tags compile to `@Element{n}` / `@Image{n}`; ≤2
+  `<<<voice_{n}>>>` audio tokens.
+- **Gemini (`gemini_omni_multishot`)** — cut lines as plain prose; tags compile to
+  `<IMAGE_REF_{n}>` / `@Image{n}`.
+
+Whichever route, the resulting prompt must still contain every `@tag` with its paired
+`slotTags`/`mentionMap`. Record the finalized rows in the
+[Prompt & Mention Sheet](references/prompt-mention-sheet.md) — it is the pre-submit artifact
+the Step 06 gate validates against, and it carries the per-route token table in worked form.
 
 #### Preflight Gating Checklist (Step 06)
 
@@ -339,3 +365,7 @@ Reachable, undiscoverable by filter. `text-to-speech` and `voice-change` are `ou
 ## References
 
 `references/model-comparison.md` — `autoSelection` ranking, model capability data, and per-model input-role capability. All three are catalog facts no MCP tool exposes.
+
+`references/prompt-mention-sheet.md` — the pre-submit pairing sheet: slot key ↔ `@tag` ↔ mention label ↔ route token, with the per-model token table and H3 cut-line grammar.
+
+`references/job-take-report.md` — per-job take report format, the `metadata.pipeline.generation_log` entry shape, and selected-take persistence.

@@ -67,6 +67,36 @@ Shot 7 — 4.5s [M2]
 
 This is the **authoring** format, and it maps essentially 1:1 onto canonical keys: `Camera` splits across `shot_type` / `camera_angle` / `camera_movement` / `lens`, `In frame` becomes `blocking`, and `Lighting` is its own field. `mixio-script-breakdown` owns the field-by-field mapping — read it before writing a breakdown to Studio.
 
+## Cuts sub-block (MULTI_CUT shots)
+
+When the episode's `shot_contract.mode` is `multi_cut` (10–15s band), every shot is planned as
+several in-shot cuts and gets a `Cuts:` sub-block after its standard fields:
+
+```
+Shot 12 — 12.0s [M1]  MULTI_CUT
+  Camera / Action / Lighting / Dialogue / Audio / Pacing — as above
+  Cuts:
+    Cut 1 [MS] 0.0–4.5:  POPPY crosses from HALLWAY DOORWAY to BED FRAME edge
+                         | slow lateral track; FG BED in soft focus
+    Cut 2 [CU] 4.5–8.5:  TONY's hands take the TABLET from POPPY [M1]
+                         | static insert; screen glow MG
+    Cut 3 [OTS] 8.5–12.0: TONY reads, POPPY watching BG soft focus
+                          | slow push-in past TONY's right shoulder
+```
+
+- **≤5 cuts.** Each cut ≥1.5s natively; cut boundaries contiguous from `0.0`; the durations sum to
+  within ±0.05s of the shot `duration`. One decimal place throughout.
+- Each line carries: cut index, shot type, time range, action (with its markers), and camera +
+  in-frame layers for that cut. `audio` per cut is optional.
+- **The sub-block is authoring syntax.** It maps to the canonical passthrough key `cuts[]` on the
+  shot (`mixio-script-breakdown` owns the object shape). `cuts[]` is never woven into the 400-char
+  shot prompt — `mixio-generate` serializes it per model route instead (H3 Ref2Vid: six-section
+  composer plus `[Shot {n}] At MM:SS.mmm` lines).
+- **Fallback snap:** if a Step 05 fallback model's duration enum floors cuts below 1.5s, snap cut
+  boundaries to that model's per-cut minimum (gemini ≥3s, seedance/kling ≥4s, H3 I2V ≥5s),
+  re-check the sum rule, and record the snap in shot metadata.
+- `mixio-continuity` checks blocking per **shot × cut** for these shots (`12.1`, `12.2`, …).
+
 ## Scene staging block
 
 Emitted once per scene, before its shots. It is the "frame 0" state the audit's blocking map starts from.

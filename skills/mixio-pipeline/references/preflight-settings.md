@@ -28,6 +28,8 @@ const confirmed = {
   toneAndMood: userConfirmed.toneAndMood,
   cinematographyDirection: userConfirmed.cinematographyDirection,
   defaultStylePrompt: userConfirmed.defaultStylePrompt,
+  shotLengthMode: userConfirmed.shotLengthMode ?? "multi_cut",
+  shotLengthBand: userConfirmed.shotLengthBand ?? "10-15",
   references: userConfirmed.references
 }
 const videoSchema = await studio_get_use_case_input_schema({
@@ -69,6 +71,10 @@ await studio_update_project({ projectId, updates: { settings: {
   studio: {
     ...settings.studio,
     preferredVideoModel: confirmed.videoModel,
+    videoDurationSeconds: confirmed.shotLengthBand,
+    ...(confirmed.shotLengthMode === "panel"
+      ? { defaultVideoShotMode: "single-shot" }
+      : {}),
     visualStyle: confirmed.visualStyle,
     toneAndMood: confirmed.toneAndMood,
     cinematographyDirection: confirmed.cinematographyDirection,
@@ -80,6 +86,7 @@ await studio_update_project({ projectId, updates: { settings: {
 await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   aspect_ratio: confirmed.deliveryAspectRatio,
   anchor_aspect_ratio: confirmed.anchorAspectRatio,
+  shot_contract: { mode: confirmed.shotLengthMode, band: confirmed.shotLengthBand },
   step_00: "complete"
 }}}})
 
@@ -90,5 +97,13 @@ const resolved = await studio_get_project({ projectId })
 `defaultModelByUseCase` by use case ID. In live projects, image resolution belongs in
 `defaultResolutionByOutputType.IMAGE`; video resolution belongs in
 `defaultParametersByUseCase[useCaseId].resolution` only when that model exposes the parameter.
-The global `IMAGE` default remains the delivery ratio. Submit every anchor job with its explicit
+The global `IMAGE`
+default remains the delivery ratio. Submit every anchor job with its explicit
 `anchor_aspect_ratio`; an anchor is local work, not a project-wide image preference.
+
+`studio.videoDurationSeconds` is an open string (no enum) — write the confirmed band verbatim
+(`"10-15"` or `"2.5-4.5"`). Do not invent values for `studio.defaultVideoShotMode`: the known
+Studio biases are `single-shot` / `multi-keyframe` / `grid`, so only the `panel` mode writes it.
+The multi-cut mode lives in the episode's `metadata.pipeline.shot_contract`. A band containing
+13–15s must be routed through the `multi-shot-video` use case at Step 05/06:
+`production-generate-video`'s H3 duration enum tops out at 12 seconds.

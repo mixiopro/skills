@@ -117,7 +117,7 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 | [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit every script-required look/view for visual style, identity, scale, lighting, palette, geometry, hallucinations, and artifacts, plus Cast & World completeness, duplicates, metadata, and policy. |
 | [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Script → canonical scenes and shot specs with entity graph linking, appearanceState, and immediate relational audit. |
 | [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Pre-render text/shot-spec continuity audit — blocking map, checks, report, and corrections. Pair with `/mixio:eval` after rendering to check the media against the plan. |
-| [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot into 5 structural archetypes (grid, sequence, master anchor multi-shot, single/dual frame, t2v), match to best model, audit execution feasibility, and group into generation batches with a credit-costed production summary. |
+| [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot into 6 structural archetypes (grid, multi-cut, sequence, master anchor multi-shot, single/dual frame, t2v), match to best model, audit execution feasibility, and group into generation batches with a credit-costed production summary. |
 
 Tool skills are reference docs for the MCP surface and are safe to use standalone. Production skills encode the craft and the gating — start at `/mixio:pipeline` for a full episode.
 

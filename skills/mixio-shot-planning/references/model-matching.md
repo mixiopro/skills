@@ -33,7 +33,30 @@ This is the craft layer — which model tends to produce better results for whic
 | **Character consistency** | Models with strong `character_ref` / multi-image support | Maintaining identity across frames |
 | **Establishing / landscape** | Sora, Veo (`T2V` or `SINGLE`) | Superior scale, depth, and atmospheric coherence |
 | **Multi-panel / Montage** | Gemini Image, GPT Image (`GRID`) | Multi-cell layout composition and style adherence |
+| **Multi-cut long take (10–15s)** | H3 Ref2Vid (`MULTI_CUT`) | One native multi-shot job with persisted per-cut specs; 15s on a single job |
 | **Multi-person blocking** | Veo, Sora | Better spatial reasoning with multiple subjects |
+
+## Multi-cut routing
+
+`MULTI_CUT` shots (the 10–15s band) render as **one native multi-shot job on the
+`multi-shot-video` use case** — never through `production-generate-video`, whose H3 duration
+enum is `{5,6,8,10,12}` (max 12) and cannot express 13–15s. Route in order and stop at the
+first model whose **live** schema accepts the shot; re-read the schema per episode, this table
+is validated as of 2026-10:
+
+| # | Model on `multi-shot-video` | Duration | Aspect | Notes |
+|---|------|----------|--------|-------|
+| 1 | `hailuo_v3_reference_to_video` (H3 Ref2Vid) | string enum `auto,5–15` | `adaptive,21:9,16:9,4:3,1:1,3:4,9:16` | First/default model of `multi-shot-video`; media `image_urls` ≤9, `video_urls` ≤3, `audio_urls` ≤3; six-section composer + `[Shot {n}] At MM:SS.mmm`; no Mixio prompt ceiling |
+| 2 | `seedance_reference_to_video_v2` | `auto,3–15` | per schema | Provider tokens `@Image/@Video/@Audio{n}` |
+| 3 | `kling_o3_standard_reference_to_video` (or `_pro_`) | `3–15` | per schema | Slots `primary`/`endFrame`/`references`; `@Element`/`@Image{n}`; ≤2 `<<<voice_{n}>>>` |
+| 4 | `gemini_omni_multishot` | `3–10` | **`16:9`/`9:16` only** | `image_urls` only; `<IMAGE_REF_{n}>`/`@Image{n}` ≤9 — **skipped when the shot exceeds 10s or delivery is neither 16:9 nor 9:16** |
+| — | no route accepts | fall back to `SEQUENCE` | — | Snap cut boundaries to the model's enum (`{5,6,8,10,12}` or `{4,5,6,8,10,12}`; per-cut floor 4–5s on H3/seedance/kling, 3s on gemini), re-check the ±0.05s sum rule, and record the snap in shot metadata |
+
+- Duration types differ: H3 and seedance use string enums with `auto`; kling and gemini use
+  numeric enums. Read the live schema per route; never assume a type or a ceiling.
+- `cuts[]` stays passthrough on the shot — the job prompt embeds serialized cut lines per route
+  (H3 `[Shot {n}] At MM:SS.mmm`; see `mixio-generate/references/prompt-mention-sheet.md`).
+- The prompt `@` mention + `slotTags`/`mentionMap` gate applies to multi-cut jobs unchanged.
 
 ```
 Model recommendation — Shot 7
