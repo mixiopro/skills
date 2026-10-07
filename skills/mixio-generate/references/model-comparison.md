@@ -22,6 +22,20 @@ The catalog contains **no** fps field, **no** max-resolution field, and **no** q
 
 Image and production keyframe use cases prefer `gemini_image` when it is supported. The UI's `auto` picker is not exposed for `STUDIO` use cases, so Studio production selection uses project settings, the ordered use-case model list, and the input-aware production defaults (`production-job-preparation.ts`). Video selection follows the H3 family by input type, with H3 Ref2Vid first for reference-to-video and multi-keyframe sequences.
 
+**Multi-cut (10–15s) follows the normal `multi-shot-video` use case.** `video-multi-shot-default`
+is the `auto` order for `multi-shot-video`, but its second entry `gemini_omni_multishot` accepts
+only `3–10s` and `16:9`/`9:16` — for a `MULTI_CUT` shot above 10s or any other delivery ratio, skip it:
+`hailuo_v3_reference_to_video` → `seedance_reference_to_video_v2` →
+`kling_o3_standard_reference_to_video` → `gemini_omni_multishot` (only if ≤10s and 16:9/9:16) →
+SEQUENCE re-planning if no route accepts the complete shot duration. Full duration envelopes and
+the separate-job fallback contract:
+`mixio-shot-planning/references/model-matching.md#multi-cut-routing`. On
+all skill-managed video work, select the normal catalog use case by operation (`cinematic-video`,
+`multi-shot-video`, `camera-motion`, `motion-transfer`, `lip-sync`, `video-edit`, or
+`avatar-video`) and pass the task-specific controls through that model's schema. Do not submit
+video through the compound production video use case; see
+[`video-use-case-routing.md`](video-use-case-routing.md).
+
 ## 2. Relative cost guidance
 
 Video generation costs the most, image generation comes next, and other operations cost little.

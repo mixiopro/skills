@@ -67,6 +67,39 @@ Shot 7 — 4.5s [M2]
 
 This is the **authoring** format, and it maps essentially 1:1 onto canonical keys: `Camera` splits across `shot_type` / `camera_angle` / `camera_movement` / `lens`, `In frame` becomes `blocking`, and `Lighting` is its own field. `mixio-script-breakdown` owns the field-by-field mapping — read it before writing a breakdown to Studio.
 
+## Cuts sub-block (MULTI_CUT shots)
+
+When the episode's `shot_contract.mode` is `multi_cut` (10–15s band), every shot is planned as
+several in-shot cuts and gets a `Cuts:` sub-block after its standard fields:
+
+```
+Shot 12 — 12.0s [M1]  MULTI_CUT
+  Camera / Action / Lighting / Dialogue / Audio / Pacing — as above
+  Cuts:
+    Cut 1 [MS] 0.0–4.5:  POPPY crosses from HALLWAY DOORWAY to BED FRAME edge
+                         | slow lateral track; FG BED in soft focus
+    Cut 2 [CU] 4.5–8.5:  TONY's hands take the TABLET from POPPY [M1]
+                         | static insert; screen glow MG
+    Cut 3 [OTS] 8.5–12.0: TONY reads, POPPY watching BG soft focus
+                          | slow push-in past TONY's right shoulder
+```
+
+- Validate the persisted array against the single [canonical `cuts[]` invariant](../../mixio-script-breakdown/references/canonical-schema.md).
+- Each line carries: cut index, shot type, time range, action (with its markers), and camera +
+  in-frame layers for that cut. Preserve optional angle, lens, and `audio` fields per cut as well.
+- **The sub-block is authoring syntax.** It maps to the canonical passthrough key `cuts[]` on the
+  shot (`mixio-script-breakdown` owns the object shape). `cuts[]` is never woven into the 400-char
+  shot prompt — `mixio-generate` serializes every populated per-cut field per model route. For H3
+  Ref2Vid, `[Shot 1]` has no timestamp; later cut headers carry their cumulative start time inside
+  the six-section composer.
+- The routed model's `duration` schema describes the whole output job, not per-cut duration
+  controls or a per-cut minimum. `cuts[].duration` defines planned timing and prompt timestamps.
+  If no model accepts the whole multi-cut job, keep `cuts[]` unchanged and plan a separately
+  approved `SEQUENCE` of schema-valid jobs whose durations sum to the intended shot length; this
+  creates segments, not one assembled multi-cut asset. If no exact sum is supported, re-author
+  the timing under approval.
+- `mixio-continuity` checks blocking per **shot × cut** for these shots (`12.1`, `12.2`, …).
+
 ## Scene staging block
 
 Emitted once per scene, before its shots. It is the "frame 0" state the audit's blocking map starts from.

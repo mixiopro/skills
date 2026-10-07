@@ -83,6 +83,7 @@ The loop does not submit billable evaluator runs. A Step 02.5 still-image evalua
   - **Prop continuity break (`PROP`):** Auto-inject the missing put-down or pick-up action in the exact shot where the state changes using `studio_revise_shot_specs`. Update `appears_in` relation `carriedProps` via `studio_link_graph`.
   - **Eyeline / 180° axis violation (`FACING`):** Adjust camera placement / subject orientation in shot spec text or clarify camera repositioning.
   - **Missing movement marker (`[Mn]`):** Re-sequence marker tags across dependent shots.
+  - **Cut edit on a `MULTI_CUT` shot:** follow the canonical [`cuts[]` invariant](../../mixio-script-breakdown/references/canonical-schema.md#cuts--multi-cut-passthrough); change the cut count only when the user approved it, and re-run the shot × cut blocking pass afterward.
   - **Missing reference detected (`REF_MISSING` / `REF_NO_IMAGE`):** Route back to Phase 2; its policy and asset gates decide whether the loop can repair it or must block.
 - **Immediate Re-Audit (The Verification Loop):**
   - Immediately re-run Pass 1–3 on the revised shot specs.

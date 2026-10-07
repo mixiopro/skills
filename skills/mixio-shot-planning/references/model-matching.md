@@ -8,13 +8,13 @@ Match each shot to the best available model based on what it needs. This is a re
 
 ## Model capability profiles
 
-Read the real per-model contract with `studio_get_use_case_input_schema({ useCaseId, modelId })` — that is the only authoritative source, and it gives the model's actual `duration` and `aspect_ratio` options. Do **not** call `studio_list_generation_models` for this: it returns `{ id, label }` and nothing else (see `mixio-generate`). Capability facts that live only in the catalog JSON — input roles, relative cost, and `autoSelection` ranking — are tabulated in `mixio-generate/references/model-comparison.md`. Characteristics to match against:
+Read the real per-model contract with `studio_get_use_case_input_schema({ useCaseId, modelId })` — that is the only authoritative source, and it gives the model's actual `duration` and, when exposed, `aspect_ratio` options. Do **not** call `studio_list_generation_models` for this: it returns `{ id, label }` and nothing else (see `mixio-generate`). Capability facts that live only in the catalog JSON — input roles, relative cost, and `autoSelection` ranking — are tabulated in `mixio-generate/references/model-comparison.md`. Characteristics to match against:
 
 | What you need to know | Where it actually comes from |
 |------------|---------------|
 | Max single-pass duration | the `duration` enum in `get_use_case_input_schema` for that (useCase, model). There is no `maxDuration` field in the catalog |
 | What input shapes the model accepts | the `media` slots in the same schema, and `supportedInputRoles` / `unsupportedInputRoles` in `video-direction.json` (`mixio-generate/references/model-comparison.md`) |
-| Supported aspect ratios | the `aspect_ratio` enum in the same schema — per model, not global (`veo_3_1` is `16:9`/`9:16` only) |
+| Aspect-ratio control | the `aspect_ratio` enum when exposed in that model's schema. If absent, the project default does not add a control: confirm the model's framing behavior and whether selected media can satisfy delivery. |
 | Whether references are used at all | presence of `character_ref` / `location_ref` / `references` slots in the schema; `promptMode: none` models ignore prompt text entirely |
 | Relative cost | Video generation costs the most, image generation comes next, and other operations cost little |
 | Ranking | `autoSelection.rules` in `models.json` — ordered preference per use case, video-only |
@@ -33,7 +33,40 @@ This is the craft layer — which model tends to produce better results for whic
 | **Character consistency** | Models with strong `character_ref` / multi-image support | Maintaining identity across frames |
 | **Establishing / landscape** | Sora, Veo (`T2V` or `SINGLE`) | Superior scale, depth, and atmospheric coherence |
 | **Multi-panel / Montage** | Gemini Image, GPT Image (`GRID`) | Multi-cell layout composition and style adherence |
+| **Multi-cut long take (10–15s)** | H3 Ref2Vid (`MULTI_CUT`) | One native multi-shot job with persisted per-cut specs; 15s on a single job |
 | **Multi-person blocking** | Veo, Sora | Better spatial reasoning with multiple subjects |
+
+## Video use-case selection
+
+Use the canonical task-to-use-case table and Step 06 payload procedure in
+[`video-use-case-routing.md`](../../mixio-generate/references/video-use-case-routing.md).
+This section owns the shot-planning model match and the `MULTI_CUT` route details below.
+
+## Multi-cut routing
+
+`MULTI_CUT` shots (the 10–15s band) render as **one native multi-shot job on the
+`multi-shot-video` use case**. Route in order and stop at the first model whose **live** schema
+accepts the shot; re-read the schema per episode. The catalog values below were checked in
+2026-10 and remain subordinate to the live schema:
+
+| # | Model on `multi-shot-video` | Duration | Aspect | Notes |
+|---|------|----------|--------|-------|
+| 1 | `hailuo_v3_reference_to_video` (H3 Ref2Vid) | string enum `auto,5–15` | `adaptive,21:9,16:9,4:3,1:1,3:4,9:16` | First/default model of `multi-shot-video`; media `image_urls` ≤9, `video_urls` ≤3, `audio_urls` ≤3; six exact prompt sections; first cut header has no timestamp, later cut headers use cumulative time |
+| 2 | `seedance_reference_to_video_v2` | `auto,3–15` | per schema | Provider tokens `@Image/@Video/@Audio{n}` |
+| 3 | `kling_o3_standard_reference_to_video` (or `_pro_`) | `3–15` | per schema | Slots `primary`/`endFrame`/`references`; `@Element`/`@Image{n}`; ≤2 `<<<voice_{n}>>>` |
+| 4 | `gemini_omni_multishot` | `3–10` | **`16:9`/`9:16` only** | `image_urls` only; `<IMAGE_REF_{n}>`/`@Image{n}` ≤9 — **skipped when the shot exceeds 10s or delivery is neither 16:9 nor 9:16** |
+| — | no route accepts | re-plan as `SEQUENCE` | — | Create separate schema-valid segment jobs from the authored direction; choose each job's whole-output duration from its schema and ensure segment durations sum to the intended shot length. If they cannot, re-author the shot timing under approval. Get approval for the multi-job result before generation. Do not snap `cuts[]` to a supposed per-cut model minimum. |
+
+- Duration types differ: H3 and seedance use string enums with `auto`; kling and gemini use
+  numeric enums. Read the live schema per route; never assume a type or a ceiling.
+- The `duration` field controls the whole generated video job. It does not define per-cut duration
+  controls or a per-cut minimum; `cuts[].duration` contributes planned timing and prompt timestamps.
+  A `SEQUENCE` fallback is multiple separately generated segments, not one native multi-cut asset;
+  final assembly is outside this tool surface.
+- `cuts[]` stays passthrough on the shot — the job prompt embeds every populated per-cut field,
+  including framing, angle, lens, camera movement, action, blocking, and audio. H3 Ref2Vid uses
+  the prompt grammar in `mixio-generate/references/prompt-mention-sheet.md`.
+- The prompt `@` mention + `slotTags`/`mentionMap` gate applies to multi-cut jobs unchanged.
 
 ```
 Model recommendation — Shot 7

@@ -75,7 +75,7 @@ The `how-to-make-script` root skill is vendored under `skills/how-to-make-script
 | `mixio-reference-audit` | `/mixio:reference-audit` | Audit required reference looks/views for visual readiness, plus Cast & World completeness, consistency, duplicates, and metadata quality |
 | `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → scenes and shot specs against canonical schemas, entity graph linking, appearanceState, and relational audit |
 | `mixio-continuity` | `/mixio:continuity` | Pre-render text/shot-spec continuity; pair with `/mixio:eval` for post-render media continuity |
-| `mixio-shot-planning` | `/mixio:shot-planning` | 5 structural archetypes + model matching, execution audit (action density & speaking rate), batches, and a production plan |
+| `mixio-shot-planning` | `/mixio:shot-planning` | 6 structural archetypes (incl. `MULTI_CUT` 10–15s) + model matching, execution audit (action density & speaking rate), batches, and a production plan |
 
 For story work, start with `/mixio:screenwriting`; do not look up a Studio project or episode until the screenplay handoff is ready. For a full episode, then run `/mixio:pipeline` and let it gate the production steps. Invoke a production skill directly when you only need that one step — each one's description says which of its siblings it isn't, and falls back to `mixio-pipeline` when that's still unclear.
 

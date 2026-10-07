@@ -1,7 +1,7 @@
 ---
 name: mixio-generate
 description: "Generate images, video and audio through Mixio Studio jobs — which use cases exist, which models each supports, what each accepts as input, the relative cost of generation types, and when a Studio production use case beats a Generate one."
-version: 0.4.1
+version: 0.5.0
 invoke: /mixio:generate
 ---
 
@@ -34,10 +34,10 @@ Registrations: `apps/app-kalaasetu/src/app/api/mcp/server.ts`.
 | Tool | Returns | Omits / breaks |
 |---|---|---|
 | `studio_get_contract({ target, ... })` | **Preferred versioned contract read.** `target: "tool"` returns any hosted tool's input schema, examples, constraints, and applicable semantic rules; `"generation"` resolves a use case/model; `"element"` resolves Studio metadata; `"project-settings"` documents the open settings shape. Every result has `contractVersion` and `contractDigest`. | For a generation contract, pass `modelId` when the selected model is known. The digest identifies the exact contract read; fetch again when it changes rather than relying on this snapshot. |
-| `studio_list_use_cases` | `id`, `label`, `outputType`, `description`, `supportedModels`, `count` | **Always pass `outputType: "all"`.** The enum is `IMAGE \| VIDEO \| all` but the catalog also has `STUDIO` and `AUDIO`, so 23 of 42 use cases — every `production-*`, every screenplay/preproduction workflow, and the audio ones — are unreachable through any narrower filter (`IMAGE` returns 13, `VIDEO` returns 6). Does **not** return `surfaces`, `media`, `parameters`, `presetSlots`, `intent`, or `studio`. `workflowId` is mapped but is always `undefined` — the field does not exist on `UseCaseDef` (server.ts:2938) |
+| `studio_list_use_cases` | `id`, `label`, `outputType`, `description`, `supportedModels`, `count` | Filter by the requested artifact type (`VIDEO` for video; `all` for cross-type discovery). The live video catalog currently returns seven task-specific cases. Does **not** return `surfaces`, `media`, `parameters`, `presetSlots`, `intent`, or `studio`. `workflowId` is mapped but is always `undefined` — the field does not exist on `UseCaseDef` (server.ts:2938) |
 | `studio_list_generation_models` | with `useCaseId`: `{ id, label }` per model. Unfiltered: `{ id, label }` × 75 | **Broken — do not rely on it.** `mediaType: "image"` returns `{models:[],count:0}`, verified. It filters on `m.mediaType \|\| m.outputType`, and `ModelDef` has neither field (`packages/shared/src/schemas/generation/schema.ts:771` — only `label`, `providers`, `pricing`, `prompting`, `roleSlotPolicy`, `videoReferenceBudget`, `organizationNameIncludes`), so `provider`, `mediaType`, `outputType` and `supportedUseCases` serialize away as `undefined` and the filter matches nothing (server.ts:2887). Use `supportedModels` from `list_use_cases`, or `model.options` from `studio_get_generation_catalog_detail`, instead |
 | `studio_get_use_case_input_schema({ useCaseId, modelId })` | **The authoritative per-model contract.** JSON Schema 2020-12 for `{ prompt?, media, parameters }`, plus `supportedModels` and resolved `presets` | **Always pass `modelId`.** Omitting it resolves a different model and therefore a different schema: `image-hub` with no `modelId` yields `gpt_image_2` (auto is unsupported for `IMAGE`, so it falls back to `models[0]`), `cinematic-video` yields `ltx_2_3_quality_image_to_video` (auto rule). Throws `No model could be resolved for <id>` on the three model-less Studio use cases: `studio-lock-references`, `studio-storyboard-keyframes`, `studio-batch-image-generation`. Responses for the 9 preset-bearing use cases are large — they inline the full preset catalog |
-| `studio_get_generation_catalog_detail({ useCaseId, modelId, surface, projectId })` | Same contract flat (`media[]`, `parameters[]` with `options`), plus `supportedActions` and `configDigest` | Needs `projectId`. Use it when you need the action ids. Note `supportedActions` is not media-typed — `production-generate-video` returns `{single: "generation.image", batch: "generation.image.batch"}` |
+| `studio_get_generation_catalog_detail({ useCaseId, modelId, surface, projectId })` | Same contract flat (`media[]`, `parameters[]` with `options`), plus `supportedActions` and `configDigest` | Needs `projectId`. Use it when you need action ids; the live `multi-shot-video` contract returns `generation.video` and `generation.video.batch` |
 | `studio_cancel_studio_job({ jobId, projectId })` | `{ job: { id, status, previouslyTerminal }, message }` | **Exists** (server.ts:1951). Already-terminal jobs return their status without error. Earlier guidance in this skill that cancellation was HTTP-only was wrong |
 
 ## 2. Facts not exposed by the contract API
@@ -54,36 +54,36 @@ Registrations: `apps/app-kalaasetu/src/app/api/mcp/server.ts`.
 | **Speed / quality tradeoff** | `models.json` → `providers[].requirements`: `balanced \| speed \| cost \| quality` | The **only** such signal in the catalog. There is no fps field, no max-resolution field, no benchmark or quality ranking anywhere in it. If asked which model is "best", say the catalog does not rank models and offer `autoSelection` order instead of inventing a comparison |
 | **`surfaces` (studio vs generate)** | `use-cases.json` → `surfaces` | See §3. **`outputType` is not a proxy for it**: `image-edit`, `character-locking`, `refine-character-image`, `character-multi-angle` are `outputType: IMAGE` but `surfaces: ["studio"]`; the two `avgc-*` use cases are on both; `kling-multi-shot-video` has `surfaces: []` and appears in neither UI while still being submittable |
 
-## 3. Generate use case vs Studio production use case
+## 3. Normal use cases and production graph context
 
-**Default: if the project has scenes and shots and the output must attach to the graph, use a `production-*` use case and pass `context.sceneId` / `context.shotId`.** Everything else is the exception.
+Use the normal catalog use case that matches the requested operation. Use
+[`references/video-use-case-routing.md`](references/video-use-case-routing.md) for the route
+table and Step 06 context, media, prompt, mention-map, and graph-readback procedure. Use
+`production-*` image/keyframe workflows where their specialized still-image behavior is needed;
+they are not the video-generation route for these skills.
 
-That default is not about `context`. Passing a perfectly correct `context` to a Generate use case does **not** bind the output to a shot — the use case decides. A `keyframe-sequence` job submitted with a full `context` including `shotId` lands in the Image Hub list and never appears under the shot; the fix is resubmitting as `production-generate-shot-keyframe-sequence`.
+The catalog use case selects available controls and media slots. The separate `context` envelope
+sets the job's production scope and output policy. For an episode shot, submit the deepest known
+`projectId`, `episodeId`, `sceneId`, and `shotId`, with `outputPolicy: "scoped_asset"`. Curate the
+selected graph elements and explicitly pass the references and parameters required by the chosen
+model. Do not infer graph attachment from a use-case name, UI surface, or job status; read the
+resulting asset and its shot relation after completion.
 
-**Studio production** (`outputType: STUDIO`, `surfaces: ["studio"]`) — `production-generate-keyframes`, `-shot-keyframes`, `-scene-keyframes`, `-shot-keyframe-grid`, `-scene-keyframe-grid`, `-shot-keyframe-sequence`, `-video`. The Studio submission path resolves the shot, seeds linked cast/world references, resolves the scene's `anchorRef`/`anchorRefs` into reference slots, and applies a default parameter table (§4) — `apps/app-kalaasetu/src/services/production-job-preparation.ts`.
-
-**Generate** (`surfaces: ["generate"]`) — `image-hub`, `cinematic-video`, `keyframe-grid`, `keyframe-sequence`, `camera-motion`, `motion-transfer`, `multi-shot-video`, `lip-sync`, `video-edit`, `face-swap`, `camera-angle`, `camera-grid`, `text-to-speech`, `voice-change`, `arcane-lora-v3`. Standalone exploration with `context.projectId` only; no graph binding, no reference seeding.
-
-Model sets differ, so a use case swap can change what is even available:
-
-- `image-hub` supports 7 image models including `flux-klein-arcane` and `z-image-turbo-arcane`.
-- Every `production-*` keyframe use case supports exactly 5: `gpt_image_2`, `gemini_image`, `nano_banana_2`, `seedream_5_pro`, `seedream_5_lite`.
-- `production-generate-video` supports 22 video models; `cinematic-video` supports 12, overlapping but not identical.
+Read `studio_list_use_cases({ outputType: "VIDEO" })` for current task-specific video cases.
+Read the exact model schema before submission: supported models, media slots, durations, aspect
+ratios, and optional controls can differ within the same use case.
 
 **One job path bypasses the catalog entirely.** `submit_studio_job` accepts any `useCaseId` string, so absence from the catalog is not a rejection. `script-preproduction` is a backend workflow id (`EVENT_DRIVEN_AGNO_WORKFLOWS` in `apps/app-kalaasetu/src/services/job-runner.ts:80`) that the MCP tool's own description advertises, but it is **absent from `use-cases.json`** — so `list_use_cases` will never list it and `get_use_case_input_schema` throws `Unknown use case`. Submit it by id and do not try to discover or schema-check it. For script breakdown from this skill set, prefer `mixio-script-breakdown`, which persists through the breakdown primitives instead. The catalog's own screenplay use cases (`source-screenplay-analysis`, `localized-screenplay-adaptation`, `video-preproduction`) *are* listed and each has a single same-named pseudo-model. The same goes for parameter names: an invented `useCaseId` also means no schema, so nothing filters or warns about what you send with it.
 
-### Where output lands
+### Verify graph placement
 
-| Use case | Scope | Output appears |
-|---|---|---|
-| `production-generate-shot-keyframes` | one shot, `keyframe_count` frames | under that shot |
-| `production-generate-shot-keyframe-sequence` | one shot, planner-driven sequence (`4/6/8/10/12`) | under that shot |
-| `production-generate-shot-keyframe-grid` | one shot, storyboard grid | under that shot |
-| `production-generate-scene-keyframes` / `-scene-keyframe-grid` | one scene | under that scene |
-| `production-generate-keyframes` / `production-generate-video` | current production scope | under the scene/shot |
-| `keyframe-sequence`, `keyframe-grid`, `image-hub` | not production-scoped | Image Hub list, *not* under the shot |
-
-You cannot verify this from the job read: `studio_get_job_status` returns status and tracking only, and never echoes `projectId`/`episodeId`/`sceneId`/`shotId`. Get it right on submit, then confirm by querying the shot's elements or relations. Job status values: `PENDING`, `RUNNING`, `IN_QUEUE`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `CANCELLED`.
+`context.outputPolicy: "scoped_asset"` requests a scoped output asset. After the job completes,
+read the output element and query the target shot's elements/relations to confirm it is attached
+to the exact `shotId`. `studio_get_job_status` returns lifecycle/tracking information, not proof
+of graph placement. If the output exists without a `generated_for` relation, link that output
+element to the shot with the project-scoped relation tool and read it back. Never use element
+tags as a substitute for graph relations. Job status values: `PENDING`, `RUNNING`, `IN_QUEUE`,
+`IN_PROGRESS`, `COMPLETED`, `FAILED`, `CANCELLED`.
 
 ## 4. Parameters
 
@@ -91,12 +91,11 @@ You cannot verify this from the job read: `studio_get_job_status` returns status
 
 | Use case | Model | `aspect_ratio` enum |
 |---|---|---|
-| `production-generate-video` | `veo_3_1` | `16:9`, `9:16` — only |
 | `production-generate-shot-keyframes` | `gemini_image` | `auto`, `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9` |
 | `image-hub` | `gpt_image_2` | `auto`, `1:1`, `16:9`, `9:16`, `21:9` |
 | `cinematic-video` | `ltx_2_3_quality_image_to_video` | `auto`, `16:9`, `4:3`, `3:2`, `1:1`, `2:3`, `3:4`, `9:16` |
 
-Read the enum from `get_use_case_input_schema` for the exact pair before submitting. `auto` is a legal value on many use cases but not all — it is absent from `production-generate-video`. The same is true of `duration` (`veo_3_1`: `4/6/8`, default `6`; the use case's own list is `4/5/6/8/10/12`, default `5`) and `resolution`. Numeric selects accept both string and number spellings (`generation-json-schema.ts`).
+Read each enum from `get_use_case_input_schema` for the exact pair before submitting. `auto`, `duration`, and `resolution` support and value types differ by use case and model. Numeric selects may accept string and number spellings; submit the schema's declared type.
 
 ### Production defaults you inherit
 
@@ -110,9 +109,7 @@ Read the enum from `get_use_case_input_schema` for the exact pair before submitt
 | `production-generate-shot-keyframe-grid` | `aspect_ratio: '16:9'`, **`grid_layout: '3x2'`** |
 | `production-generate-scene-keyframe-grid` | `aspect_ratio: '16:9'`, **`grid_layout: '3x2'`** |
 | `production-generate-shot-keyframe-sequence` | `aspect_ratio: '16:9'`, `keyframe_count: '6'`, `orchestrate_frames: true`, `reference_concurrency: 4`, `background_concurrency: 2`, `frame_concurrency: 3` |
-| `production-generate-video` | `duration: '5'`, `generate_audio: false` |
-
-Default **model** when none is selected: `gemini_image` for image generation and sheets wherever supported, including production keyframes and grids. Video defaults follow the input contract: H3 Ref2Vid for ordered keyframe arrays and reference-to-video, H3 I2V when a start frame is supplied, and H3 T2V for prompt-only video. Keep an existing project pin or explicit model choice. A start/end model given a multi-keyframe shot pushes every middle frame into prompt-only context (`apps/app-kalaasetu/src/lib/studio/sequence-video-models.ts`), so preserve the H3 Ref2Vid sequence default or choose another model that accepts the ordered array.
+Default **model** when none is selected: `gemini_image` for image generation and sheets wherever supported, including production keyframes and grids. For video, select a model from the chosen normal use case using its project pin, task, input roles, and exact schema. A start/end model given a multi-keyframe shot may push middle frames into prompt-only context; choose a model that accepts the ordered references when every frame must be bound.
 
 `keyframe_count` is a **closed set, not a range**: `1/2/3/4/6/8/9` for `production-generate-shot-keyframes` (default `1`), `4/6/8/10/12` for `-shot-keyframe-sequence` (default `6`). The 12 ceiling is 16 reserved output slots shared with background plates; `orchestrate_frames` does not raise it. For more frames, submit more jobs.
 
@@ -129,16 +126,22 @@ A job that "succeeded" with warnings ran **with your parameters removed**. Check
 ## 5. Workflow
 
 ```
-1. studio_list_use_cases({ outputType: "all" })           → pick useCaseId (never a narrower filter)
-2. studio_get_project(projectId)                          → honor the user's pinned defaults (below)
-3. studio_get_use_case_input_schema({ useCaseId, modelId })→ exact media slots + parameter enums
-4. studio_list_references(projectId) → studio_get_element  → reference image URLs (§6)
-5. studio_submit_studio_job({ jobType, model, useCaseId, prompt,
-     input: { media, parameters }, context: { projectId, episodeId, sceneId, shotId } })
-                                                          → job id + tracking + schemaWarnings
-6. read schemaWarnings; if non-empty, fix and resubmit before polling
-7. studio_get_job_status({ jobId, projectId })             → poll to COMPLETED
-8. mixio-eval before delivery; upload_file for local renders
+1. studio_list_use_cases({ outputType: requested type })     → choose the normal case for this task (VIDEO for video)
+2. studio_get_project(projectId)                           → resolve the per-use-case model pin
+3. studio_get_use_case_input_schema({ useCaseId, modelId }) → exact media slots + parameters
+4. studio_list_references(projectId) → studio_get_element   → approved media URLs and variants (§6)
+5. Compose prompt + schema-valid `input.media`/parameters + selectedElements; add paired
+   mention maps and prompt `@tag`s whenever media is present (§6)
+6. studio_submit_studio_job({ jobType: "video", model, useCaseId, prompt,
+     input: { media, parameters }, context: { projectId, episodeId, sceneId, shotId,
+       outputPolicy: "scoped_asset", contextSelectionMode: "curated" },
+     selectedElements, slotReferences, slotTags, mentionMap,
+     promptEnhancementMode: "off" })                       → job id + tracking + schemaWarnings
+7. read schemaWarnings; if non-empty, stop, fix the input, then submit again
+8. studio_get_job_status({ jobId, projectId })             → poll to COMPLETED
+9. read the resulting output element and shot relations to verify `scoped_asset` placement
+10. optionally record the terminal job using the [job-take report template](references/job-take-report.md)
+11. mixio-eval before delivery; upload_file for local renders
 ```
 
 ### Step 2 — honor project defaults before you choose anything
@@ -147,24 +150,39 @@ A job that "succeeded" with warnings ran **with your parameters removed**. Check
 
 ### Prompt Enhancement Modes (`Auto` vs `Raw` vs `Review`)
 
-Studio generation workflows support three prompt enhancement modes:
+Studio generation workflows support three prompt enhancement modes. For skill-managed jobs,
+the prompt is composed from the approved shot contract and resolved references, so use Raw by
+default to preserve that exact direction. Choose another mode only when the user asks for Studio
+to rewrite or stage a revised prompt.
 
 | Mode | Wire Value (`promptEnhancementMode`) | When to use |
 |------|--------------------------------------|-------------|
-| **Auto** (Default) | `"enhance"` | **Default for creative runs.** Prompt is automatically enriched with character appearance, location details, camera angles, and style tokens via LLM prompt compilation before GPU execution. |
+| **Auto** | `"enhance"` | Studio may enrich and rewrite the prompt using linked character, location, camera, and style context. |
 | **Raw** | `"off"` | **Use for verbatim prompts, custom LoRA trigger words, exact benchmark tests, or pre-crafted directions.** Bypasses all LLM prompt rewriting and sends your exact prompt directly to the generation model. |
 | **Review** | `"enhance_and_review"` | Enhances the prompt and holds it for user inspection/editing before submitting the final GPU job. |
 
 Pass `promptEnhancementMode` directly to `studio_submit_studio_job` or within `context.intent`:
 
-```json
+```js
 studio_submit_studio_job({
   jobType: "video",
   model: "hailuo_v3_reference_to_video",
   useCaseId: "multi-shot-video",
-  prompt: "Exact custom direction...",
-  promptEnhancementMode: "off", // Raw mode: no LLM rewriting
-  context: { projectId: "<uuid>" }
+  prompt: compiledPrompt,
+  input: { media, parameters },
+  selectedElements,
+  slotReferences,
+  slotTags,
+  mentionMap,
+  promptEnhancementMode: "off",
+  context: {
+    projectId,
+    episodeId,
+    sceneId,
+    shotId,
+    outputPolicy: "scoped_asset",
+    contextSelectionMode: "curated"
+  }
 })
 ```
 
@@ -172,165 +190,75 @@ For **Audio / Gemini TTS** (`text-to-speech`), raw transcript reading is control
 - `auto_enhance_ssml: true` (default) — wraps transcript in SSML tags and performance directions.
 - `auto_enhance_ssml: false` — reads the verbatim transcript text without performance guidance injection.
 
-`settings.generation`: `defaultModelByUseCase`, `defaultParametersByUseCase`, `defaultDurationByUseCase`, `defaultAspectRatioByOutputType`, `defaultResolutionByOutputType`, `recommendedStylePresetIds`, `inferenceMode`.
+`settings.generation`: `defaultModelByUseCase` (video pins such as `cinematic-video` and `multi-shot-video`), `defaultParametersByUseCase`, `defaultDurationByUseCase`, `defaultAspectRatioByOutputType`, `defaultResolutionByOutputType`, `recommendedStylePresetIds`, `inferenceMode`.
 `settings.studio`: `preferredVideoModel`, `videoDurationSeconds`, `defaultStylePrompt`, `defaultVideoShotMode`, `visualStyle`, `toneAndMood`, `cinematographyDirection`.
 
-A real project reads `{ "production-generate-video": "gemini_omni_multishot" }` with `VIDEO` aspect `9:16` — submitting `veo_3_1` at `16:9` there uses the wrong model and aspect ratio. Also read `settings.references` before creating references (`mixio-references`).
+Resolve the per-use-case model and its parameter defaults together; a project-level aspect ratio
+or old Studio preferred-model field cannot make an unsupported model/control valid. Also read
+`settings.references` before creating references (`mixio-references`).
 
-## 6. Getting reference image URLs
+## 6. Resolve and bind approved reference media
 
-Media slots take **real URLs, not Payload media IDs** — the server rejects UUID-shaped values outright (server.ts, M-024/M-008). Resolve in this order:
-
-1. `studio_list_references({ projectId })` — names, types, and a `hasAttachments` boolean. **No URLs.** This is a directory, not a source of images.
-2. `studio_get_element({ elementId })` → `referenceVariants[].attachments[].media.url`, or `studio_get_production_context({ projectId, episodeId })` for the whole graph at once (100K+ characters — prefer the element read when you know the id). If a CHARACTER shot or scene has a bound look, resolve it rather than picking `referenceVariants[0]`; for a LOCATION, resolve the confirmed configuration and exact labeled view — see §7.
-3. Anything local: `upload_file(path)` or `get_public_url(path)` for a permanent URL first. `/api/media/file/{id}` form is also accepted.
-4. **External media URLs (Google Drive, third-party CDNs)**: Don't pass external URLs directly to generation slots or rely on server-side URL fetching (risk of SSRF / `No files were uploaded` failures). Use the validated local-download fallback from `mixio-workspace`:
-   - run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts), which permits only public HTTPS redirects, bounds the download, validates MIME type, and cleans up its unique temporary directory;
-   - call `upload_file({ path: asset_path, project_id, organization_id })` and pass `entry.publicUrl` to `input.media.<slot>`.
-
-Slot ids come from the schema, not from memory. Common ones: `primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`. Each takes `{ url }` or an array of them.
+Media slots require real URLs, not Payload media IDs. Resolve the approved character look or
+location view and the URL using [`reference-media.md`](references/reference-media.md). For local
+files, upload first; for external URLs, use `mixio-workspace`'s validated download-and-upload
+fallback. Read the selected model's live schema for its exact media slots and cardinality.
 
 ### Link every job to everything it knows about
 
 | Field | Shape | Why |
 |---|---|---|
-| `context` | `{ projectId (required), episodeId?, sceneId?, shotId? }` | Where the job belongs. Always the deepest scope you know |
-| `selectedElements` | `[{ id, type, identityKey?, mentionCode? }]` | Which characters/locations/props the prompt refers to. `type` ∈ `CHARACTER`, `LOCATION`, `PROP`, `SHOT`, `SCENE`. Also what a character look-binding fallback resolves against — see §7 |
-| `slotReferences` | `{ <slot>: { url, elementId?, mediaId?, referenceType?, displayLabel? } }` | Images **with provenance**; `elementId` is what lets scene anchors dedupe against an explicit per-shot choice instead of attaching twice |
-| `slotTags` | `{ <assetKey>: "@tag" }` | Binds a media asset to a mention tag; `assetKey` is `elementId \|\| mediaId \|\| url` |
+| `context` | `{ projectId, episodeId?, sceneId?, shotId?, outputPolicy: "scoped_asset", contextSelectionMode: "curated" }` | Deepest production scope plus requested output placement |
+| `selectedElements` | `[{ id, type, identityKey?, mentionCode? }]` | Which characters/locations/props the prompt refers to. `type` ∈ `CHARACTER`, `LOCATION`, `PROP`, `SHOT`, `SCENE`. Also what a character look-binding fallback resolves against — see [reference media](references/reference-media.md) |
+| `slotReferences` | `{ <schema-declared slot>: { url, variantId?, variantName? } or [...] }` | Explicit URL provenance and selected reference variant, using fields declared by the live tool contract |
+| `slotTags` | `{ <referenceIdentityKey>: "@tag" }` | Binds each active reference identity to its exact semantic mention; see the [Prompt & Mention Sheet](references/prompt-mention-sheet.md) for key selection |
 | `mentionMap` | `{ "@tag": "Human Label" }` | Binds that tag to a subject. **Both maps are required** for a tag to bind |
-| `input.media` | `{ <slot>: { url } }` | Raw URLs, no provenance. Production workflows may seed derived references from it, but explicit `slotTags` + `mentionMap` pairs remain required |
+| `prompt` | authored string | Contains each exact `@tag` where the referenced asset acts; skill-managed video uses `promptEnhancementMode: "off"` |
+| `input.media` | `{ <schema-declared slot>: { url } or [{ url }] }` | Actual media URLs; the selected model's schema defines valid slots and singular/array shape |
 
-The MCP submit arguments `prompt`, `slotTags`, and `mentionMap` are serialized with `input.media` into backend `userInput`; keep all three in the same submission and validate the serialized shape before submitting.
+The MCP contract can derive mention data when references are provided. Skill-managed jobs still
+send explicit `slotTags` and `mentionMap` with the authored prompt, and validate the serialized
+shape before submitting.
 
 ### Mentions — binding an image to a subject (Universal across all models)
 
-Sending two character images does not say which is which. Semantic `@tag` tokens in the authored prompt do, rewritten at dispatch into each provider's own syntax (`@Image1`/`@Element1` for Kling, `Image 1` for Hailuo reference-to-video, or subject-grounded prompts for Veo/Sora/Wan). Substitution is in place, so the tag binds wherever it sits in the sentence; callers do not author provider tokens directly.
+Sending two character images does not say which is which. Semantic `@tag` tokens in the authored
+prompt do; the route compiler maps them into its provider grammar (H3 Ref2Vid uses indexed
+`<Picture N>`/`<Video N>`/`<Audio N>` forms; other providers use their catalog grammar). Callers
+do not author provider tokens directly.
 
 This is a universal architectural requirement across every image, keyframe, storyboard, and video generation path and every model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX, Flux, etc.). A provider may render the tag differently, but it still needs the semantic mention and its paired maps before compilation.
-
-#### Incident Grounding & Failure Mode
-
-In job `b463831e-ac6f-4a40-a2b2-0ebde2527c92` (`hailuo_v3_reference_to_video`), `userInput.media` carried `primary` (Gary Player reference image) and `enhancer_context` (Scene 7 anchor) with `slotTags` (`@asset1`, `@scene1`), but:
-1. The prompt text contained plain descriptive prose (`"Gary Player (white athletic golfer in signature all-black polo)..."`) with **zero** `@` mention tokens.
-2. `mentionMap` was missing from `userInput`.
-3. Consequently, the prompt materializer and provider compiler could not map `@asset1` to Hailuo's required `Image 1` token in `providerRequest.prompt`. The video model received `reference_image_urls` but an ungrounded prompt, causing the model to guess identity and waste generation work.
 
 #### Mandatory Invariants
 
 1. **Prompts MUST ALWAYS contain `@` mentions for all active assets/references** (e.g. `@asset1`, `@tony`, `@scene1`). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`, or another schema-declared slot) must be embedded in the prompt string where the subject acts. Plain descriptive prose without `@` tokens will fail grounding.
-2. **Paired `slotTags` AND `mentionMap` are MANDATORY**: Whenever media references/assets are provided, `userInput` must always include both `slotTags` (`{ [assetKey]: "@tag" }`) and `mentionMap` (`{ "@tag": "Human Label / Description" }`). The pair is one-to-one: every active asset has one tag, every tag has a non-empty label, and neither map may contain an orphan entry.
+2. **Paired `slotTags` AND `mentionMap` are MANDATORY when media is present**: the maps use the exact active reference identity keys and semantic tags (`{ [referenceIdentityKey]: "@tag" }`, `{ "@tag": "Human Label / Description" }`). The pair is one-to-one: every active reference has one tag, every tag has a non-empty label, and neither map may contain an orphan entry. Prompt-only jobs with no media need no slot maps. The maps are top-level submit fields; see `references/prompt-mention-sheet.md` for key selection.
 
-#### Model-Specific Mention Token Grammars
+For identity key selection, canonical tag construction, and route-specific token grammar, use the
+[Prompt & Mention Sheet](references/prompt-mention-sheet.md). Always author semantic `@tag`s and
+let the selected route compile provider tokens; do not hand-write `Image 1`, `@Image1`, or
+`<IMAGE_REF_1>` forms.
 
-Different model compilers transform `@tag` tokens into proprietary provider prompt syntaxes:
+#### Multi-cut prompt serialization (`MULTI_CUT` shots)
 
-| Model / Family | Wire Compiler Output | Token Grammar & Behavior |
-|----------------|----------------------|--------------------------|
-| **Hailuo reference-to-video** (`hailuo_v3_reference_to_video`) | `Image 1`, `Image 2` | Requires discrete `Image N` tokens in `providerRequest.prompt` matching the order in `reference_image_urls`. If prompt omits `@asset1`, compiler cannot inject `Image 1` and identity anchoring fails completely. |
-| **Kling** (`kling_o3_reference_to_video`, `kling_multi_image_to_video`, `kling_2_6_pro`) | `@Image1`, `@Element1` | The authored prompt uses semantic `@tag`; the compiler emits `@Image1` / `@Element1` in `providerRequest.prompt` to bind elements sequentially. Do not hand-author provider tokens. |
-| **Seedance** (`seedance_image_to_video_v2`, `seedance_video_prior_i2v`) | `@tag` / slot references | Binds `@tag` tokens to image slots directly or maps them to subject descriptions. |
-| **Gemini Multi-Panel** (Storyboard & keyframe grids) | Panel indexing (`Panel 1`, `Image 1`) | Maps reference assets and character looks across distinct grid panels. |
-
-#### Rules for Mention Construction
-
-- **`production-*` use cases may derive defaults** from the shot's related elements; still send explicit maps, and treat anything you pass as the authoritative value.
-- **No other use case derives anything.** Send `slotTags` + `mentionMap` yourself or multi-reference binding silently does not happen.
-- Write the canonical tag as the element's name, slugified with dots — `Tony` → `@tony`, a look variant → `@tony.casual`. `mentionCode`, `title`, `displayLabel` and `name` all resolve as aliases.
-- Generic caller tags (`@char1`, `@loc1`, `@asset2`, `@style1`, `@Image1`) are stable; arbitrary literals may be reassigned. Use the resolved canonical tag in both maps and in the authored prompt after alias resolution.
-- An unresolved tag degrades to its plain label — safe, but the binding is lost with no error.
-- `@scene`, `@shot`, `@style`, `@pose` prefixes are bookkeeping, not bindable subjects.
-
-Put per-character staging inline next to the mention — `@tony (MC, three-quarter-left, seated cross-legged, on BED)`. Structured staging fields get flattened on the way to the model; the mention token survives with its position intact.
+`cuts[]` is never the effective prompt by itself. Serialize every populated per-cut field into
+the model prompt, including framing/angle/lens/camera movement, action, blocking, and dialogue,
+SFX, or ambient cues. Follow the exact route grammar and worked example in the
+[Prompt & Mention Sheet](references/prompt-mention-sheet.md). That sheet is the pre-submit
+artifact Step 06 validates. Never reduce a cut to shot type and action.
 
 #### Preflight Gating Checklist (Step 06)
 
 Before calling `studio_submit_studio_job` for any billable generation:
-- [ ] **Asset coverage**: Flatten every schema-declared `input.media` slot (including inherited scene anchors and look-bound references); each asset key has exactly one `slotTags` entry.
+- [ ] **Asset coverage**: Flatten every schema-declared `input.media` slot (including inherited scene anchors and look-bound references); each reference identity key has exactly one `slotTags` entry.
 - [ ] **Paired maps**: Both maps exist when media is non-empty; every `slotTags` value is a unique `@tag` with a non-empty `mentionMap` label.
 - [ ] **Prompt embedding**: The effective prompt contains every mapped tag at least once where that asset acts. For a sequence use case with no caller `prompt`, validate `sequence_notes` plus the materialized shot prompt instead of treating the omission as a bypass.
 - [ ] **No orphaned or colliding tags**: Reject unused `slotTags`/`mentionMap` entries, duplicate tag assignments, and any media asset without a map pair (`PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or `MENTION_MAP_ORPHANED`).
 - [ ] **No ungrounded prose**: Descriptive text may supplement a mention, but it never replaces the required `@tag` token.
 
-#### Correct Payload Example
-
-```js
-studio_submit_studio_job({
-  jobType: "video",
-  model: "hailuo_v3_reference_to_video",
-  useCaseId: "production-generate-video",
-  prompt: "@asset1 (Gary Player in signature all-black polo) takes a confident backswing on the tee box under @scene1 (Scene 7 wide fairway lighting), camera slowly dollys in.",
-  slotTags: {
-    "elem_gary_player_01": "@asset1",
-    "elem_scene_7_anchor": "@scene1"
-  },
-  mentionMap: {
-    "@asset1": "Gary Player",
-    "@scene1": "Scene 7 Fairway Anchor"
-  },
-  slotReferences: {
-    primary: {
-      url: "https://studio.mixio.pro/api/media/file/gary_player.png",
-      elementId: "elem_gary_player_01",
-      displayLabel: "Gary Player"
-    },
-    enhancer_context: {
-      url: "https://studio.mixio.pro/api/media/file/scene7_anchor.png",
-      elementId: "elem_scene_7_anchor",
-      displayLabel: "Scene 7 Fairway Anchor"
-    }
-  },
-  input: {
-    media: {
-      primary: { url: "https://studio.mixio.pro/api/media/file/gary_player.png" },
-      enhancer_context: { url: "https://studio.mixio.pro/api/media/file/scene7_anchor.png" }
-    },
-    parameters: {
-      duration: "5",
-      aspect_ratio: "16:9"
-    }
-  },
-  context: {
-    projectId: "proj_987654",
-    episodeId: "ep_123456",
-    sceneId: "scene_07",
-    shotId: "shot_7_1"
-  }
-})
-```
-
-## 7. Variant selection — declaring which approved image to render
-
-A CHARACTER shot may bind one of its approved looks (`referenceVariants`) via
-`lookRef` on its `appears_in`/`presence` relation — see
-`mixio-script-breakdown` and `mixio-references`. Resolution order is
-**shot → scene → character reference default**; a binding that no longer
-matches a variant degrades silently. Check whether your Studio supports this:
-call `studio_get_production_context`; a `lookBindings` key means the cascade
-and `variantId`/`variantName` are live. Otherwise resolve and pass the
-character variant URL directly (§6).
-
-For a LOCATION, select the screenplay-confirmed configuration variant and its
-exact labeled camera-view image from the Step 02 inventory. A location variant
-names a configuration such as exterior, living room, or hallway; the image
-label identifies the view within that configuration. Do not use a character
-`lookRef` binding to choose a location camera angle. If the active contract
-cannot declare a location variant on `input.media.<slot>`, pass the exact
-approved view URL and retain the variant/view selection in shot plan metadata;
-do not infer it from array order. Never submit an unapproved candidate or a
-rejected URL.
-
-For CHARACTER looks, three ways to hit a specific variant, in order of directness:
-
-1. **Pass `variantId` / `variantName` on the media reference itself** — `input.media.<slot>: { url, variantId }`. Bound exactly, no lookup, and always wins over whatever generation would otherwise resolve. For a location image, use the confirmed configuration variant and the URL for its exact labeled camera view, not an arbitrary image from that variant.
-2. **Pass `selectedElements` alongside `media`.** Each reference is linked to its element, so the backend fallback can resolve the shot-then-scene binding for you. This is the step that's easy to skip — omit `selectedElements` and a URL-only reference has no element id, so there's nothing for the fallback to key on.
-3. **Read `lookBindings` and pass that look's URL yourself.** `studio_get_production_context` returns `lookBindings: [{ ownerId, referenceId, lookRef }]` for the whole episode; `studio_query_relations` rows expose the same thing per relation as `metadata.lookRef`. Pass a relation `metadata` filter as a native object, never a JSON-stringified string.
-
-With none of the three, a character reference resolves to its default variant — indistinguishable from "nothing was bound," so a rebind the user made can silently not render. Whatever you declare (1 or 2) is a snapshot taken at submit time; rebinding after submitting a running job does not change what it renders. This fallback does not select a location camera view; choose and pass that location image explicitly.
-
-### Look-binding mention contract
-
-A resolved variant is still an active media asset. `variantId`/`variantName` selects which image is used; it never replaces the prompt `@tag`, `slotTags`, or `mentionMap` pair. For example, a formal look still needs the canonical `slotTags: { "elem_tony_formal": "@tony.formal" }`, `mentionMap: { "@tony.formal": "Tony Russo — formal look" }`, and a prompt clause such as `@tony.formal turns toward the window`. For location media, label the configured space and view, and keep the same mandatory paired mention maps.
+The complete, model-specific submission shape is in
+[`video-use-case-routing.md`](references/video-use-case-routing.md). Treat its example as illustrative and
+include only slots and parameters accepted by the selected live schema.
 
 ## Audio
 
@@ -339,3 +267,7 @@ Reachable, undiscoverable by filter. `text-to-speech` and `voice-change` are `ou
 ## References
 
 `references/model-comparison.md` — `autoSelection` ranking, model capability data, and per-model input-role capability. All three are catalog facts no MCP tool exposes.
+
+`references/prompt-mention-sheet.md` — the pre-submit pairing sheet: slot key ↔ `@tag` ↔ mention label ↔ route token, with the per-model token table and H3 cut-line grammar.
+
+`references/job-take-report.md` — optional per-job take report template; using it does not add a required metadata write or selection policy.

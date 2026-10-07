@@ -1,7 +1,7 @@
 ---
 name: mixio-pipeline
 description: "Run an episode from screenplay to delivered video as gated steps — detailed screenplay, anchor frames, reference audit, panel breakdown, continuity audit, shot planning, video generation — persisting progress and locking each step before the next. The entry point for a full episode, and the fallback whenever it's unclear which production skill applies — the others (mixio-sheets, mixio-reference-audit, mixio-script-breakdown, mixio-continuity, mixio-shot-planning) each assume you already know that's the one step you need."
-version: 0.4.1
+version: 0.4.2
 invoke: /mixio:pipeline
 ---
 
@@ -42,25 +42,29 @@ Read the [native screenplay grammar](../mixio-episode/references/screenplay-gram
 
 Everything downstream reads project settings. If Step 00 doesn't set them, later steps inherit
 defaults. Use `gemini_image` for image generation and sheets wherever the use case supports it.
-Use the H3 route that fits each video's input contract: H3 Ref2Vid for ordered keyframes and
-reference-to-video, H3 I2V for a start frame, and H3 T2V for prompt-only video. An existing
-project setting or explicit model selection takes precedence. Settle any remaining delivery
-settings here, write them to the project, and gate Step 01 on the user confirming the contract.
+Pin video models per normal use case: H3 I2V for image-backed `cinematic-video` jobs and H3
+Ref2Vid for `multi-shot-video` are the starting defaults. For prompt-only `T2V`, select a
+text-to-video model from `cinematic-video`; do not reuse an image-to-video model that requires a
+`primary` frame. Prompt-only and specialized operations select a compatible model from their
+exact schema. A per-use-case pin is a starting preference, not permission to ignore the shot's
+media shape. Settle remaining delivery settings here, write them to the project, and gate Step 01
+on the user confirming the contract.
 
 ### 1. Confirm the contract — options in the same message as the question
 
-Six settings, presented with their live legal options. For image and video models, show the
-defaults above as the preselected recommendations and ask only when the project already pins a
-different model or a route-specific contract makes that default unavailable.
+Seven settings, presented with their live legal options. For image and video models, show the
+defaults above as preselected recommendations. Ask only when the project already pins a different
+model or a route-specific contract makes that default unavailable.
 
 | # | Confirm | Source of the legal values |
 |---|---------|----------------------------|
 | 1 | **Image model** — the keyframe model for every `production-*` keyframe use case | `gemini_image` is the default when supported; re-read `supportedModels` to confirm it remains available |
-| 2 | **Video model** — what Step 06 uses | Prefer H3 Ref2Vid for ordered keyframes/reference-to-video, H3 I2V for a start frame, and H3 T2V without an image; confirm against `supportedModels` and the live schema |
-| 3 | **Aspect ratios** — delivery + anchor (see §2 below) | `aspect_ratio` enum from `studio_get_use_case_input_schema({ useCaseId, modelId })` for the chosen pairs — there is no global list |
-| 4 | **Resolution** — per output type and per video use case | Same schema read, and **many models expose no `resolution` parameter at all** (`gemini_omni_multishot` and `seedream_5_pro` have none; `veo_3_1` has one defaulting to `720p`). Confirm the parameter exists before locking a value for it |
+| 2 | **Video model defaults by use case** — `cinematic-video` and `multi-shot-video`; specialized video routes are selected when Step 05 identifies the operation | H3 I2V for image-backed `cinematic-video`, a schema-compatible T2V model for prompt-only shots, H3 Ref2Vid for `multi-shot-video`; confirm the exact model schema |
+| 3 | **Aspect ratios** — delivery + anchor (see §2 below) | Use the model's `aspect_ratio` enum when exposed. If absent, confirm how the model determines output framing and whether its input media can meet the delivery contract; a project default cannot add an unsupported control. |
+| 4 | **Resolution** — per output type and per video use case | Same schema read; confirm that each selected model exposes `resolution` before setting it |
 | 5 | **Visual style / tone** — style, mood, cinematography, default style prompt | The user. This is direction, not a catalog value |
 | 6 | **Reference policy** — `createPolicy`, `variantPolicy`, `variantVocabulary` | Closed sets: `allow` · `link_only` · `propose`, and `open` · `closed` (`mixio-references`) |
+| 7 | **Shot length** — multi-cut 10–15s (default) vs panel 2.5–4.5s | §3 below; `settings.studio.videoDurationSeconds` (open string, no enum) |
 
 Read the project first with `studio_get_project` and show what is *already* set — a configured
 project needs a diff confirmed, not a fresh interrogation. On a project whose settings are
@@ -78,23 +82,47 @@ Two ratios, never re-derived after this step:
 - `aspect_ratio` — the **delivery** ratio (`9:16` vertical for microdrama, `16:9` for landscape).
 - `anchor_aspect_ratio` — the ratio for **anchor frames only**, deliberately wider than delivery (`16:9` when delivering `9:16`).
 
-Anchors are rendered wide on purpose: a wide master of the set gives every downstream shot a shared spatial truth to crop into, so left/right and near/far stay consistent between a wide and a close-up. Delivery shots then render at `aspect_ratio`.
+Anchors are rendered wide on purpose: a wide master of the set gives every downstream shot a shared spatial truth to crop into, so left/right and near/far stay consistent between a wide and a close-up. Each delivery job must meet `aspect_ratio` through a supported model parameter or correctly composed input media when that model has no ratio control. Never assume the project-level `VIDEO` default overrides the selected model's schema.
 
-### 3. Write and read back
+### 3. Shot length & multi-cut route
+
+Two shot-length contracts, confirmed once and never re-derived downstream:
+
+- **`multi_cut` (default)** — shots run **10–15s**, planned as one native multi-cut video job with
+  per-cut specs persisted on the shot (`cuts[]`, see `references/shot-grammar.md`). Write
+  `settings.studio.videoDurationSeconds = "10-15"` and pin H3 Ref2Vid under
+  `settings.generation.defaultModelByUseCase["multi-shot-video"]` when that is the confirmed
+  project choice. Select the model from the `multi-shot-video` schema; do not reuse a global
+  Studio video-model preference for a different use case.
+- **`panel`** — short single-cut shots (2.5–4.5s). Write
+  `settings.studio.videoDurationSeconds = "2.5-4.5"` and, when a Studio bias is wanted,
+  `settings.studio.defaultVideoShotMode = "single-shot"`.
+
+Record the mode on the episode next to the frame contract:
+`metadata.pipeline.shot_contract = { mode: "multi_cut", band: "10-15" }` (or
+`{ mode: "panel", band: "2.5-4.5" }`). `defaultVideoShotMode` accepts open strings, but the only
+Studio-known biases are `single-shot` / `multi-keyframe` / `grid` — never write an invented value
+there; the mode itself lives in `shot_contract`.
+
+**13–15s is routed through the normal `multi-shot-video` use case.** Multi-cut model routing
+(H3 Ref2Vid first, then compatible Seedance → Kling → Gemini ≤10s; otherwise an approved
+`SEQUENCE` of separate schema-valid jobs) is owned by `mixio-shot-planning`
+([`references/model-matching.md`](../mixio-shot-planning/references/model-matching.md#multi-cut-routing)).
+The `cuts[]` array is not snapped to a whole-job duration enum.
+
+### 4. Write and read back
 
 `updates.settings` replaces the complete settings object. Read the project, merge every nested
 map, write the whole object, then read it back before closing Step 00. The global `IMAGE` and
-`VIDEO` defaults use the delivery ratio; every anchor job supplies `anchor_aspect_ratio`
-explicitly. Use [the preflight settings recipe](references/preflight-settings.md) for the exact
+`VIDEO` defaults record the delivery ratio; each job still follows its selected model's schema.
+Every anchor job supplies `anchor_aspect_ratio` explicitly. Use [the preflight settings recipe](references/preflight-settings.md) for the exact
 read-modify-write payload, resolution routing, and per-episode frame-contract write.
 
 ### Gate
 
 **Step 01 does not start until Step 00 is confirmed.** Announce the close with the values read
 back from `studio_get_project`, not just the word complete. For example:
-`Step 00 — Preflight complete. ${resolved.imageModel} / ${resolved.videoModel}, delivery ${resolved.deliveryAspectRatio}, anchors ${resolved.anchorAspectRatio}, image ${resolved.imageResolution}, video ${resolved.videoResolution ?? "model default"}, references ${resolved.references.createPolicy}+${resolved.references.variantPolicy}. Moving to Step 01.` If the user later
-changes a model or a ratio, that is a re-entry into Step 00 and it invalidates anchors rendered
-at the old ratio — say so rather than quietly re-rendering one scene.
+`Step 00 — Preflight complete. Image ${resolvedSettings.settings.generation.defaultModelByUseCase["production-generate-shot-keyframes"]}; video ${resolvedSettings.settings.generation.defaultModelByUseCase["cinematic-video"]} / ${resolvedSettings.settings.generation.defaultModelByUseCase["multi-shot-video"]}, delivery ${resolvedSettings.settings.generation.defaultAspectRatioByOutputType.VIDEO}, anchors ${resolvedEpisode.metadata.pipeline.anchor_aspect_ratio}, references ${resolvedSettings.settings.references.createPolicy}+${resolvedSettings.settings.references.variantPolicy}. Moving to Step 01.` The model and delivery/reference values come from the project readback; the anchor ratio comes from the episode readback. If the user later changes a model or a ratio, that is a re-entry into Step 00 and it invalidates anchors rendered at the old ratio — say so rather than quietly re-rendering one scene.
 
 ## Step 01 — Detailed Screenplay
 
@@ -167,10 +195,10 @@ breakdown skill owns the fields, audit checks, and `metadata.pipeline.breakdown_
 
 → `mixio-shot-planning`. Three decisions per shot, then batching:
 
-Before batching, reconcile every broken-down shot's actual camera zone, location configuration, and selected labeled view against `metadata.pipeline.reference_pack_inventory`. If a shot requires an unlisted or unapproved row, emit a blocking reference finding, add the row to the inventory as `proposed`, and stop before writing an awaiting-generation-approval summary. Ask the user to confirm the additional image round, stage and evaluate candidates, attach only approved images, and rerun the reference audit. Re-entering Step 02 invalidates downstream work: rerun Step 02.5, Step 03, Step 04, and Step 05 before Step 06.
+Before batching, reconcile every broken-down shot's actual camera zone, location configuration, and selected labeled view against `metadata.pipeline.reference_pack_inventory`. If a shot requires an unlisted or unapproved row, emit a blocking reference finding, add the row to the inventory as `proposed`, and stop before writing an awaiting-generation-approval summary. Ask the user to confirm the additional image round, stage and evaluate candidates, attach only approved images, and rerun the reference audit. Re-entering Step 02 invalidates downstream work: rerun Step 02.5, then restart Steps 03–05 because their outputs are stale before Step 06.
 
 1. **Model + live contract** — use the project's explicitly pinned model when present. Otherwise prefer the compatible H3 route: Ref2Vid for ordered keyframes/reference-to-video, I2V when a start frame is supplied, and T2V for prompt-only video. If the matching H3 route is unavailable for that use case, select a supported fallback and read its live input schema, including the duration ceiling.
-2. **Archetype / Method** — classify each shot using that contract into one of 5 structural archetypes: `GRID` (multi-panel/montage), `SEQUENCE` (multi-beat sequence), `MASTER_ANCHOR_MULTI_SHOT` (coverage grounded by the wide scene-anchor reference through a derived keyframe), `SINGLE` / `DUAL_FRAME` (standard keyframe interpolation), or `T2V` (direct text-to-video).
+2. **Archetype / Method** — classify each shot using that contract into one of 6 structural archetypes: `GRID` (multi-panel/montage), `MULTI_CUT` (10–15s multi-cut shot rendered as one native `multi-shot-video` job from persisted `cuts[]`), `SEQUENCE` (multi-beat sequence), `MASTER_ANCHOR_MULTI_SHOT` (coverage grounded by the wide scene-anchor reference through a derived keyframe), `SINGLE` / `DUAL_FRAME` (standard keyframe interpolation), or `T2V` (direct text-to-video).
 3. **Execution & Feasibility Audit** — validate duration vs model max, action density (`actions / duration`), dialogue speaking rate (`words / duration`), reference readiness, the shot's selected character look and location variant/view, and **mandatory prompt `@` mentions + paired `slotTags`/`mentionMap` verification**. The chosen location media must match the confirmed variant/view row and be approved; pass its explicit `variantId`/`variantName` with the actual view image. Every active media slot (`primary`, `endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`, `clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`, or a schema-added slot) must have exactly one mapped `@tag` in the effective prompt; reject missing pairs, collisions, and orphan map entries.
 
 Then group consecutive shots only when their model, generation use case, and input contract all match; the planner's live schema limits still apply. Emit a `PRODUCTION SUMMARY` with archetype distribution, keyframe/video job counts, high-risk cross-model boundaries, and the relative cost order: video generation costs the most, image generation comes next, and other operations cost little. Preserve a bound CHARACTER look as relation `lookRef`; Step 06 must resolve it through `selectedElements` or pass `variantId`/`variantName` on the media reference. For locations, pass the confirmed configuration variant and exact approved view image; do not encode the camera angle as character `lookRef` or inert plan metadata (see `mixio-generate`).
@@ -192,9 +220,16 @@ Then group consecutive shots only when their model, generation use case, and inp
 **Use case IDs for this step:**
 - Keyframes, shot already locked by Step 04: `production-generate-shot-keyframes` with `keyframe_count: 1`, **one job per beat**. Our prompt is used verbatim, nothing re-plans it, and the sequence planner's diversity gate cannot reject a deliberate hold. Pass the previous beat's keyframe as a reference to chain continuity forward.
 - Keyframes, beats you want invented for you: `production-generate-shot-keyframe-sequence`. Leave `prompt` unset — a caller prompt *replaces* Studio's shot-spec assembly — and put your direction in `sequence_notes`, which is appended to the planner's prompt instead.
-- Video: `production-generate-video`
+- Video: choose the normal task-specific use case (`multi-shot-video`, `cinematic-video`,
+  `lip-sync`, or another live catalog match); assemble the prompt, media, parameters, and mention
+  maps from the approved shot plan, then submit with full shot context. The routing and graph
+  readback contract lives in
+  [`mixio-generate/references/video-use-case-routing.md`](../mixio-generate/references/video-use-case-routing.md).
 
-Do **not** use `keyframe-sequence` — that is the Generate-page version (`outputType: IMAGE`, `surfaces: ["generate"]`) and output will not land under the shot even with correct `context`.
+Do not submit video through `production-generate-video`. Standard video use cases accept a
+separate context envelope; pass `projectId`, `episodeId`, `sceneId`, `shotId`, and
+`outputPolicy: "scoped_asset"`, then verify the generated asset is associated with that shot.
+Tags are mention bindings, not graph relations.
 
 **Run the modern eval gate yourself.** The server's own evaluation pass is skipped whenever `orchestrate_frames` is true, which is the default on the production sequence path — so nothing checks the rendered frames unless you do. Run `mixio-eval` per batch through the canonical `evals_evaluate_media` hosted tool (or its local `studio_evals_evaluate_media` proxy / CLI `evals-evaluate-media` spelling), with `evals_get_evaluation_result` for polling (local `studio_evals_get_evaluation_result`, CLI `evals-get-evaluation-result`). Before rendering, use `image-character` for character sheets and `image-location` for location packs only after the live catalog and contract confirm that the profile accepts the candidate and required evidence. If no compatible profile is listed, use available vision or human review; leave the required row unresolved when it has no visual evidence. Each evaluator submission is billable and requires confirmation, and reference evaluation does not replace shot evaluation. Request the `human-review` repair-plan extension for reviewable runs. For the strict profile, the request MUST include ordered adjacent candidate inputs plus top-level `keyframe-continuity.frames` entries with concrete `frame-index`/`time-ms`, and `relations` for each declared cross-angle or non-adjacent comparison; bind every relation to the corresponding `shots`/`shot-plan` transition. Use `keyframe-continuity` for strict ordered keyframes and adjacent-transition gating, `sequence-storyboard` only as a general storyboard lens, `video-multi-shot` for rendered multi-shot/cross-angle geography, `video-character` for identity/pose/wardrobe/prop state, `video-general` for catalog-supported general artifacts, style/material, scale, palette, lighting, or camera review, and `delivery-qc` as the final delivery lens. Derive required dimensions from locked style and expected state, verify the selected profile actually covers them, and route uncovered dimensions to another confirmed run or human review. Pass ordered inputs plus `shots`/`shot-plan` expected state, and gate on the worst transition and every blocking finding; an aggregate score cannot override one severe break. Do not copy legacy capability names into the modern request. If only a deprecated compatibility alias is available, use the explicit adapter boundary in `mixio-eval` and do not claim the strict ordered-transition gate when that alias cannot carry its context. Cross-model batch boundaries from Step 05 are where to look first.
 
@@ -222,47 +257,9 @@ After each batch, set shot state (`approved` / `needs_revision`) with `studio_up
 
 ## Progress state — how to resume
 
-Mixio has no dedicated shared-memory store, so pipeline state lives in existing metadata. Write it at every step close:
-
-```
-studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
-  aspect_ratio, anchor_aspect_ratio,
-  step_00: "complete", step_01: "complete", step_02: "complete", step_02_5: "complete",
-  step_03: "complete", step_04: "complete",
-  step_05: "not_started", step_06: "not_started",
-  anchors: { "1": "<keyframe-element-id>" },
-  // Free-form review ledger; candidate URLs remain here, not in active references.
-  reference_pack_inventory: {
-    rows: [/* confirmed variant/view rows, source media, shot IDs, status,
-             eval run IDs, feedback, human decision */]
-  },
-  reference_audit: { checked: 12, blocking: 0, advisory: 1 },
-  // `breakdown_audit`: exact schema in mixio-script-breakdown's persistence reference.
-  // Add `pre_production_loop` exactly as defined in
-  // references/pre-production-ralph-loop.md#persisting-loop-state.
-}}}})
-```
-
-| Pipeline state | Where it lives in Mixio |
-|---|---|
-| Locked models, resolution, style, reference policy | project `settings.generation` / `settings.studio` / `settings.references` |
-| Source (screenplay, synopsis, aspect ratios) | SCREENPLAY `body` (or episode `script` only as fallback), episode `summary`, `metadata.pipeline` |
-| Locations | LOCATION references + `locationDetails` (`mixio-references`) |
-| Confirmed character/location variant-view matrix and review history | episode `metadata.pipeline.reference_pack_inventory` (free-form metadata; no new API or typed schema) |
-| Reference audit results | episode `metadata.pipeline.reference_audit` |
-| Relational breakdown audit results | episode `metadata.pipeline.breakdown_audit` |
-| Pre-production Ralph loop state | episode `metadata.pipeline.pre_production_loop` — `running`, `blocked`, or `converged`, with the last phase, cycle, findings, and pending user action |
-| Scenes and direction | scene elements via `studio_upsert_scene_packages` |
-| Step progress | episode `metadata.pipeline` |
-| Shot plan (method/model/batch) | shot `metadata.generation_method` / `.generation_model` / `.batch_index` |
-| Rendered assets and video | KEYFRAME / VIDEO elements + `upload_file` URLs |
-
-On resume, read `studio_get_project` for the locked settings and `studio_get_episode` (cheap) for
-pipeline state, including `metadata.pipeline.reference_pack_inventory` and its row statuses,
-evaluation run IDs, feedback, and human decisions. Then query the episode's `SCREENPLAY` element (`studio_query_elements` with
-`type: "SCREENPLAY"` and native-object `tags: { episodeId }`, never `JSON.stringify(...)`) before
-reusing source text. Do not substitute a stale `fullScript` when a non-empty screenplay body
-exists; avoid `studio_get_production_context` until its graph detail is actually needed.
+Persist step state and resume from the metadata shape in
+[`references/progress-state.md`](references/progress-state.md). The step order and user gates
+remain defined in this skill.
 
 ## Workflow
 

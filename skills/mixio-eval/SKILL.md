@@ -1,7 +1,7 @@
 ---
 name: mixio-eval
 description: "Run visual continuity and consistency evaluations on rendered media and catalog-supported reference images through the hosted Studio evaluator gateway."
-version: 0.4.0
+version: 0.4.1
 invoke: /mixio:eval
 ---
 
@@ -321,6 +321,12 @@ change is exempt only for the named dimension; undeclared drift across the
 same transition remains a failure. A hard cut does not excuse within-shot
 flicker, temporal artifacts, or an unexplained state change.
 
+A `MULTI_CUT` render is one video containing deliberate in-shot cuts: declare
+**every** cut boundary from the shot's `cuts[]` as its own `editorial-cut`
+entry with the cut's timestamp range and planned change (for example,
+`"Cut 2 at 00:04.5: wide cuts to insert CU of hands"`). Undeclared cut
+boundaries are evaluated as transitions and fail like any other break.
+
 ## Profile routing
 
 Use one explicit profile per request, selected from the live catalog. If a
@@ -334,7 +340,7 @@ single request.
 | `image-location` | Location packs with world-axis, landmark, orientation, lighting, palette, and artifact checks. | The shot-level keyframe continuity gate. |
 | `keyframe-continuity` | Strict ordered keyframe evidence and adjacent-transition gating with expected state. | A general storyboard review or final delivery QC. |
 | `sequence-storyboard` | General storyboard/keyframe visual review and sequence context. | The strict adjacent-transition gate or final delivery QC. |
-| `video-multi-shot` | A rendered multi-shot candidate, cuts, and cross-angle geography. | Character-only review. |
+| `video-multi-shot` | A rendered multi-shot candidate, cuts, and cross-angle geography — the primary lens for `MULTI_CUT` renders (10–15s multi-cut shots). | Character-only review. |
 | `video-character` | Identity, pose, wardrobe, and character-state continuity. | Full temporal/delivery review. |
 | `video-general` | General visual artifacts and broad palette, lighting, camera, motion, style/material, or scale review only when the catalog exposes that coverage. | A transition-specific gate when no ordered evidence is supplied. |
 | `delivery-qc` | Final candidate delivery/readiness review after continuity gates pass. | The strict adjacent-keyframe continuity gate. |

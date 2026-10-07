@@ -1,7 +1,7 @@
 ---
 name: mixio-script-breakdown
 description: "Break a script into canonical references, scenes, and shot specs the way Studio's own breakdown workflow does — same schemas, same field vocabularies, same verbatim rules — then persist through the breakdown primitives. Not the continuity check (mixio-continuity) or reference audit (mixio-reference-audit) that follow it. Unclear which step you need → mixio-pipeline."
-version: 0.2.0
+version: 0.3.0
 invoke: /mixio:script-breakdown
 ---
 
@@ -111,6 +111,14 @@ A **continuous float, 1–60 seconds**, typical range 3–15. Authored values ar
 Duration is a continuous float; older Studios quantized it to `Literal[5, 8, 10, 12, 15]` at two normalization sites, so a 2.5s panel silently became 5s and short-form work had to bypass the managed workflow and write through `upsert_scene_packages` directly. **That workaround is retired** — both paths now preserve fractional durations. If a submitted `2.5` reads back as `5`, you're on a Studio that still quantizes — the old snapping applies (`≤6 → 5`, `≤9 → 8`, `≤11 → 10`, `≤13 → 12`, else `15`).
 
 Duration guidance: short holds (2.5–5s) for reaction cutaways, inserts, beat transitions, quick reveals and punctuation; 8–10s for dialogue exchanges, character action and reveals; 12–15s for complex blocking with camera movement, continuous action, emotional beats that need room, and oners. Vary it within a scene — monotonous equal-length shots read flat. Short-form vertical drama typically runs 2.5–4.5s per panel throughout, and that is now expressible on either path.
+
+When Step 00 locked `shot_contract.mode: "multi_cut"` (band `"10-15"`), author shots in that band
+as **multi-cut**: each shot gets a `Cuts:` sub-block (syntax: `references/shot-grammar.md` in
+`mixio-pipeline`) and persists the per-cut specs as the passthrough `cuts` array
+(shape and invariant: `references/canonical-schema.md#cuts--multi-cut-passthrough`). The managed
+`script_breakdown` path cannot emit `cuts[]` — author multi-cut breakdowns on the composed path
+(`upsert_scene_packages` / `revise_shot_specs`). `cuts[]` never feeds the shot prompt by itself;
+`mixio-generate` serializes it per model route at Step 06.
 
 ## Per-shot appearance state
 
@@ -254,7 +262,7 @@ Never substitute a fabricated ID.
 
 Max 100 scenes per call. Scenes upsert by `sceneNumber + episodeId`; shots by `shotNumber` within a scene. Both `metadata` and `tags` merge, so a later partial write preserves omitted keys.
 
-For refinement after the initial persist use `studio_revise_shot_specs` (content) and `studio_update_shot_state` (workflow state) — see `mixio-continuity`. `revise_shot_specs` validates the spec partition partially, so you may send just the keys you're changing.
+For refinement after the initial persist use `studio_revise_shot_specs` (content) and `studio_update_shot_state` (workflow state) — see `mixio-continuity`. `revise_shot_specs` requires `projectId` (scope is preflighted per entry; a missing or foreign project rejects the call before any write) and validates the spec partition partially, so you may send just the keys you're changing — including the passthrough `cuts` array.
 
 ## Relational Audit (Immediate Verification)
 

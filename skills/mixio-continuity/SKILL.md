@@ -1,7 +1,7 @@
 ---
 name: mixio-continuity
 description: "Run the pre-render text and shot-spec continuity gate, then pair it with mixio-eval's post-render media gate. Build a blocking map, report findings, correct and lock shots. Cast & World readiness is mixio-reference-audit. Unclear which step you need → mixio-pipeline."
-version: 0.3.0
+version: 0.3.1
 invoke: /mixio:continuity
 ---
 
@@ -38,6 +38,12 @@ State the mode at the top of the audit. It changes what you can honestly conclud
 ## Pass 1 — Blocking Map
 
 One row per **shot × character**, including characters who are not in the shot. The absent rows are not filler: they are how you catch a character who silently teleports back into frame.
+
+For a `MULTI_CUT` shot (persisted `cuts[]`), the map becomes one row per **shot × cut ×
+character**, keyed `12.1`, `12.2`, … by `cut_index`. Treat each cut like an adjacent shot for
+zone/facing/eyeline checks — a cut legitimately repositions the lens — and like the *same* shot
+for state carry: props, wardrobe, and presence do not reset at an in-shot cut, and each cut's
+`action` member is the stated action for its boundary.
 
 ```
 Scene 01 — blocking map
@@ -119,7 +125,7 @@ Episode: 13 shots — 2 breaks, 0 GAPs, 1 vague, 0 anchor mismatches.
 Clean shots: 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13.
 ```
 
-Name the clean shots explicitly. It tells the user what is locked, and it forces you to have actually considered every shot rather than only the ones with problems.
+Name the clean shots explicitly. It tells the user what is locked, and it forces you to have actually considered every shot rather than only the ones with problems. For multi-cut findings, scope the line to the cut: `Shot 12.2 | TONY | PROP — tablet absent from Cut 2 insert with no handoff stated in Cut 1`.
 
 ## Pass 4 — Corrections & The Auto-Audit Loop
 
@@ -141,7 +147,7 @@ Shot 7 — 4.5s [M2] (CORRECTED)
 
 Rules:
 - **Fix the cause, not the symptom.** A prop that vanishes gets a put-down *action* added in the shot where it leaves her hand — not a note bolted onto the shot where its absence was noticed. Then check the sibling shots that carried the same wrong state; one fix at the source beats three patches downstream.
-- Preserve duration unless the fix genuinely needs more screen time — a changed duration re-batches the episode (Step 05).
+- Preserve duration unless the fix genuinely needs more screen time — a changed duration re-batches the episode (Step 05). On a `MULTI_CUT` shot, a duration change must also keep `cuts[]` within the ±0.05s sum rule (re-cut or re-time the affected cuts; cut count changes need user approval).
 - Mark every corrected shot `(CORRECTED)`.
 - **The Self-Healing Loop (Ralph Loop):** Do not stop at writing a correction. Persist the fix and **immediately re-run Passes 1–3** on the corrected scene. Confirm the original break is cleared and verify that the edit did not introduce new breaks. Continue until **0 blocking continuity breaks** remain.
 - **Reference Remediation:** If a break is caused by `REF_MISSING`, `REF_NO_IMAGE`, or `STALE_LOOK_REF`, route it to the pipeline's Phase 2 runner. It reads `settings.references`, applies only a permitted reference/binding correction, and then re-runs this check. `MISSING_IMAGE_HIGH_USAGE`/`REF_NO_IMAGE` requires an existing user-supplied asset, an upload, or explicit image-generation permission; this audit never creates references or starts rendering itself. Full procedure: `mixio-pipeline/references/pre-production-ralph-loop.md`.
