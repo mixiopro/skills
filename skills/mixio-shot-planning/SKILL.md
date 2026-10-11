@@ -119,6 +119,8 @@ Read `projects.settings` through `studio_get_project` before selecting a fallbac
 
 ## 2. Model matching
 
+For `production-generate-shot-keyframe-sequence`, `keyframe_count` is one of `4`/`6`/`8`/`10`/`12` frames. Check the live input schema before selecting a count; if a locked shot already has authored beats, prefer one `production-generate-shot-keyframes` job per beat with `keyframe_count: 1`.
+
 Match each shot to the best available model based on what it needs. This is a recommendation, not a hard constraint — the user may override. Read the real per-model contract with `studio_get_use_case_input_schema({ useCaseId, modelId })` — that is the only authoritative source. Do **not** call `studio_list_generation_models` for this: it returns `{ id, label }` and nothing else (see `mixio-generate`).
 Full capability profiles, task-to-use-case routing, strength-area matching guidance, and the conflicting-needs pattern: `references/model-matching.md`. `MULTI_CUT` shots follow the route table in [`references/model-matching.md#multi-cut-routing`](references/model-matching.md#multi-cut-routing), starting with H3 Ref2Vid on the normal `multi-shot-video` use case. The video-use-case routing reference explains how Step 06 passes the full shot context and explicit inputs: [`mixio-generate/references/video-use-case-routing.md`](../mixio-generate/references/video-use-case-routing.md).
 

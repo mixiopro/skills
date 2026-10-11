@@ -91,6 +91,12 @@ Use the existing tools only after approval:
 3. Add/update typed relations with `studio_link_graph` and appearance state for the approved shot content.
 4. Read persisted scenes, shots, references, and relations back. Compare fields and IDs against the approved diff; report exact successes and any partial or mismatched result.
 
+### Reference policy and appearance bindings
+
+Read `settings.references` before syncing any missing reference. Under `createPolicy: propose`, emit the exact entity proposal and stop for approval; make no reference, package, or relation write. Under `createPolicy: link_only`, ask the user to select an existing reference and stop; make no reference, package, or relation write. These are blocking policy branches, not best-effort fallbacks.
+
+Before authoring appearances, read `metadata.pipeline.reference_pack_inventory`. When a confirmed CHARACTER row maps the screenplay to an approved non-default variant, write that exact variant ID/name to `appearanceState.lookRef` alongside the descriptive wardrobe state. Never choose a variant by fuzzy text similarity. If an inventory mapping is ambiguous, hold the binding as an `OPEN DECISION`. After approval, use the composed path so it can write the explicit `lookRef`; read back the persisted relation and report `REQUIRED_LOOK_UNBOUND` if the required binding is missing or mismatched.
+
 The complete existing write/readback contract is in [persistence-and-audit.md](references/persistence-and-audit.md). That reference documents the post-approval primitives; it does not change the local-first approval gate.
 
 ## Workflow
