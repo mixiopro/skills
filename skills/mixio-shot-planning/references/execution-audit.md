@@ -11,9 +11,9 @@ Read these from `projects.settings` with `studio_get_project`:
 | `settings.generation.defaultModelByUseCase` | Pinned model per normal video use case, such as `cinematic-video` or `multi-shot-video`, plus image use cases used for keyframes. |
 | `settings.studio.preferredVideoModel` | General Studio preference; do not use it as a substitute for a model pinned to the selected video use case. |
 | `settings.studio.defaultVideoShotMode` | UI preference: `single-shot` biases to `SINGLE`/`DUAL_FRAME`, `multi-keyframe` to `SEQUENCE`, and `grid` to `GRID`. Only these three biases are known — the multi-cut mode lives in episode metadata (next row), not here. |
-| `settings.studio.videoDurationSeconds` | Open string (no enum): the locked shot-length band, e.g. `"10-15"` (multi-cut default) or `"2.5-4.5"` (panel). Set in Step 00; read it to confirm the band still matches `shot_contract`. |
-| episode `metadata.pipeline.shot_contract` | `{ mode: "multi_cut"\|"panel", band }` — a `multi_cut` shot in the locked duration band needs non-empty authored `cuts[]` before it can be classified as `MULTI_CUT`. |
-| `settings.generation.defaultAspectRatioByOutputType` | Step 00's locked output ratios. |
+| `settings.studio.videoDurationSeconds` | Open string (no enum): the locked shot-length band, e.g. `"10-15"` (multi-cut default) or `"2.5-4.5"` (panel). Read it during Step 00; if a required production value is missing, confirm and lock it after breakdown acceptance in Step 04. |
+| episode `metadata.pipeline.shot_contract` | `{ mode: "multi_cut"\|"panel", band }` — a `multi_cut` shot in the locked duration band needs non-empty authored `cuts[]` before it can be classified as `MULTI_CUT`. Read an existing contract at Step 00; resolve any required change with the accepted plan before Step 05. |
+| `settings.generation.defaultAspectRatioByOutputType` | Read current ratios at Step 00; confirm and lock any missing delivery ratio after breakdown acceptance in Step 04. |
 | `settings.generation.defaultParametersByUseCase` | Pinned per-use-case parameters, such as video `resolution`. |
 
 ## Feasibility report
@@ -112,8 +112,8 @@ Rapid pacing sections:
 Write per-shot planning metadata alongside the batch assignment. Keep `chunk_index` as an alias
 for `batch_index` for backwards compatibility. `MULTI_CUT` shots persist
 `generation_method: "MULTI_CUT"`, `generation_use_case: "multi-shot-video"`, and
-`generation_input_contract: "multi-cut"`; the `cuts[]` array itself is authored at Step 03/04
-and stays untouched by planning. A fallback to `SEQUENCE` is planned as separate jobs whose
+`generation_input_contract: "multi-cut"`; the `cuts[]` array itself is authored in the local
+Step 01 plan and synced at Step 03, then stays untouched by planning. A fallback to `SEQUENCE` is planned as separate jobs whose
 whole-job durations come from the selected model schema and sum to the intended shot length; it
 does not snap or rewrite authored cut durations. Keep a bound CHARACTER look on the existing
 relation's `lookRef`; Step 06 either supplies that reference through `selectedElements` so Studio

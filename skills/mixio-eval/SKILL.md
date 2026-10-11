@@ -8,9 +8,11 @@ invoke: /mixio:eval
 # Mixio Eval
 
 Evaluate rendered media before delivery, and evaluate reference-image candidates
-during Step 02.5 only when the live catalog explicitly supports still-image
+during Step 04 only when the live catalog explicitly supports still-image
 comparison. This skill uses the modern hosted Studio evaluator gateway. For
 pre-render screenplay and shot-spec continuity audits, use `mixio-continuity`.
+
+Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md) for the evaluation question: does the result communicate the accepted shot’s purpose and connect to its neighbors? Apply only relevant craft checks—for example, cinematography for framing/light/movement, script supervision for state and screen direction, editing for transitions, and sound design when audio evidence is available. Use supported plan, shot-plan, shot, and expected-state context where available, and distinguish creative-direction mismatches from technical image defects.
 
 ## Boundary with `mixio-continuity`
 
@@ -143,7 +145,7 @@ keep all candidates outside Cast & World pending human approval. Never use an
 image from another configuration just to fill the anchor role. If no valid
 anchor input is available, block the pack and request a suitable source image.
 This `location-reference` is the pack's evaluation anchor, distinct from the
-per-scene KEYFRAME `anchorRef` generated later in Step 02.
+per-scene KEYFRAME `anchorRef` generated later in Step 04.
 Record each view's camera position, facing direction, visible landmarks, and
 world-to-screen mapping. Add `shot-zones` when the shot plan needs a reverse,
 overhead, underslung, top, bottom, or detail view. Do not generate every angle
@@ -356,7 +358,7 @@ evidence for those dimensions. If it does not, use another compatible catalog
 profile as a separate, confirmed run or route the uncovered dimensions to human
 review; keep the media gate incomplete until required coverage is resolved.
 
-### Reference-image comparison for Step 02.5
+### Reference-image comparison for Step 04
 
 The reference audit may use this evaluator for a required look/view candidate
 only if the current catalog and tool contract explicitly support `image`

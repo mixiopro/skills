@@ -9,6 +9,8 @@ invoke: /mixio:generate
 
 Submit and track Studio generation jobs through the proxied `studio_*` MCP tools. Jobs are billable and async by default.
 
+Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md) when translating an accepted shot into a generation request. Preserve its purpose, action, staging, camera direction, and continuity; if the chosen path cannot do so, return a proposed change for review instead of quietly rewriting the shot.
+
 Every claim below is grounded in the `mixiopro/studio` repo and cited inline so it can be re-verified. The catalog is the source of truth; this skill is a snapshot.
 
 **Catalog snapshot — verified 2026-09-10** against the checked-in catalogs in `mixiopro/studio`:
@@ -73,7 +75,7 @@ Read `studio_list_use_cases({ outputType: "VIDEO" })` for current task-specific 
 Read the exact model schema before submission: supported models, media slots, durations, aspect
 ratios, and optional controls can differ within the same use case.
 
-**One job path bypasses the catalog entirely.** `submit_studio_job` accepts any `useCaseId` string, so absence from the catalog is not a rejection. `script-preproduction` is a backend workflow id (`EVENT_DRIVEN_AGNO_WORKFLOWS` in `apps/app-kalaasetu/src/services/job-runner.ts:80`) that the MCP tool's own description advertises, but it is **absent from `use-cases.json`** — so `list_use_cases` will never list it and `get_use_case_input_schema` throws `Unknown use case`. Submit it by id and do not try to discover or schema-check it. For script breakdown from this skill set, prefer `mixio-script-breakdown`, which persists through the breakdown primitives instead. The catalog's own screenplay use cases (`source-screenplay-analysis`, `localized-screenplay-adaptation`, `video-preproduction`) *are* listed and each has a single same-named pseudo-model. The same goes for parameter names: an invented `useCaseId` also means no schema, so nothing filters or warns about what you send with it.
+**One job path bypasses the catalog entirely.** `submit_studio_job` accepts any `useCaseId` string, so absence from the catalog is not a rejection. `script-preproduction` is a backend workflow id (`EVENT_DRIVEN_AGNO_WORKFLOWS` in `apps/app-kalaasetu/src/services/job-runner.ts:80`) that the MCP tool's own description advertises, but it is **absent from `use-cases.json`** — so `list_use_cases` will never list it and `get_use_case_input_schema` throws `Unknown use case`. Do not use this write-through job for the normal breakdown path. Use `mixio-script-breakdown` to plan locally, review the exact Studio diff, and sync only after explicit approval. The catalog's own screenplay use cases (`source-screenplay-analysis`, `localized-screenplay-adaptation`, `video-preproduction`) *are* listed and each has a single same-named pseudo-model. The same goes for parameter names: an invented `useCaseId` also means no schema, so nothing filters or warns about what you send with it.
 
 ### Verify graph placement
 

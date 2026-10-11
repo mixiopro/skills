@@ -70,42 +70,44 @@ The `how-to-make-script` root skill is vendored under `skills/how-to-make-script
 
 | Skill | Invoke | Use for |
 |-------|--------|---------|
-| `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode, and whenever it's unclear which production skill applies.** Six gated steps + resumable state |
-| `mixio-sheets` | `/mixio:sheets` | Approved character defaults and script-required variants, scenario-specific location configurations with camera-view packs, prop sheets, per-scene anchors |
-| `mixio-reference-audit` | `/mixio:reference-audit` | Audit required reference looks/views for visual readiness, plus Cast & World completeness, consistency, duplicates, and metadata quality |
-| `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → scenes and shot specs against canonical schemas, entity graph linking, appearanceState, and relational audit |
-| `mixio-continuity` | `/mixio:continuity` | Pre-render text/shot-spec continuity; pair with `/mixio:eval` for post-render media continuity |
-| `mixio-shot-planning` | `/mixio:shot-planning` | 6 structural archetypes (incl. `MULTI_CUT` 10–15s) + model matching, execution audit (action density & speaking rate), batches, and a production plan |
+| `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode, and whenever it's unclear which production skill applies.** Local director plan and audit, approved Studio sync, reference readiness, shot planning, and generation |
+| `mixio-sheets` | `/mixio:sheets` | Build or enrich approved character defaults/variants, location configurations/views, prop sheets, and per-scene anchors after the breakdown is accepted |
+| `mixio-reference-audit` | `/mixio:reference-audit` | Audit the accepted plan against reference looks/views, visual evidence, Cast & World consistency, duplicates, and metadata before generation |
+| `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → local director’s shot plan with connective coverage, provenance labels, and an approval-gated Studio diff |
+| `mixio-continuity` | `/mixio:continuity` | Local coverage, character/prop state, geography, and shot-flow audit before Studio sync; pair `/mixio:eval` with rendered media |
+| `mixio-shot-planning` | `/mixio:shot-planning` | 6 structural archetypes (incl. `MULTI_CUT` 10–15s) + model matching, execution audit, batches, and cost approval |
 
-For story work, start with `/mixio:screenwriting`; do not look up a Studio project or episode until the screenplay handoff is ready. For a full episode, then run `/mixio:pipeline` and let it gate the production steps. Invoke a production skill directly when you only need that one step — each one's description says which of its siblings it isn't, and falls back to `mixio-pipeline` when that's still unclear.
+For story work, start with `/mixio:screenwriting`; do not look up a Studio project or episode until the screenplay handoff is ready. For production work, use `/mixio:pipeline` to coordinate the gated steps. Invoke a production skill directly when you only need that one step — each one's description says which of its siblings it isn't, and falls back to `mixio-pipeline` when that's still unclear.
+
+## Default production stance — the director’s lens
+
+For Mixio production work, reason from audience intent and point of view through dramatic change, character/prop state, geography, coverage, shot-to-shot flow, expression, and feasibility. Bring in relevant craft perspectives—cinematography, production design, costume, props, script supervision, editing, sound, action, VFX, and production management—when the decision needs them. Apply the shared [director’s lens](skills/mixio-pipeline/references/directors-lens.md) during setup, reference work, breakdown, shot planning, generation, and evaluation. These are focused checks, not simulated approvals or authority to override the user: preserve screenplay facts and approved direction, label inferences, and surface story-changing, conflicting, or feasibility-driven choices for review. For mechanical tool work, carry accepted direction forward without reopening it.
+
+For a full multi-step episode run, use the host’s native task/plan surface when available, and use a persistent goal only when the user asks for cross-turn continuation. Follow [agent-native tracking](skills/mixio-pipeline/references/agent-native-tracking.md); native progress is never a production record or approval.
 
 ## Order matters
 
 ```
-PRE story development + screenplay handoff → Mixio-owned `how-to-make-script` via `/mixio:screenwriting`
-00  Preflight          → /mixio:pipeline — lock image/video model, delivery + anchor aspect_ratio,
-                        resolution, visual style, reference policy into project `settings`
-01  Screenplay        → `studio_upsert_screenplay` draft; source of truth when non-empty
-02  Reference packs + anchors → /mixio:sheets — approved character variants and location configuration/view packs before shots reference them; confirm image generation separately
-02.5 Reference audit  → /mixio:reference-audit — required looks/views, style, scale, light, palette, geometry and image defects
-03  Shot breakdown    → /mixio:script-breakdown
-┌── Token Ralph Loop (01 ↔ 02.5 ↔ 04; text/graph corrections only) ─────────────────────┐
-│ 02.5 Reference audit → /mixio:reference-audit — inspect visual evidence; record overrides│
-│ 04   Continuity audit → /mixio:continuity — correct specs, then re-audit               │
-└──────────── ↺ persist until 0 unacknowledged blocks + visual rows reviewed/overridden ───┘
-05  Shot planning     → /mixio:shot-planning — report that video costs the most, images next, and other operations are low-cost
-06  Generation        → /mixio:generate per batch, then /mixio:eval before delivery
+PRE Story development + screenplay handoff → Mixio-owned `how-to-make-script` via `/mixio:screenwriting` when requested
+00  Project + episode setup → resolve scope; read the current screenplay/script, references, shots, settings, and available images
+01  Local shot plan         → /mixio:script-breakdown — preserve source text; label sourced and inferred direction
+02  Local coverage audit    → /mixio:continuity — repair and re-check state, geography, coverage, and flow
+03  Review + sync           → show exact Studio diff; wait for approval; sync and verify by readback
+04  Reference readiness     → /mixio:reference-audit; build missing sheets/anchors with /mixio:sheets
+05  Shot planning           → /mixio:shot-planning — select methods/models, validate feasibility, estimate cost, get approval
+06  Generation              → /mixio:generate per approved batch, then /mixio:eval before delivery
 ```
 
-The Ralph Loop's corrections in Steps 01, 02.5, and 04 are text and graph changes; they do not submit generation jobs. Step 02 can submit image jobs, so it remains explicitly confirmed and outside the autonomous loop. Any billable still-image evaluator run also requires confirmation. The loop (`skills/mixio-pipeline/references/pre-production-ralph-loop.md`) applies only policy-safe corrections, updates appearance state (`studio_link_graph`), persists every cycle, and re-audits until 0 unacknowledged blocking reference and continuity errors remain and every required visual row has reviewed evidence or a recorded user override before Step 05.
+The local plan is a review artifact in the agent’s working context. Preserve the source screenplay unchanged. Mark proposed shot direction as `SCRIPTED`, `INFERRED`, or `OPEN DECISION`; missing sheets and anchors are readiness gaps, not blockers to local planning. Corrections stay in the local draft.
 
-Sheets come **before** the breakdown because the breakdown emits references as shallow stubs (`name`, `description`, `attributes`) and writes no `characterDetails` or `locationDetails`. Build the sheets first and the breakdown reuses their canonical names instead of minting near-duplicates.
+Before any breakdown write, show the completed plan and exact Studio diff. Match updates to confirmed element IDs; flag ambiguous matches and unmatched existing shots, and never silently overwrite or delete them. Wait for explicit approval, then sync through existing primitives and read back persisted scenes, shots, and relations. Build missing sheets and anchors from the accepted plan before generation; image generation remains separately confirmed.
 
 ## Conventions
 
 - Call `studio_describe_tools` before using an unfamiliar tool, and `studio_get_use_case_input_schema` before submitting an unfamiliar generation use case. Don't guess parameters.
 - Read `settings.references` on the project before creating references — `createPolicy` and `variantPolicy` can forbid writes this repo otherwise describes.
 - Before authoring a screenplay, read `skills/mixio-episode/references/screenplay-grammar.md`, call `studio_list_references({ projectId, limit })`, and copy exact `mentionableLooks` values for `#name.variant[.view]`; never hand-build a mention. Preserve `~location.landmark[.placement]` locks and standalone `[Key: Value · Key: Value]` paragraphs through breakdown. `studio_upsert_screenplay` writes a draft only; approval remains a human Studio action.
+- The normal breakdown path reads the current screenplay (non-empty native `SCREENPLAY` body first, then raw `script`/`metadata.fullScript`) without rewriting it. Plan locally and obtain approval for the exact diff before any scene, shot, or relation mutation.
 - Shot metadata keys are `snake_case`; scene metadata keys are `camelCase`. Mixing them up is not rejected — the write boundary is permissive, so a mixed-up key is remapped or warned-and-passed-through, not thrown. It still lands in the wrong place (passthrough, unread by anything) and fails silently rather than loudly, which is worse: check by reading back what you wrote.
 - Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
 - **Mandatory prompt `@` mentions & paired mention maps (Universal across all generations & models)**: Prompts MUST ALWAYS contain one `@tag` for every active media asset/reference (for example `@asset1`, `@tony`, `@scene1`) where that asset acts. This applies to every image, keyframe, video, and storyboard generation and every model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX, etc.). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`, or another schema-declared slot) must be embedded in the effective prompt. Whenever media is present, backend `userInput` MUST contain paired `slotTags` (`{ [assetKey]: '@tag' }`) and `mentionMap` (`{ '@tag': 'Human Label / Description' }`) with one-to-one coverage, non-empty labels, and no orphan entries. Without both paired maps and prompt `@` tokens, the prompt materializer and provider compilers cannot ground assets to model-specific tokens or resolve subject identity, causing models to guess identity and waste generation work. Validate every asset/tag/prompt match in Step 05 (`mixio-shot-planning`) and repeat the gate in Step 06 (`mixio-generate`) immediately before each billable job.

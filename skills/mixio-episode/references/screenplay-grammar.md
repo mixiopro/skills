@@ -33,7 +33,7 @@ She retrieves the MANILA DOSSIER from the center DRAWER.
 
 - **Slugline**: `INT.`, `EXT.`, `INT/EXT.`, `I/E`, or `EST`, optionally preceded by a scene number; then the location and time of day.
 - **Action beats**: ordinary prose paragraphs describing physical action, setting the scene, and staging characters. Reference tokens and locks can appear inside it.
-- **ALL CAPS Prop & Setting Rule**: Key props (`VAULT DOOR`, `OAK DESK`, `MANILA DOSSIER`, `DRAWER`) and prominent setting elements (`WINDOW`, `BALCONY`, `SERVICE COUNTER`) MUST be capitalized in `ALL CAPS` on first appearance. These capitalized tokens are the deterministic anchor that Step 03 extracts into `prop_links` / `linked_prop_ids` / `location_links` and Step 04 greps for prop continuity.
+- **ALL CAPS Prop & Setting Rule**: Key props (`VAULT DOOR`, `OAK DESK`, `MANILA DOSSIER`, `DRAWER`) and prominent setting elements (`WINDOW`, `BALCONY`, `SERVICE COUNTER`) MUST be capitalized in `ALL CAPS` on first appearance. These tokens help Step 01 identify entities for the local shot plan and help Step 02 trace prop continuity.
 - **Character cue and dialogue**: ordinary screenplay cue, optional parenthetical, and dialogue paragraphs. Preserved verbatim in source language and alphabet.
 - **Audio & SFX paragraphs**: standalone design blocks (e.g. `[SFX: ...]` and `[Ambient: ...]`) or descriptive audio paragraphs providing deterministic cues for sound design and foley during breakdown.
 - **Blank lines** separate paragraphs. A native annotation must occupy its own complete paragraph; ordinary bracketed prose remains ordinary prose.
@@ -75,15 +75,16 @@ Before remediating an unresolved entity or look, read `settings.references` with
 |---|---|---|
 | `RESOLVED` | Entity and look variant successfully resolved. | None needed. Ready for breakdown. |
 | `UNRESOLVED_ENTITY`<br>(`no element named "..." in this project`) | The character/location/prop element does not exist in Cast & World. | After the reference-policy check, register the entity via `studio_register_reference_entities`, then generate its look sheet. |
-| `UNRESOLVED_LOOK`<br>(`no look named "..." on element "..."`) | Entity exists, but the specific variant/configuration or view does not. | If the script requires it, record the missing row for Step 02's confirmed inventory and build it through `mixio-sheets`, subject to reference policy. After approval, copy the exact new `mentionableLooks` token if the screenplay needs one. Otherwise correct a typo. **Never create a second duplicate character, hand-build a token, or create one location per camera angle.** |
+| `UNRESOLVED_LOOK`<br>(`no look named "..." on element "..."`) | Entity exists, but the specific variant/configuration or view does not. | For local planning, preserve the source mention and record the missing row as a Step 04 readiness gap. Build it through `mixio-sheets` after the breakdown is accepted, subject to reference policy. If authoring screenplay text, use the exact new `mentionableLooks` token only after its image is approved. Otherwise correct a confirmed typo. **Never create a second duplicate character, hand-build a token, or create one location per camera angle.** |
 | `AMBIGUOUS`<br>(`ambiguous: 2 elements named "..." in this project`) | Two references collapse to one mention root slug. | Deduplicate or rename the conflicting reference element in Cast & World. |
 
-Script-required variants/views may be ordinary prose and Step 02 inventory rows before their
-images are registered; do not invent `#` tokens for them. Convert an unresolved token to an
-existing canonical mention plus descriptive prose, or defer adding the exact variant/view token
-until Step 02 has produced an approved image and `mentionableLooks` value. Before breakdown at
-Step 03, every remaining `#` token—character, location, or prop—must resolve. Unresolved
-mentions fail soft on write but do not bind references downstream.
+Script-required variants/views may be ordinary prose and provisional Step 04 inventory rows
+before their images are registered; do not invent `#` tokens for them. When authoring new
+screenplay text, convert an unresolved token to an existing canonical mention plus descriptive
+prose, or defer adding the exact variant/view token until Step 04 has produced an approved image
+and `mentionableLooks` value. During the local shot plan, preserve existing source text verbatim
+and report unresolved mentions as reference-readiness gaps; do not rewrite the screenplay to
+make planning pass. Unresolved mentions fail soft on write but do not bind references downstream.
 
 ## Native continuity locks: `~`
 
