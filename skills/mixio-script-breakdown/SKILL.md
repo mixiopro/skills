@@ -1,24 +1,29 @@
 ---
 name: mixio-script-breakdown
-description: "Use when a screenplay or high-level script needs a director’s shot plan with connective coverage and an approval-ready Studio diff."
+description: "Use to enrich a supplied or existing scene/shot breakdown with production detail, or create one from a screenplay/script when no breakdown exists."
 version: 0.3.0
 invoke: /mixio:script-breakdown
 ---
 
 # Mixio Script Breakdown
 
-Build a complete local shot plan before writing a breakdown to Studio. The plan turns screenplay beats into visible action, camera choices, and connected shots. Keep the original screenplay unchanged and label what the source states separately from inferred direction.
+Prepare a complete local shot plan before writing a breakdown to Studio. When the user supplies a scene/shot breakdown or one already exists in Studio, use it as the baseline and enrich it; do not restart the scene-and-shot breakdown from the screenplay. Preserve its scene and shot order, authored beats, and user-stated direction. Add production detail and clearly labeled missing coverage without replacing the user's structure. When no usable breakdown exists, create the scene-and-shot structure from the screenplay or high-level script. A supplied breakdown can serve as the source when no screenplay/script is available; state the evidence limit and do not invent missing source facts. Keep the original screenplay unchanged and label source facts separately from inferred direction.
 
 Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md): the plan serves audience intent and sequence flow, while source facts, user-authored direction, inference, and open decisions remain distinct. Bring in relevant cinematography, production design, props, script-supervision, editing, sound, or action perspectives to answer craft-specific questions; record their recommendations in the plan rather than treating them as approved story facts.
 
 The normal path is **local analysis → local continuity review → exact Studio diff → explicit approval → sync and readback**. Do not use the write-through `script_breakdown` job as the normal path. This skill does not generate images, video, or audio.
 
-## Read the current production
+## Choose the breakdown mode and read the current production
 
 1. Resolve the project and episode using `mixio-pipeline` scope rules. Never infer an ID.
-2. Read the source screenplay. A non-empty native `SCREENPLAY` body wins, even when draft; otherwise use episode `script` / `metadata.fullScript`. Preserve the selected text verbatim, including dialogue, `#mentions`, `~locks`, and standalone `[Key: Value]` paragraphs. See [screenplay grammar](../mixio-episode/references/screenplay-grammar.md).
-3. Read current scenes/shots, project references and policy, and available image assets. Use exact canonical names and confirmed element IDs. Existing sheets and anchors help ground the plan; missing ones are recorded as readiness gaps.
-4. Keep all breakdown analysis and corrections in the local plan. Do not write screenplay, scene, shot, relation, or reference changes while drafting.
+2. Identify the baseline before planning: a user-supplied breakdown, an existing Studio scene/shot breakdown, or no usable breakdown. If more than one exists, preserve each source and flag conflicts rather than silently choosing which authored direction to discard.
+3. Read the source screenplay when available. A non-empty native `SCREENPLAY` body wins, even when draft; otherwise use episode `script` / `metadata.fullScript`. Preserve the selected text verbatim, including dialogue, `#mentions`, `~locks`, and standalone `[Key: Value]` paragraphs. See [screenplay grammar](../mixio-episode/references/screenplay-grammar.md). The screenplay grounds and checks an existing breakdown; it does not replace that breakdown as the planning baseline. If no screenplay/script exists but the user supplied a usable breakdown, use it as the source and state that limitation.
+4. Read current scenes/shots, project references and policy, and available image assets. Use exact canonical names and confirmed element IDs. Existing sheets and anchors help ground the plan; missing ones are recorded as readiness gaps.
+5. Keep all breakdown analysis and corrections in the local plan. Do not write screenplay, scene, shot, relation, or reference changes while drafting.
+
+If a usable breakdown exists, retain its scene/shot numbering and sequence. Carry its authored content into the local review table, then add production detail for visual action, audience purpose, camera, character/prop state, geography, transitions, and readiness. Label every proposed addition as `INFERRED`; keep the original direction distinguishable from the enrichment. Do not renumber, condense, reorder, or replace authored rows just to fit a newly generated structure. If a requested enrichment requires restructuring, present that as a separate proposal and identify the affected rows.
+
+If no usable scene/shot breakdown exists, segment the source into scenes and dramatic beats and create the initial structure. Preserve source order and line references; infer only the coverage needed to make the source legible and connected.
 
 ## Director’s decision sequence
 
@@ -35,17 +40,18 @@ Run these questions in story order. Each shot should solve an audience, action, 
 | Expression | What framing, camera movement, performance, sound, and duration serve the intent? | Specific choices; movement and shot size carry meaning rather than decorate the beat |
 | Feasibility | Which references/assets exist? What remains unknown or costly? | Readiness gaps and decisions for later production planning; no asset generation |
 
-### Continuity principles
+### Editorial coverage and continuity principles
 
 - A material change must happen visibly, be identified as an intentional off-screen event, or remain an `OPEN DECISION`. Never let a new prop, location, injury, costume, or position appear without a cause.
 - Plan the transition between shots, not just each shot alone. Track what enters and exits frame, who holds each prop, where people move, and what the next image needs to inherit.
 - Establish geography when the audience needs orientation. Do not add a generic wide shot to every scene; a direct start or purposeful disorientation may serve better.
 - Keep screenplay facts and authored direction distinct. A useful connective shot may be `INFERRED`; a choice that changes story facts or character intent is an `OPEN DECISION` with options for the user.
 - Do not add dialogue or rewrite screenplay action to make the plan easier. Put proposed visual direction in the shot plan.
+- Treat a stated runtime as the intended duration after post-production. Plan more generated material than that final runtime so the editor can select, trim, align, and pace the sequence. Add extra shots or clearly identified alternates when they provide useful coverage or choices; give each a purpose and approximate duration. Do not force generated shot durations to sum exactly to the target runtime or shorten action just to make them fit. Mark proposed surplus coverage `INFERRED`, and carry it into the production and cost plan; this direction is not billable-generation approval.
 
 ## Produce the local shot table
 
-Segment the source into scenes and dramatic beats. Preserve original order and line references. Add the visual coverage needed to carry each beat through a coherent sequence. Label provenance at the shot level and split it when a row mixes source and inference—for example, `SCRIPTED beat; INFERRED framing and camera move`. Use this table in the user-visible review:
+For an existing breakdown, keep its scenes and shots as the baseline rows and enrich them in the local review table. For a new breakdown, segment the source into scenes and dramatic beats. In both modes, preserve original order and line references. Add visual coverage where it is missing, plus editorial surplus where it gives the editor meaningful choices. Label provenance at the shot level and split it when a row mixes source and inference—for example, `SCRIPTED beat; INFERRED framing and camera move`. Use this table in the user-visible review:
 
 | Scene / shot | Source beat | Audience purpose / POV | Action, framing, and camera | Character, prop, and space state | Connection from / to | Provenance and rationale | Readiness gaps |
 |---|---|---|---|---|---|---|---|
@@ -61,11 +67,13 @@ When the accepted episode contract uses the 10–15s `multi_cut` band, plan its 
 
 Before presenting the diff, confirm:
 
-- Every source beat and required dialogue moment is represented; added coverage is clearly labeled as inference.
+- Every beat and required dialogue moment in the available source (screenplay/script or supplied breakdown) is represented; added coverage is clearly labeled as inference.
 - Every character and consequential prop has a legible entry/exit state. Pick-ups, put-downs, handoffs, arrivals, departures, and changes of possession have a cause.
 - Location, screen direction, blocking, and eyelines remain understandable across cuts, or a deliberate change is identified.
 - Each shot has a purpose and each transition has a visual, action, sound, or time/space relationship to its neighbors.
 - Inferred direction does not silently settle a story-changing question.
+- If a user-supplied or existing breakdown was the baseline, its authored scenes, shots, order, and direction remain recognizable in the enriched table; every proposed structural change is called out separately.
+- Planned generated material exceeds the intended post-production runtime and includes useful extra coverage or alternates, with their purpose and approximate durations visible.
 - Existing images ground only the details they actually show. Missing sheets/anchors are listed as readiness gaps; do not claim visual validation without an image.
 
 Use `/mixio:continuity` for the full local audit. Fix the local plan and repeat the affected checks before preparing the Studio diff.

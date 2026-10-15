@@ -115,7 +115,7 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 | [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — project/episode setup → local director’s plan → local continuity audit → approved Studio diff → reference readiness → shot planning → generation. |
 | [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Build or enrich approved character defaults/variants, location configurations/views, prop sheets, and one wide anchor frame per scene after the breakdown is accepted. |
 | [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit the accepted plan against required looks/views, visual evidence, Cast & World completeness, duplicates, metadata, and policy before generation. |
-| [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Build a local director’s shot plan, add and label connective coverage, and prepare the exact Studio diff for review. |
+| [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Enrich a supplied or existing scene/shot breakdown with production detail, or create one when no breakdown exists; prepare the exact Studio diff for review. |
 | [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Audit local coverage, character/prop state, geography, and shot-to-shot flow before Studio sync. Pair with `/mixio:eval` after rendering. |
 | [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot into 6 structural archetypes (grid, multi-cut, sequence, master anchor multi-shot, single/dual frame, t2v), match to best model, audit execution feasibility, and group into generation batches with a credit-costed production summary. |
 
@@ -130,7 +130,7 @@ Optional pre-production: use `/mixio:screenwriting` and the owned `how-to-make-s
 ```
 Step 00  Project + episode setup → resolve scope; read the current screenplay/script,
                                   references, existing shots, settings, and available images
-Step 01  Local shot plan         → /mixio:script-breakdown — preserve source text; label sourced and inferred direction
+Step 01  Local shot plan         → /mixio:script-breakdown — enrich a supplied/existing breakdown, or create one if absent; plan surplus coverage for the final edit
 Step 02  Local coverage audit    → /mixio:continuity — correct and re-check state, geography, coverage, and flow
 Step 03  Review + sync           → show exact Studio diff; wait for approval; sync and verify by readback
 Step 04  Reference readiness     → /mixio:reference-audit; build missing sheets/anchors with /mixio:sheets
@@ -138,7 +138,7 @@ Step 05  Shot planning           → /mixio:shot-planning — select methods/mod
 Step 06  Generation              → /mixio:generate per approved batch, then /mixio:eval before delivery
 ```
 
-The shot plan and continuity corrections stay local until the user approves the exact Studio diff. Missing sheets and anchors are reported as readiness gaps and resolved before shot planning or generation. Image generation for reference sheets and anchors is separately confirmed; video generation requires cost approval unless already authorized. Post-render `/mixio:eval` checks whether the media preserves identity, style, scale, lighting, palette, geography, and other expected state.
+The shot plan and continuity corrections stay local until the user approves the exact Studio diff. The runtime target describes the intended post-production cut: plan more generated material than that target, with useful alternate shots and extra coverage for selection, trimming, and alignment. Shot planning reports generated-material duration separately from final-edit runtime and includes surplus outputs in its cost estimate. Missing sheets and anchors are reported as readiness gaps and resolved before shot planning or generation. Image generation for reference sheets and anchors is separately confirmed; video generation requires cost approval unless already authorized. Post-render `/mixio:eval` checks whether the media preserves identity, style, scale, lighting, palette, geography, and other expected state.
 
 For one-off work, skip the pipeline:
 

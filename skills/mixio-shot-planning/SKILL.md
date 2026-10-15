@@ -16,6 +16,7 @@ Fixed-ceiling batching assumed one model and one method. Shot planning acknowled
 - An approved, persisted breakdown (Step 03), completed local continuity audit (Step 02), and reference-readiness result (Step 04)
 - Resolved project and episode scope (from numbered Studio lists); use persisted scene/shot IDs only — never infer a label
 - Every shot has `duration`, `camera_movement`, `action`, `audio` fields populated
+- The approved breakdown identifies the intended post-production runtime and marks proposed extra coverage/alternates with their editorial purpose and approximate duration
 - `studio_list_use_cases({ outputType: "all" })` + `studio_get_use_case_input_schema({ useCaseId, modelId })` reachable (live catalog)
 - Project/episode settings read during setup and any missing production defaults confirmed and locked after breakdown acceptance (`settings.generation`, `settings.studio`)
 
@@ -340,7 +341,13 @@ are in the [batch-planning reference](references/batch-planning.md).
 ## Production summary
 
 Report model assignments, archetype distribution, job counts, execution risks, and high-risk
-cross-model boundaries. State the relative cost order once: video generation costs the most,
+cross-model boundaries. Report the intended final-edit runtime separately from the total planned
+generated-material duration. Count every additional shot and alternate output in the latter, even
+when it is an editorial substitute for another shot; make clear which outputs are alternates and
+which extend coverage. The planned generated-material duration must exceed the intended final-edit
+runtime, so the editor can select, trim, align, and pace the cut. Do not present the sum of generated
+durations as the final cut runtime. Include all surplus outputs in job counts and the cost estimate.
+State the relative cost order once: video generation costs the most,
 image generation comes next, and other operations cost little. Omit per-job price itemization.
 Generation authorization follows `mixio-generate` and the user's stated permission level.
 
@@ -363,7 +370,7 @@ digest. On approval, re-read the plan, verify the digest has not changed, and se
 `step_05: "complete"`. Step 06 handles video authorization under `mixio-generate`.
 
 Announce the close with the production plan, for example:
-`Step 05 — Shot Planning complete. 13 shots / 7 planning batches / 53.0s rendered runtime. Video generation is the highest-cost operation, image generation comes next, and other operations cost little. Please review the plan to proceed to Step 06.`
+`Step 05 — Shot Planning complete. 13 planned outputs (including 2 alternates) / 7 planning batches / 72.0s planned generated material for a 60.0s intended final edit. Video generation is the highest-cost operation, image generation comes next, and other operations cost little. Please review the plan to proceed to Step 06.`
 
 ---
 

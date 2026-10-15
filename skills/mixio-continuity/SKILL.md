@@ -54,6 +54,10 @@ For each cut, state the connection: continuing action, eyeline, match, reveal, c
 
 Note missing reference elements, images, structured details, or anchors for later generation. Separate these from story/continuity findings. Do not create references, upload media, generate assets, or change bindings during this audit.
 
+### 6. Editorial coverage
+
+Treat the stated runtime as the intended post-production duration. Check that the local plan includes more planned generated material than the final-edit target, with useful additional coverage or alternates that let an editor select, trim, align, and pace the sequence. Confirm each alternate has a clear relationship to the shot it can replace and each added coverage shot has a purpose. Do not require all shot durations to sum to the final runtime; report the target and planned generated-material duration separately. Flag missing editorial surplus as `COVERAGE` and leave the plan open for correction before the Step 03 approval diff.
+
 ## Report and corrections
 
 Report in this order:

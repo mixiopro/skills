@@ -73,7 +73,7 @@ The `how-to-make-script` root skill is vendored under `skills/how-to-make-script
 | `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode, and whenever it's unclear which production skill applies.** Local director plan and audit, approved Studio sync, reference readiness, shot planning, and generation |
 | `mixio-sheets` | `/mixio:sheets` | Build or enrich approved character defaults/variants, location configurations/views, prop sheets, and per-scene anchors after the breakdown is accepted |
 | `mixio-reference-audit` | `/mixio:reference-audit` | Audit the accepted plan against reference looks/views, visual evidence, Cast & World consistency, duplicates, and metadata before generation |
-| `mixio-script-breakdown` | `/mixio:script-breakdown` | Script → local director’s shot plan with connective coverage, provenance labels, and an approval-gated Studio diff |
+| `mixio-script-breakdown` | `/mixio:script-breakdown` | Enrich a supplied/existing scene-and-shot breakdown, or create one from the script when absent; prepare an approval-gated Studio diff |
 | `mixio-continuity` | `/mixio:continuity` | Local coverage, character/prop state, geography, and shot-flow audit before Studio sync; pair `/mixio:eval` with rendered media |
 | `mixio-shot-planning` | `/mixio:shot-planning` | 6 structural archetypes (incl. `MULTI_CUT` 10–15s) + model matching, execution audit, batches, and cost approval |
 
@@ -90,7 +90,7 @@ For a full multi-step episode run, use the host’s native task/plan surface whe
 ```
 PRE Story development + screenplay handoff → Mixio-owned `how-to-make-script` via `/mixio:screenwriting` when requested
 00  Project + episode setup → resolve scope; read the current screenplay/script, references, shots, settings, and available images
-01  Local shot plan         → /mixio:script-breakdown — preserve source text; label sourced and inferred direction
+01  Local shot plan         → /mixio:script-breakdown — enrich a supplied/existing breakdown, or create one if absent; preserve authored direction and plan surplus coverage
 02  Local coverage audit    → /mixio:continuity — repair and re-check state, geography, coverage, and flow
 03  Review + sync           → show exact Studio diff; wait for approval; sync and verify by readback
 04  Reference readiness     → /mixio:reference-audit; build missing sheets/anchors with /mixio:sheets
