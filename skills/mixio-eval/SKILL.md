@@ -308,6 +308,10 @@ adjacent transition and for any cross-angle comparison:
 - identity, pose, wardrobe, prop state, relative scale, and visible proportions;
 - requested visual style and surface/material treatment, including consistency
   with photorealistic/hyperrealistic or stylized intent;
+- for photorealistic/hyperrealistic human imagery, natural skin surface detail
+  at a scale the frame can resolve, with no poreless smoothing, airbrushing, or
+  waxy/plastic gloss; in video, check that texture and complexion stay stable
+  through motion and across cuts;
 - palette and color relationships;
 - lighting direction, quality, and exposure;
 - unexpected content, missing signature features, and visible image defects;
@@ -322,6 +326,14 @@ prop pickup, time-of-day change, or deliberate axis crossing). A declared
 change is exempt only for the named dimension; undeclared drift across the
 same transition remains a failure. A hard cut does not excuse within-shot
 flicker, temporal artifacts, or an unexplained state change.
+
+For a requested realistic human finish, a clear plastic/waxy or poreless
+beauty-filter appearance is a blocking visual defect, even when identity or
+composition scores are otherwise strong. Localize the finding to the affected
+face, frame range, or transition and request a correction/re-render; do not let
+an aggregate evaluation score waive it. Apply this only when supported by the
+locked style and visible evidence; retain deliberately stylized or glossy skin
+when that treatment is intentional.
 
 A `MULTI_CUT` render is one video containing deliberate in-shot cuts: declare
 **every** cut boundary from the shot's `cuts[]` as its own `editorial-cut`

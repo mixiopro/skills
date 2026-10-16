@@ -17,7 +17,7 @@ This local text audit does not replace `/mixio:eval` after rendering. Evaluation
 
 ## Inputs and grounding
 
-- The source screenplay/script selected by `mixio-script-breakdown`.
+- The approved, director-developed production screenplay selected by `mixio-script-breakdown` (or the supplied breakdown when no screenplay/script is available).
 - The current local shot table, including source/inference provenance and the connection to neighboring shots.
 - Current Studio references, existing shots, and available images when scoped and accessible.
 

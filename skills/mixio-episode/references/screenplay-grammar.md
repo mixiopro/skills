@@ -1,13 +1,13 @@
 # Native Screenplay Grammar
 
-This is the canonical contract for text stored by `studio_upsert_screenplay`. It is **not** the authored [shot grammar](../../mixio-pipeline/references/shot-grammar.md): screenplay is the source text that Studio segments and breaks down; shot grammar is the reviewable production format created after breakdown.
+This is the canonical contract for text stored by `studio_upsert_screenplay`. The episode `script` is the raw Idea/Story source; the `SCREENPLAY` is the director-developed, AI-readable production document that Studio segments and breaks down. The screenplay should turn the source into a coherent sequence with playable action, visual direction, continuity, and motivated coverage. The companion [shot grammar](../../mixio-pipeline/references/shot-grammar.md) defines the structured director plan and breakdown fields; it does not replace screenplay prose.
 
 ## Scope and precedence
 
 - A `SCREENPLAY` element is one per episode. A non-empty `body` wins for breakdown, even while its Studio status is `draft`.
 - The episode `script` / `metadata.fullScript` is raw **Idea/Story** fallback text. Use it only when no screenplay has a usable body.
 - `studio_upsert_screenplay` creates or updates the draft. A human approves separately in the Studio Screenplay view.
-- Preserve the body verbatim when passing it to breakdown: native mentions, locks, annotations, line ordering, and source language are all part of the source record.
+- Preserve the approved screenplay body verbatim when passing it to breakdown: native mentions, locks, annotations, line ordering, and source language are all part of the production source record. The raw episode script remains unchanged as the underlying story source.
 
 ## Base screenplay form
 
@@ -37,6 +37,14 @@ She retrieves the MANILA DOSSIER from the center DRAWER.
 - **Character cue and dialogue**: ordinary screenplay cue, optional parenthetical, and dialogue paragraphs. Preserved verbatim in source language and alphabet.
 - **Audio & SFX paragraphs**: standalone design blocks (e.g. `[SFX: ...]` and `[Ambient: ...]`) or descriptive audio paragraphs providing deterministic cues for sound design and foley during breakdown.
 - **Blank lines** separate paragraphs. A native annotation must occupy its own complete paragraph; ordinary bracketed prose remains ordinary prose.
+
+## Director-led screenplay development
+
+When given a high-level script, outline, or incomplete screenplay for production, develop it into an AI-ready screenplay before breakdown. Make the scene chain, action causes, staging, entrances/exits, geography, visual reveals, reactions, transitions, and material continuity explicit. Add establishing, reaction, insert, or connecting beats when they help the audience understand the action or connect adjacent moments. Treat these as director inferences, not new source facts.
+
+Keep a local change map from source beats to screenplay beats. Mark additions `INFERRED`; preserve source facts and dialogue; hold any consequential change to story, motive, or dialogue as `OPEN DECISION`. The labels belong in the review artifact and are not native screenplay tokens. Review the full proposed screenplay and change map before `studio_upsert_screenplay`; after approval, read back the saved draft. A saved draft still needs human Studio approval before it becomes the production baseline.
+
+Write technical direction into screenplay action and supported `[Key: Value]` annotations. The parser recognizes only the keys listed below; unsupported details must remain clear prose or be captured in the companion director plan and structured shot breakdown. Do not imply that arbitrary annotations become structured Studio metadata.
 
 ## Native reference mentions: `#`
 
@@ -156,9 +164,10 @@ Breakdown derives scene `heading`, `location`, `timeOfDay`, `transitionFromPrevi
 
 ## Authoring checklist
 
-1. **Mention Catalog**: Call `studio_list_references({ projectId, limit })` and copy exact `mentionableLooks` for every existing entity/look you intend to bind. Validate all `#` mentions (0 unresolved tokens).
+1. **Mention Catalog**: Call `studio_list_references({ projectId, limit })` and copy exact `mentionableLooks` for every existing entity/look you intend to bind. Validate all `#` mentions (0 unresolved tokens); describe unregistered looks in prose and record the readiness gap.
 2. **Four Scene Elements**: Every scene must contain sluglines, action beats, character cues/dialogue, and audio/SFX paragraphs (`[SFX: ...]`, `[Ambient: ...]`).
-3. **ALL CAPS Props & Settings**: Capitalize every key prop and notable setting element on first appearance.
-4. **Standalone Annotations**: Place standalone `[Key: Value · Key: Value]` override blocks immediately before the beats they govern.
-5. **Spatial Locks**: Use `~location.landmark[.placement]` for advisory spatial continuity locks; never as an entity mention.
-6. **Idempotent Draft Upsert**: Upsert the full body as a draft via `studio_upsert_screenplay`, then preserve it verbatim through breakdown.
+3. **Connected Direction**: Make cause and effect, geography, character/prop state, transitions, and motivated establishing/reaction/connecting beats legible across the sequence.
+4. **ALL CAPS Props & Settings**: Capitalize every key prop and notable setting element on first appearance.
+5. **Standalone Annotations**: Place standalone `[Key: Value · Key: Value]` override blocks immediately before the beats they govern. Only recognized keys are parsed into structured overrides.
+6. **Spatial Locks**: Use `~location.landmark[.placement]` for advisory spatial continuity locks; never as an entity mention.
+7. **Review and Draft Upsert**: Show the developed screenplay and source-to-screenplay change map; wait for approval; upsert the full approved body as a draft via `studio_upsert_screenplay`, read it back, then preserve it verbatim through breakdown.

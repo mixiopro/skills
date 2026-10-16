@@ -75,8 +75,10 @@ one strong similarity score cannot hide a specific contradiction:
 - **Style and materials:** Match the requested medium and realism level,
   including photorealistic/hyperrealistic versus stylized treatment, detail,
   and surface/material rendering. Plastic or waxy skin is a defect when it
-  conflicts with the requested realism or material treatment; preserve it when
-  it is an intentional part of the locked style.
+  conflicts with the requested realism or material treatment; for an explicit
+  photorealistic/hyperrealistic character row, clear poreless smoothing,
+  airbrushed skin, or plastic/waxy gloss is a blocking visual contradiction.
+  Preserve that finish only when it is an intentional part of the locked style.
 - **Lighting and palette:** Compare light direction, quality, temperature,
   contrast, exposure, and shadow behavior, plus palette and color relationships.
   Treat a change as intentional only when the screenplay or confirmed row says

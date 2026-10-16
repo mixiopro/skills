@@ -7,7 +7,7 @@ invoke: /mixio:pipeline
 
 # Mixio Pipeline
 
-The pipeline moves from confirmed project setup to a locally reviewed director’s plan, then syncs the approved diff to Studio. **Use the director’s lens throughout production and consult the relevant specialist perspectives:** cinematography, production design, costume, props, script supervision, editing, sound, action, and technical or production feasibility checks inform the plan when useful. The director integrates them around audience intent; downstream work serves the accepted shot direction and preserves continuity. Planning and continuity corrections happen in the agent’s working context. The original screenplay stays unchanged. See the shared [director’s lens](references/directors-lens.md).
+The pipeline moves from a raw story/script to a locally developed, AI-ready director’s screenplay, then to a continuity-checked shot plan and approved Studio sync. **Use the director’s lens throughout production and consult relevant craft perspectives:** cinematography, production design, costume, props, script supervision, editing, sound, action, and technical feasibility. The director integrates them around audience intent and a connected sequence. The raw episode `script` remains the story source; the screenplay is a developed production document and may add clearly identified connective direction and coverage. See the shared [director’s lens](references/directors-lens.md).
 
 Read the [native screenplay grammar](../mixio-episode/references/screenplay-grammar.md) when interpreting a screenplay and the [shot grammar](references/shot-grammar.md) when mapping direction to Studio fields.
 
@@ -23,10 +23,11 @@ For full multi-step runs, use the current host’s native task or plan surface w
 
 | Step | Work | Result |
 |---|---|---|
-| 00 | Project and episode setup + read-only source snapshot | Confirmed scope; current script, project references, existing shots, settings, and available images inspected |
-| 01 | `/mixio:script-breakdown` | Enriched local plan based on an existing scene/shot breakdown, or a new local breakdown when none exists |
+| 00 | Project and episode setup + read-only source snapshot | Confirmed scope; current script, screenplay, project references, existing shots, settings, and available images inspected |
+| 00.5 | Director-led screenplay development | Complete local screenplay draft with scene/shot intent, technical direction, reference cues, continuity, and provenance; review exact screenplay changes and wait for approval before draft upsert |
+| 01 | `/mixio:script-breakdown` | Structured local scene/shot plan derived from the approved screenplay, or an accepted existing breakdown enriched against it |
 | 02 | `/mixio:continuity` | Local coverage and continuity audit; corrections stay in the draft |
-| 03 | Review and Studio sync | Exact diff shown; explicit approval; existing primitives write it; readback verifies it |
+| 03 | Review and Studio sync | Exact scene/shot diff shown; explicit approval; existing primitives write it; readback verifies it |
 | 04 | Reference readiness | Audit existing references; build missing sheets/anchors as separately confirmed |
 | 05 | `/mixio:shot-planning` | Method/model, feasibility, batches, cost estimate, and cost approval |
 | 06 | `/mixio:generate`, then `/mixio:eval` | Approved generation batches and evaluated outputs |
@@ -35,16 +36,24 @@ For full multi-step runs, use the current host’s native task or plan surface w
 
 Resolve scope before expensive reads. If the project or episode does not exist, show available projects/episodes and get confirmation before creating it. Read the current project settings, references, existing episode scenes/shots, and available image assets.
 
-Identify any scene/shot breakdown supplied in the user's prompt or attachments as well as one already present in Studio. If a usable breakdown exists, it is the planning baseline. Use a non-empty native `SCREENPLAY` body as source text for checking and grounding, including a draft; use episode `script` / `metadata.fullScript` only when no non-empty screenplay body exists. Preserve all selected sources verbatim. If no screenplay/script is available but a usable breakdown was supplied, enrich from that breakdown and make its evidence limits visible. If neither a breakdown nor source text is available, request one before planning. Do not normalize, replace, or upsert screenplay text as part of shot planning.
+Read the raw episode `script` / `metadata.fullScript`, current native `SCREENPLAY`, any supplied or persisted breakdown, references, settings, and images. Treat the raw script as story source material. A non-empty screenplay is the current production draft, even when it is only a copy of the script; assess whether it is sufficiently developed for the requested production. A high-level script or underdeveloped screenplay requires Step 00.5. Preserve the raw script; never silently treat it as a finished screenplay. If neither source text nor a usable supplied breakdown exists, request source material.
 
 Read any existing delivery, visual-style, and reference-policy settings as constraints. Capture the user’s intended tone and format when stated; do not invent a style to fill an unset field. Missing settings, sheets, and anchors can be listed as readiness gaps; they do not block a local plan. Do not choose per-shot generation methods, select generation models, estimate spend, or submit image/video jobs before the accepted breakdown.
+
+## Step 00.5 — Develop the director’s screenplay
+
+When the source is a high-level script, outline, or underdeveloped screenplay, use `/mixio:screenwriting` (scene-writing plus the relevant quality gate) to create a complete AI-readable screenplay locally before shot breakdown. Preserve the story’s stated events, dialogue, character intent, and canon while developing them into playable scenes and explicit visual beats. Use full, concrete screenplay action rather than a terse restatement of the source. Include scene headings and transitions; entrances, exits, establishing geography, staging, action and cause; reaction and connective beats; character, prop, wardrobe, location, and look continuity; and motivated framing, camera angle/movement, lens, lighting, sound, and pacing where known. Add reasonable connective coverage even when it is absent from the raw script, so scenes form a coherent sequence rather than isolated clips.
+
+Keep a source-to-screenplay change list that distinguishes source facts and dialogue from `INFERRED` director additions. Do not invent consequential story facts, character motives, or dialogue to conceal gaps; present those as `OPEN DECISION`s with options. Use exact existing `#` mentions from `mentionableLooks`; describe unregistered looks/views in prose and record them as readiness needs. Keep shot-specific direction in readable screenplay action and supported standalone annotations; only the 11 keys listed in the native screenplay grammar are parsed into breakdown overrides. Capture duration, detailed per-shot fields, cut timing, and other data without a native screenplay key in the companion local director’s plan, then carry them into the structured breakdown.
+
+Before writing, present the complete screenplay draft, exact source-to-screenplay changes, unresolved decisions, and reference gaps. Wait for explicit approval. Then upsert the approved full body as a Studio draft and read it back. Studio draft status is not human approval; do not proceed to breakdown until the user approves the screenplay in the applicable review surface. For an already approved, production-ready screenplay, confirm it as the baseline and continue without rewriting it. A screenplay edit after shot sync invalidates the breakdown and all downstream work.
 
 ## Step 01 — Use or create the local director’s plan
 
 First check whether the user supplied a scene/shot breakdown in the prompt or attachments, or the episode already has a usable scene/shot breakdown in Studio. Follow `mixio-script-breakdown` in one of two modes:
 
 - **Breakdown supplied or already present:** Treat its scene order, shot order, authored beats, and stated direction as the baseline. Enrich it with production detail: audience intent, visible action, framing/camera, character and prop state, geography, shot handoffs, source links, and readiness gaps. Preserve its structure and wording where they carry the user's direction. Add clearly labeled inferred detail, missing connective coverage, and useful editorial surplus through extra shots or alternates; show unresolved story-changing choices as `OPEN DECISION`. Do not run a fresh screenplay-to-scenes-and-shots pass over it.
-- **No usable breakdown exists:** Build the scene-and-shot structure from the selected screenplay/script, preserving its order and facts, and add clearly labeled inferred coverage where needed.
+- **No usable breakdown exists:** Build the scene-and-shot structure from the approved, developed screenplay, preserving its order and facts, and add clearly labeled inferred coverage where needed.
 
 If an existing breakdown appears incomplete, conflicting, or unsuitable for the requested work, identify the specific gap and propose a targeted repair or rebuild for review. Do not silently replace or discard existing scenes, shots, or user-authored direction. In either mode, keep the work local and do not mutate Studio scenes, shots, relations, references, or screenplay during this step.
 
@@ -93,12 +102,13 @@ Evaluation submissions are billable and need confirmation. Present the evaluatio
 
 ## Resume and re-entry
 
-The local plan is a review artifact in the current agent context; it has no new Studio schema. If context is lost before sync, rebuild it from the current screenplay, references/assets, and Studio graph. If context is lost after sync, read the persisted graph and resume from that state. Never treat an old, unreviewed draft as approval. A change to an accepted breakdown invalidates downstream shot planning and may change its cost estimate.
+The screenplay change map and shot plan are review artifacts in the current agent context; they have no new Studio schema. If context is lost before screenplay approval, reread the raw script and current Studio screenplay and rebuild the proposed screenplay/change map. If context is lost before breakdown sync, rebuild the shot plan from the approved screenplay, references/assets, and Studio graph. If context is lost after sync, read the persisted graph and resume from that state. Never treat an old, unreviewed draft as approval. A screenplay edit invalidates any unsynced local breakdown; after breakdown sync it invalidates downstream planning and may change its cost estimate.
 
 ## Working sequence
 
 ```text
-setup + read → use/enrich supplied or existing plan, or create one if absent → local continuity/coverage audit
-             → show exact diff → user approval → sync + readback
+setup + read → develop/review screenplay when needed → screenplay approval + draft upsert/readback
+             → use/enrich supplied or existing plan, or create one if absent → local continuity/coverage audit
+             → show exact breakdown diff → user approval → sync + readback
              → reference readiness → method/model + cost approval → generation + evaluation
 ```
