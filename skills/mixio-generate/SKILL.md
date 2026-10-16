@@ -241,6 +241,12 @@ For identity key selection, canonical tag construction, and route-specific token
 let the selected route compile provider tokens; do not hand-write `Image 1`, `@Image1`, or
 `<IMAGE_REF_1>` forms.
 
+#### Natural human skin for realistic image and video jobs
+
+When a human subject is intended to look photorealistic or hyperrealistic, carry explicit natural-skin direction in the effective prompt for every image, keyframe, and video where skin is visible. Describe real surface detail—fine pores and natural tonal variation, plus peach fuzz or faint expression lines when the framing can resolve them—and request an appropriate soft, physically plausible light source and natural contrast. Preserve only freckles, scars, asymmetry, and other features supported by the approved reference or character record. Explicitly avoid poreless smoothing, airbrushing, beauty-filter retouching, waxy/plastic gloss, and a CGI mannequin finish. Avoid relying on vague `ultra-realistic` or `8K` slogans to produce skin texture.
+
+For video, include the surface cues in the action prompt and state that facial identity, complexion, and natural texture remain stable through motion and across cuts; reject temporal smoothing/flicker or a texture change between frames. Use an approved character image in the schema-declared identity/reference slot when available and permitted, and bind it with the required `@tag`, `slotTags`, and `mentionMap`. Never invent a numeric reference-strength parameter: use one only if the selected model's live schema exposes it. Skin detail must fit the shot scale; do not demand individually visible pores in a wide shot.
+
 #### Multi-cut prompt serialization (`MULTI_CUT` shots)
 
 `cuts[]` is never the effective prompt by itself. Serialize every populated per-cut field into
@@ -257,6 +263,7 @@ Before calling `studio_submit_studio_job` for any billable generation:
 - [ ] **Prompt embedding**: The effective prompt contains every mapped tag at least once where that asset acts. For a sequence use case with no caller `prompt`, validate `sequence_notes` plus the materialized shot prompt instead of treating the omission as a bypass.
 - [ ] **No orphaned or colliding tags**: Reject unused `slotTags`/`mentionMap` entries, duplicate tag assignments, and any media asset without a map pair (`PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or `MENTION_MAP_ORPHANED`).
 - [ ] **No ungrounded prose**: Descriptive text may supplement a mention, but it never replaces the required `@tag` token.
+- [ ] **Realistic skin**: For photorealistic/hyperrealistic human imagery, confirm the effective image/video prompt includes framing-appropriate natural skin texture and excludes smoothing/plastic gloss; for video, include temporal texture and identity consistency.
 
 The complete, model-specific submission shape is in
 [`video-use-case-routing.md`](references/video-use-case-routing.md). Treat its example as illustrative and

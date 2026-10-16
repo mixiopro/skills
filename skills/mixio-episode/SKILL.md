@@ -118,16 +118,18 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 
 ```
 1. studio_create_episode({ projectId, title, sequenceNumber })
-2. preserve or create the source screenplay/script as part of episode setup; do not rewrite it during breakdown
-3. /mixio:script-breakdown → read source/current graph and build a local shot table + exact Studio diff
-4. /mixio:continuity → correct and re-check the local plan
-5. show the diff → wait for explicit approval
-6. studio_upsert_scene_packages / studio_revise_shot_specs → apply only approved additions/updates
-7. studio_link_graph → apply approved character/shot relations and appearance state
-8. read persisted scenes, shots, and relations back → verify against the approved diff
-9. /mixio:reference-audit, then /mixio:sheets for missing generation references (confirm image work)
-10. /mixio:shot-planning → choose method/model and approve cost
-11. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
+2. preserve the raw Idea/Story script as the story source
+3. /mixio:pipeline Step 00.5 → develop an AI-ready director’s screenplay from a high-level script or incomplete screenplay; show the draft and source-to-screenplay changes, then wait for approval
+4. studio_upsert_screenplay → persist the approved screenplay as a draft and read it back; human screenplay approval in Studio is still required before breakdown
+5. /mixio:script-breakdown → build/enrich a local shot table from the approved screenplay + exact Studio diff
+6. /mixio:continuity → correct and re-check the local plan
+7. show the diff → wait for explicit approval
+8. studio_upsert_scene_packages / studio_revise_shot_specs → apply only approved additions/updates
+9. studio_link_graph → apply approved character/shot relations and appearance state
+10. read persisted scenes, shots, and relations back → verify against the approved diff
+11. /mixio:reference-audit, then /mixio:sheets for missing generation references (confirm image work)
+12. /mixio:shot-planning → choose method/model and approve cost
+13. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
 ```
 
 ## Notes

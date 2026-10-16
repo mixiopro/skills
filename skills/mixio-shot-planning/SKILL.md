@@ -295,6 +295,10 @@ enhancer_context, and every other schema-declared media slot):
 
 For a sequence use case that intentionally leaves the caller `prompt` unset, validate the effective materialized prompt (`sequence_notes` plus the shot-spec prompt); an omitted caller field is not a grounding bypass. Descriptive prose may supplement a tag, never replace it. Record every validated pairing in the [Prompt & Mention Sheet](../mixio-generate/references/prompt-mention-sheet.md), which also carries the per-route token vocabulary (`<Picture n>`, `@Image{n}`, `<IMAGE_REF_{n}>`, …) that Step 06's compilers expect. Any `PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or `MENTION_MAP_ORPHANED` finding blocks the production summary and Step 06 approval until corrected.
 
+### Natural skin prompt readiness
+
+When the locked visual style or user direction is photorealistic/hyperrealistic, inspect every shot where character skin is visible and ensure its effective prompt carries concrete natural-skin and anti-smoothing direction. Match detail to framing: fine pores, subtle tonal variation, peach fuzz, and faint expression lines belong in close views where they can resolve; use natural complexion and surface variation at wider scales. Specify soft, physically plausible light and natural contrast when skin appearance matters. Do not rely on `ultra-realistic`/`8K` slogans, and do not add unsupported scars, freckles, or numeric reference weights. Bind the approved character image when available and permitted; `@` mentions/maps remain mandatory. Missing skin direction is a blocking prompt-readiness finding for a realistic character close-up and must be corrected before the production summary.
+
 ### Continuity handoff feasibility
 
 ```

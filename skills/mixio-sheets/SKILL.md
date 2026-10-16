@@ -99,12 +99,28 @@ Render spec:
 - **Wardrobe**: show the character's default costume on the default sheet; add sheets for only the age/clothing combinations required by the script, as listed in the variant matrix below.
 - **Aspect ratio**: always `16:9`; the approved contact-sheet template requires this horizontal canvas.
 
+### Natural skin rendering (photorealistic / hyperrealistic intent)
+
+When the locked project style or user direction calls for photorealistic or hyperrealistic characters, describe skin directly in every character-sheet candidate prompt; do not rely on `ultra-realistic`, `8K`, or similar quality slogans. Preserve the character's documented complexion and add natural detail at a scale the view can resolve: fine pores, subtle tonal variation, soft peach fuzz, and faint expression lines in close views. Allow mild natural facial asymmetry and only source-supported freckles, marks, scars, and teeth details; do not invent identity features. Ask for soft, broad, neutral light with gentle directional shape, natural contrast and shadow detail, plausible portrait-lens perspective in face views, and crisp but unretouched, low-noise focus. Exclude poreless smoothing, airbrushing, beauty-filter skin, waxy/plastic gloss, and a CGI mannequin finish. Keep the sheet's neutral conditions; don't add dramatic HDR or a glossy key light to force texture.
+
+For these projects, write the canonical complexion plus stable surface/finish direction into `characterDetails.skin` so the shared prompt projection carries it into image and video jobs. Example: `"medium olive complexion with natural tonal variation and realistic, softly textured skin; no artificial gloss"`. Keep scars and distinctive marks in `distinctiveFeatures`; don't put temporary flushing, sweat, lighting, or per-shot condition in this stable field.
+
+Example prompt direction (include the required `@` token and paired maps whenever reference media is supplied):
+
+```text
+Photorealistic neutral character turnaround of @tony, matching the approved identity reference and documented complexion. At face-view scale retain natural fine pores, subtle tonal variation, soft peach fuzz, faint expression lines, and mild natural asymmetry; preserve only established marks. Soft broad neutral daylight with gentle camera-left shaping, natural contrast, plausible portrait-lens perspective, and crisp unretouched low-noise focus. No dramatic HDR, airbrushing, poreless smoothing, beauty-filter finish, waxy/plastic shine, or CGI mannequin skin. Keep identity, age, hair, and default wardrobe consistent in every view.
+```
+
+Use an approved image of that character as the identity reference when available and permitted by the selected model's live media schema. Do not use an unrelated face as a texture reference. Do not invent numeric reference-strength/weight parameters; send one only when the selected model's live schema exposes it. If the current candidate remains waxy or smooth against the requested realistic style, reject it and retry with the visible defect stated directly in the repair prompt.
+
 ### Character-sheet visual gate
 
 Do not approve a sheet because one panel looks plausible. Inspect every view
 for facial identity drift, warped eyes or teeth, extra/fused fingers, duplicated
 limbs, impossible joints, hallucinated accessories, wardrobe/color changes,
-and unexplained silhouette changes. Hidden anatomy is `unobservable`, not
+unexplained silhouette changes, and the requested skin surface. For a
+photorealistic/hyperrealistic target, clear poreless, airbrushed, waxy, or
+plastic-looking skin fails the panel. Hidden anatomy is `unobservable`, not
 implicitly approved. A failed panel blocks the sheet; it must be regenerated
 or replaced rather than averaged away. Run the modern `image-character`
 evaluation with ordered aliases and `reference-coverage.subject-kind=character`
@@ -119,7 +135,7 @@ studio_update_reference({
   characterDetails: {
     role: "protagonist",              // enum: protagonist|antagonist|supporting|background
     age: "24", build: "petite, 5'2\"", height: "5'2\"",
-    skin: "olive", eyes: "dark brown",
+    skin: "olive complexion with natural tonal variation and realistic, softly textured skin", eyes: "dark brown",
     hair: "dark brown, shoulder-length, loose curls",
     distinctiveFeatures: "small scar left eyebrow; always wears the gold saint pendant",
     visualAnchor: "the gold saint pendant — visible in every shot she is in",
@@ -287,6 +303,10 @@ An anchor is a **wide master of the scene at its opening moment**: the set as de
 - Exclude: dramatic framing, mid-scene action, anything that only happens later. An anchor is a reference, not a shot.
 - Feed the location reference into `location_ref` and each character sheet into `character_ref` on the same job so the anchor is consistent with the sheets.
 - A scene with a big lighting or staging shift mid-way (day→night, everyone relocates) needs a second anchor. Note the switch shot in the staging block: `Coverage: Shots 1–10 → Anchor 1; Shots 11–18 → Anchor 2`.
+
+Persist the anchor candidate as an IMAGE or KEYFRAME element with a usable image URL. Frames View loads scene anchor candidates from elements related directly to the scene and classifies KEYFRAME/IMAGE items as reference frames when they have relation type `source_reference_for`, subtype `STORYBOARD_REFERENCE`, `frameRole: "storyboard_reference"`, `storyboardRole: "source_reference"`, or `isGenerated: false`. `metadata.kind: "anchor"` by itself is not a Frames View classifier. The canonical `scene.metadata.anchorRef` field has a separate purpose: it makes generation attach the selected anchor to shots in that scene. Do not assume setting `anchorRef` alone makes an unattached element visible in the scene lane.
+
+The Frames UI’s approval flow attaches an approved scene anchor to each shot with a `source_reference_for` relation from the shot to the anchor, tagged with role and metadata source `scene_anchor`. For a candidate to appear in the scene Anchor lane, attach it directly to the scene using the supported scene relation mechanism and a recognized reference-frame marker, then read back the scene-related items. For generation, the UI approval/materialization flow sets `scene.metadata.anchorRef` and creates the tagged shot-to-anchor relations. Confirm the exact relation primitive and schema with `studio_describe_tools`; never guess a relation direction or role. In all cases, verify the persisted element, marker, relation owner/target, and `anchorRef` as applicable.
 
 Persist the anchor as a KEYFRAME element, then **point the scene at it** so generation attaches it automatically:
 

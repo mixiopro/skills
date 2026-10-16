@@ -14,14 +14,14 @@ Use this guide for full, multi-step Mixio episode runs. Agent platforms expose d
 Keep the native goal/task plan short and phase-based. It should capture:
 
 1. **Objective:** what result the user asked for in this confirmed project and episode.
-2. **Milestones:** resolve scope and source; build the local director/specialist plan; audit continuity; show the exact diff; wait for approval; sync and read back; resolve reference readiness; plan production; generate and evaluate only when included and approved.
-3. **Constraints:** preserve screenplay text, label inference, do not write a breakdown before approval, and respect separate image-generation and cost gates.
-4. **Evidence:** the reviewed plan and diff, explicit user decisions, persisted Studio readback, readiness and cost approvals, and evaluation results as applicable.
+2. **Milestones:** resolve scope and read raw source/current screenplay; develop and review the director’s screenplay when needed; get approval, draft-upsert, and read back; build the local director/specialist shot plan; audit continuity; show the exact breakdown diff; wait for approval; sync and read back; resolve reference readiness; plan production; generate and evaluate only when included and approved.
+3. **Constraints:** preserve the raw script as story source; mark screenplay additions as inference; do not write the screenplay draft or breakdown before its respective approval; respect separate image-generation and cost gates.
+4. **Evidence:** source-to-screenplay change map, reviewed screenplay, explicit screenplay approval, persisted draft readback, reviewed shot plan and diff, explicit breakdown approval, persisted Studio readback, readiness and cost approvals, and evaluation results as applicable.
 5. **Stop and resume conditions:** stop at each required user decision. On resume, re-resolve the scope and read current Studio state before continuing.
 
 Example objective:
 
-> Prepare and sync an approved, continuity-checked shot plan for the confirmed episode. Keep the screenplay unchanged, mark inferred direction, show the exact Studio diff, and stop for approval before writing. After approval, read the persisted changes back. Continue into image generation or paid production only if separately requested and approved.
+> Prepare an approved, AI-ready director’s screenplay and continuity-checked shot plan for the confirmed episode. Preserve the raw script as story source; show the screenplay and its inferred additions for approval before draft-upsert. Then show the exact breakdown diff and wait for separate approval before syncing. Read persisted changes back. Continue into image generation or paid production only if separately requested and approved.
 
 ## The tracker is not the production record or an approval
 

@@ -1,9 +1,11 @@
 # Pipeline Progress State
 
-The director’s shot plan and local continuity corrections are review artifacts in the agent’s
-current context. They are not persisted before approval and use no new Studio schema. If context
-is lost before sync, rebuild the plan from the current screenplay, references/assets, and Studio
-graph. After sync, read back the persisted graph and resume from that state.
+The director’s screenplay change map, shot plan, and local continuity corrections are review
+artifacts in the agent’s current context. They are not persisted before their respective
+approvals and use no new Studio schema. If context is lost before screenplay approval, rebuild
+the screenplay draft from the raw script, current screenplay, references, and user decisions. If
+lost before shot sync, rebuild the plan from the approved screenplay, references/assets, and
+Studio graph. After sync, read back the persisted graph and resume from that state.
 
 After an approved sync, store only durable production state in existing project, episode, and
 shot metadata. Preserve unrelated values when updating `metadata.pipeline`:
@@ -15,7 +17,7 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   shot_contract: { mode: "multi_cut", band: "10-15" },
   step_00: "complete",
   step_03: "complete",
-  step_04: "not_started",
+  step_04: "complete",
   step_05: "not_started",
   step_06: "not_started",
   anchors: { "1": "<keyframe-element-id>" },
@@ -30,7 +32,8 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
 
 | Pipeline state | Where it lives in Mixio |
 |---|---|
-| Source screenplay/script | `SCREENPLAY.body` (or episode `script` / `metadata.fullScript` only as fallback) |
+| Raw story/script source | Episode `script` / `metadata.fullScript` |
+| Developed production screenplay | `SCREENPLAY.body` (draft until human Studio approval) |
 | Current project settings and reference policy | project `settings.generation` / `settings.studio` / `settings.references` |
 | Confirmed character/location variant-view matrix and review history | episode `metadata.pipeline.reference_pack_inventory` |
 | Reference audit results | episode `metadata.pipeline.reference_audit` |

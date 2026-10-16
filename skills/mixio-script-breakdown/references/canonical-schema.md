@@ -182,7 +182,7 @@ Scene `status`: `scripting` (default) → `breakdown` → `approved`.
 
 ## Appearance state schema
 
-Attached to `appears_in` relations via `studio_link_graph` for each character appearing in a shot:
+Attached to the character-to-shot `appears_in` relation via `studio_link_graph` for each character appearing in a shot. The values are stored in that relation's `metadata`; the composed write/read path may expose them as `appearanceState`. Never put per-appearance values such as `lookRef` in shot element metadata. After linking, read the relation back and verify its type, character and shot endpoints, and required appearance fields.
 
 The breakdown audit requires `wardrobe`, `condition`, and `carriedProps` for every appearing
 character. `carriedProps` is an explicit array and must be `[]` when the character carries
