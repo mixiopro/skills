@@ -80,7 +80,7 @@ regardless, since the setting can be turned on later and the data will be there.
 
 ### `studio_update_reference` — the critical gotcha: `attachments` vs `referenceVariants`
 
-Both parameters put images on a reference, but they are **not interchangeable**. These writes attach approved media only; generated candidates stay outside active reference image stores until the user approves them:
+Both parameters put images on a reference, but they are **not interchangeable**. These writes attach user-selected media only; generated candidates stay outside active reference image stores until the user selects them in chat or has already authorized the exact candidate:
 
 - **`attachments`** (array of `{ url, label?, isPrimary? }`) — **additive**. Merges approved images into the existing default look. Use for adding more accepted angles/images to what's already there.
 - **`referenceVariants`** (array of `{ name, kind?, isDefault?, images: [{url, label?, isPrimary?}] }`) — **full replace** of the entire variant list. Use when images are wrong and you need to overwrite, or when you're defining multiple named looks (e.g. `"Default Look"` + `"Battle Armor"`).
@@ -97,14 +97,14 @@ Internally, `attachments` is sugar that auto-builds/merges into a `"default"` `r
 
 ### Candidate approval and rejected-media cleanup
 
-Stage generated character/location candidates outside the active Cast & World reference. Retain the evaluator receipt, input aliases, findings, repair feedback, and human decision in the production review record. Evaluator output is advisory; only the user's approval makes a candidate eligible for attachment. Confirm the first candidate round after confirming the required-pack inventory, and obtain fresh user confirmation before every retry round. Revise from the recorded feedback, evaluate the replacement, and obtain human approval before attachment.
+Stage generated character/location candidates outside the active Cast & World reference. Retain the evaluator receipt, input aliases, findings, repair feedback, and user decision in the production record. Evaluator output is advisory; the user's chat confirmation to use a presented candidate makes it eligible for attachment—no separate Studio approval action is required. Confirm the first candidate round with the required-pack inventory. Ask before a new billable retry round unless existing authorization covers it. Revise from recorded feedback, evaluate the replacement, then follow the user's chat decision before attachment.
 
-If a rejected candidate was attached before review, it must be removed from every active look store before generation can continue:
+If a rejected candidate was attached before review, do not select or pass it as a generation reference. Remove it from active look stores when a documented operation supports that. If it cannot be safely removed, exclude the affected reference from job inputs and offer a clean alternate or compatible route; continue unrelated work and never claim the reference pack is clean:
 
 1. Read the full reference with `studio_get_element` and identify the rejected media URL/ID in `referenceVariants`, legacy `characterDetails.looks`, and flat `attachments`. Also check top-level `thumbnailUrl`/`previewUrl`: they are not look stores, but a rejected candidate must not remain displayed as the reference card preview.
 2. Rebuild the complete `referenceVariants` list with all approved variants and images preserved and every rejected asset excluded. Because this is a full replace, never send only the changed variant.
-3. If legacy `characterDetails.looks`, flat `attachments`, or a card-preview field still contains the rejected asset, use only a documented, contract-supported migration/removal operation. Do not guess a clear operation or rely on `referenceVariants` replacement to clear historical data. If no supported operation can remove an association, leave the pack in review and block generation.
-4. Read the reference back and verify the rejected URL/ID is absent from all three look stores and from `thumbnailUrl`/`previewUrl`. If it cannot be safely removed and verified, leave the reference non-approved and block downstream generation.
+3. If legacy `characterDetails.looks`, flat `attachments`, or a card-preview field still contains the rejected asset, use only a documented, contract-supported migration/removal operation. Do not guess a clear operation or rely on `referenceVariants` replacement to clear historical data.
+4. Read the reference back and verify whether the rejected URL/ID is absent from all three look stores and from `thumbnailUrl`/`previewUrl`. If it cannot be safely removed and verified, disclose that and do not use the affected reference as job input.
 
 Keep the rejection feedback and evaluator evidence in the review record, not in active variant images. `workflow.status` applies to the whole reference: keep it `in_review` while required candidates are being evaluated, and set `approved` only when the required reference pack is complete and accepted. Do not mark the entire reference `rejected` because one candidate image failed if approved images remain valid.
 
@@ -179,7 +179,7 @@ Use this to **get real reference-image URLs** before calling `studio_submit_stud
 
 **Don't rely on `studio_upload_media_from_url` for external URLs** (Google Drive, Dropbox, third-party CDNs, etc.) — in real usage it failed on every attempt (`Tool execution failed: No files were uploaded.`), likely SSRF/connectivity restrictions on the server side. Run the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts) in `mixio-workspace`; it permits only public HTTPS redirects, bounds the download, validates MIME type, derives the extension, and removes its unique temporary directory.
 
-Call `studio_update_reference({ projectId, referenceId, attachments: [{ url: entry.publicUrl, ... }] })` only after `upload_file` succeeds and the image has user approval for attachment. Uploading a candidate does not approve it. The `trap` cleans up only this run's directory on success or failure, and `--fail` prevents an HTTP error page or login HTML from becoming a reference image. Pass `project_id` and `organization_id` so the asset is scoped to the production rather than orphaned (`projectId: null`).
+Call `studio_update_reference({ projectId, referenceId, attachments: [{ url: entry.publicUrl, ... }] })` only after `upload_file` succeeds and the user has confirmed that candidate for attachment in chat (or previously authorized that exact candidate). Uploading a candidate alone does not select it. Do not require a second approval click/status in Studio. The `trap` cleans up only this run's directory on success or failure, and `--fail` prevents an HTTP error page or login HTML from becoming a reference image. Pass `project_id` and `organization_id` so the asset is scoped to the production rather than orphaned (`projectId: null`).
 
 `studio_upload_media_from_url` may still work for URLs already on trusted/reachable domains — try it first for a single asset, but don't build a batch workflow around it without a local-download fallback.
 
@@ -188,7 +188,7 @@ Call `studio_update_reference({ projectId, referenceId, attachments: [{ url: ent
 ```
 1. studio_list_references({ projectId, type, limit }) → find existing references and collect exact `mentionableLooks` before authoring a screenplay
 2. studio_register_reference_entities({ projectId, references: [...] })   → create/upsert by name
-3. upload_file(local_path) → stage candidates outside Cast & World; after evaluation + user approval,
+3. upload_file(local_path) → stage candidates outside Cast & World; after evaluation + the user's chat decision,
    studio_update_reference({ projectId, referenceId, attachments/referenceVariants, characterDetails/locationDetails/propDetails })
    → attach approved images + populate structured details
 4. → mixio-generate: pull reference URLs into character_ref/location_ref/style_ref for consistent generation

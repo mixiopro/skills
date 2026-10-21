@@ -7,7 +7,7 @@ invoke: /mixio:eval
 
 # Mixio Eval
 
-Evaluate rendered media before delivery, and evaluate reference-image candidates
+Evaluate rendered media as a delivery review checkpoint, and evaluate reference-image candidates
 during Step 04 only when the live catalog explicitly supports still-image
 comparison. This skill uses the modern hosted Studio evaluator gateway. For
 the director-led Continuity Checklist before rendering, use `mixio-continuity`.
@@ -140,9 +140,11 @@ no approved image exists for that configuration yet, use a representative
 staged candidate as the evaluation-only anchor only when the live evaluation
 contract accepts its URL as a `location-reference` input. Compare the candidate
 views against their declared orientation records, landmarks, and world axes;
-keep all candidates outside Cast & World pending human approval. Never use an
-image from another configuration just to fill the anchor role. If no valid
-anchor input is available, block the pack and request a suitable source image.
+keep all candidates outside Cast & World until the user selects one in chat or
+has already authorized that exact candidate. Never use an image from another
+configuration just to fill the anchor role. If no valid anchor input is
+available, report the evaluation limit and offer to continue with partial
+evidence; do not claim the pack was fully evaluated.
 This `location-reference` is the pack's evaluation anchor, distinct from the
 per-scene KEYFRAME `anchorRef` generated later in Step 04.
 Record each view's camera position, facing direction, visible landmarks, and
@@ -195,8 +197,8 @@ must never return an approval or an executable command.
 
 Interpret the result as a review packet:
 
-- `proposed` + `human-approval: required` means a person decides whether and
-  how to proceed;
+- `proposed` + `human-approval: required` means present the recommendation as a
+  checkpoint; the user's chat decision is sufficient to proceed;
 - `no-action` means retain the current render and record why;
 - `time-range-ms`, `frame-range`, and `shot-ids` are localization hints, not
   an authorization to regenerate;
@@ -208,15 +210,17 @@ repair plan is advisory and must be preserved alongside the evaluation receipt
 and the human decision.
 
 For reference candidates, keep the evaluation receipt, input aliases, findings,
-human feedback, and approval/rejection decision linked to the corresponding
+human feedback, and chat selection/rejection decision linked to the corresponding
 variant/view inventory rows in episode
-`metadata.pipeline.reference_pack_inventory`. Attach only user-approved
-candidates. If a rejected
+`metadata.pipeline.reference_pack_inventory`. Attach only candidates the user
+selects in chat; no separate Studio approval status is required. If a rejected
 candidate was attached earlier, use `mixio-references` to remove it from every
 active store and clear any matching `thumbnailUrl`/`previewUrl` through a
 documented operation, then read the reference back; do not treat a rejection
-note as cleanup. A candidate whose removal from active stores and preview
-fields cannot be verified blocks downstream generation.
+note as cleanup. If removal cannot be verified, report that Studio may still
+select that image and offer a compatible input/method that excludes it. Continue
+when the user accepts the limitation and the job schema allows it; never claim
+the rejected image was removed.
 
 The example also requests an explicit `output-schema` wrapper for a structured
 continuity extension: `review-verdict`, `worst-transition`,
@@ -329,10 +333,11 @@ same transition remains a failure. A hard cut does not excuse within-shot
 flicker, temporal artifacts, or an unexplained state change.
 
 For a requested realistic human finish, a clear plastic/waxy or poreless
-beauty-filter appearance is a blocking visual defect, even when identity or
+beauty-filter appearance is a high-priority visual defect, even when identity or
 composition scores are otherwise strong. Localize the finding to the affected
-face, frame range, or transition and request a correction/re-render; do not let
-an aggregate evaluation score waive it. Apply this only when supported by the
+face, frame range, or transition and recommend a correction/re-render. If the
+user elects to proceed, record the accepted deviation without changing the
+evaluation result. Apply this only when supported by the
 locked style and visible evidence; retain deliberately stylized or glossy skin
 when that treatment is intentional.
 
@@ -358,7 +363,7 @@ single request.
 | `video-multi-shot` | A rendered multi-shot candidate, cuts, and cross-angle geography — the primary lens for `MULTI_CUT` renders (10–15s multi-cut shots). | Character-only review. |
 | `video-character` | Identity, pose, wardrobe, and character-state continuity. | Full temporal/delivery review. |
 | `video-general` | General visual artifacts and broad palette, lighting, camera, motion, style/material, or scale review only when the catalog exposes that coverage. | A transition-specific gate when no ordered evidence is supplied. |
-| `delivery-qc` | Final candidate delivery/readiness review after continuity gates pass. | The strict adjacent-keyframe continuity gate. |
+| `delivery-qc` | Final candidate delivery/readiness review after continuity checks. | The strict adjacent-keyframe continuity check. |
 
 These are catalog profile identifiers, not a new capability enum. The catalog
 may provide profile-specific skills or metrics; pass those only when the live
@@ -369,7 +374,7 @@ Before submission, derive the required review dimensions from the locked project
 style and each shot's expected state. Check that the selected profile returns
 evidence for those dimensions. If it does not, use another compatible catalog
 profile as a separate, confirmed run or route the uncovered dimensions to human
-review; keep the media gate incomplete until required coverage is resolved.
+review; report the missing evidence and keep the evaluator result accurate. The user may accept the documented limitation and continue; do not represent uncovered dimensions as evaluated.
 
 ### Reference-image comparison for Step 04
 
@@ -407,8 +412,9 @@ scene anchors, or explicit scale records. A variant may change palette or
 lighting when its declared purpose calls for it; preserve the non-varying
 identity/world invariants. Record dimensions the profile does not support as
 unreviewed instead of implying that its aggregate score covered them. Evaluation
-does not approve or mutate a reference; preserve its raw result with the audit,
-and keep human approval as the status authority.
+does not select or mutate a reference; preserve its raw result with the audit.
+The user's chat decision controls whether a candidate is selected and attached;
+do not require a separate Studio approval status.
 
 ## Submit and poll
 
@@ -428,12 +434,12 @@ studio_evals_get_evaluation_result({ projectId, runId })
 Poll until the outer `terminal` is `true`. The normalized lifecycle statuses
 are `queued`, `in_progress`, `completed`, `failed`, and `cancelled`. A
 successful tool call (`ok: true`) only means that submission or result lookup
-succeeded; it does not mean the quality gate passed. Pending results may have
+succeeded; it does not mean the quality review is complete. Pending results may have
 `threshold: null`; a terminal result must report the applied threshold. Do not
 resubmit while a run is pending or after an uncertain receipt—reconcile the
 existing run first.
 
-## Result interpretation and gate
+## Result interpretation and checkpoint
 
 The result envelope is stable, but the nested `evaluation` object is
 provider/profile-owned. Retain the raw `evaluation` object and normalize only
@@ -450,7 +456,7 @@ schema. Use `classification: intended_change` for a declared cut/state change,
 for temporal/render instability, and `unlocalized` when the evaluator does not
 identify the affected shot or transition.
 
-Approve only when all of the following hold:
+Use these checks to recommend whether to repair or accept the output. They describe a strong review result, not a delivery gate. A severe finding does not silently change the evaluator verdict, and it does not create a separate Studio approval state; present the evidence and let the user choose whether to accept a documented deviation or request a repair:
 
 1. the run is terminal and completed;
 2. the provider/profile decision is acceptable at the requested threshold;
@@ -461,10 +467,13 @@ Approve only when all of the following hold:
 6. no finding is blocking, accidental drift, technical artifact, or an
    unexplained/unlocalized failure.
 
-The worst transition and any blocking finding win over the aggregate score. A
+The worst transition and any evaluator-classified blocking finding take precedence over
+the aggregate score. They do not prevent the user from accepting a documented deviation.
+If the user says to proceed, record that decision without changing the evaluator's verdict.
+A
 single severe position contradiction, identity/wardrobe/prop jump,
 palette/color or lighting/exposure jump, camera-geography break, or temporal
-artifact therefore blocks approval even when the overall average is high.
+artifact remains a serious finding even when the overall average is high.
 Declared intentional changes are not accidental failures, but they must still
 be present in the shot plan and must not mask failures in other dimensions.
 
@@ -475,7 +484,7 @@ examples.
 
 ## Tips / Pitfalls
 
-- Keep `keyframe-continuity` for strict ordered-transition gates; `sequence-storyboard` is a general storyboard lens.
+- Keep `keyframe-continuity` for strict ordered-transition checks; `sequence-storyboard` is a general storyboard lens.
 - Treat `project-id` versus a Studio tool's `projectId` as an explicit transport adapter boundary; do not mix them in one payload.
 - Put custom JSON Schema under the `output-schema.schema` wrapper with a lower-kebab `namespace` and an allowed `mode`.
-- A submitted run is not a passing gate: poll the same `runId`, inspect localized findings, and preserve the raw evaluator response.
+- A submitted run is not a completed review: poll the same `runId`, inspect localized findings, and preserve the raw evaluator response.

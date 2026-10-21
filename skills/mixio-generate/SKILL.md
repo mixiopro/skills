@@ -66,7 +66,7 @@ Read `studio_list_use_cases({ outputType: "VIDEO" })` for current task-specific 
 Read the exact model schema before submission: supported models, media slots, durations, aspect
 ratios, and optional controls can differ within the same use case.
 
-**One job path bypasses the catalog entirely.** `submit_studio_job` accepts any `useCaseId` string, so absence from the catalog is not a rejection. `script-preproduction` is a backend workflow id (`EVENT_DRIVEN_AGNO_WORKFLOWS` in `apps/app-kalaasetu/src/services/job-runner.ts:80`) that the MCP tool's own description advertises, but it is **absent from `use-cases.json`** — so `list_use_cases` will never list it and `get_use_case_input_schema` throws `Unknown use case`. Do not use this write-through job for the normal breakdown path. Use `mixio-script-breakdown` to plan locally, review the exact Studio diff, and sync only after explicit approval. The catalog's own screenplay use cases (`source-screenplay-analysis`, `localized-screenplay-adaptation`, `video-preproduction`) *are* listed and each has a single same-named pseudo-model. The same goes for parameter names: an invented `useCaseId` also means no schema, so nothing filters or warns about what you send with it.
+**One job path bypasses the catalog entirely.** `submit_studio_job` accepts any `useCaseId` string, so absence from the catalog is not a rejection. `script-preproduction` is a backend workflow id (`EVENT_DRIVEN_AGNO_WORKFLOWS` in `apps/app-kalaasetu/src/services/job-runner.ts:80`) that the MCP tool's own description advertises, but it is **absent from `use-cases.json`** — so `list_use_cases` will never list it and `get_use_case_input_schema` throws `Unknown use case`. Do not use this write-through job for the normal breakdown path. Use `mixio-script-breakdown` to plan locally, present the exact Studio diff as a checkpoint, then sync on chat confirmation or prior authorization for that scope. The catalog's own screenplay use cases (`source-screenplay-analysis`, `localized-screenplay-adaptation`, `video-preproduction`) *are* listed and each has a single same-named pseudo-model. The same goes for parameter names: an invented `useCaseId` also means no schema, so nothing filters or warns about what you send with it.
 
 ### Verify graph placement
 
@@ -134,7 +134,7 @@ A job that "succeeded" with warnings ran **with your parameters removed**. Check
 8. studio_get_job_status({ jobId, projectId })             → poll to COMPLETED
 9. read the resulting output element and shot relations to verify `scoped_asset` placement
 10. optionally record the terminal job using the [job-take report template](references/job-take-report.md)
-11. mixio-eval before delivery; upload_file for local renders
+11. offer mixio-eval findings as a delivery checkpoint; if the user accepts deviations or skips evaluation, report that evidence gap accurately; upload_file for local renders
 ```
 
 ### Step 2 — honor project defaults before you choose anything
@@ -155,6 +155,8 @@ to rewrite or stage a revised prompt.
 | **Review** | `"enhance_and_review"` | Enhances the prompt and holds it for user inspection/editing before submitting the final GPU job. |
 
 Pass `promptEnhancementMode` directly to `studio_submit_studio_job` or within `context.intent`:
+
+For direct MCP submissions, `enhance_and_review` does not defer submission or open a Studio review pause. It submits the job immediately. If the user wants to inspect an enhanced prompt before a billable job, prepare the prompt as a checkpoint in chat, then submit after chat confirmation; `mode: "async"` is execution behavior, not a draft/approval state.
 
 ```js
 studio_submit_studio_job({

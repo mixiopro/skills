@@ -70,10 +70,10 @@ The `how-to-make-script` root skill is vendored under `skills/how-to-make-script
 
 | Skill | Invoke | Use for |
 |-------|--------|---------|
-| `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode, and whenever it's unclear which production skill applies.** Local director plan and Continuity Checklist, approved Studio sync, reference readiness, shot planning, and generation |
+| `mixio-pipeline` | `/mixio:pipeline` | **Start here for a full episode, and whenever it's unclear which production skill applies.** Local director plan and Continuity Checklist, confirmed Studio sync, reference readiness, shot planning, and generation |
 | `mixio-sheets` | `/mixio:sheets` | Build or enrich approved character defaults/variants, location configurations/views, prop sheets, and per-scene anchors after the breakdown is accepted |
 | `mixio-reference-audit` | `/mixio:reference-audit` | Audit the accepted plan against reference looks/views, visual evidence, Cast & World consistency, duplicates, and metadata before generation |
-| `mixio-script-breakdown` | `/mixio:script-breakdown` | Enrich a supplied/existing scene-and-shot breakdown, or create one from the script when absent; prepare an approval-gated Studio diff |
+| `mixio-script-breakdown` | `/mixio:script-breakdown` | Enrich a supplied/existing scene-and-shot breakdown, or create one from the script when absent; prepare a reviewable Studio diff |
 | `mixio-continuity` | `/mixio:continuity` | Director-led Continuity Checklist covering scene, shot, cross-scene/shot risks and missing coverage before Studio sync; pair `/mixio:eval` with rendered media |
 | `mixio-shot-planning` | `/mixio:shot-planning` | 6 structural archetypes (incl. `MULTI_CUT` 10–15s) + model matching, execution audit, and batches |
 
@@ -92,22 +92,24 @@ PRE Story development + screenplay handoff → Mixio-owned `how-to-make-script` 
 00  Project + episode setup → resolve scope; read the current screenplay/script, references, shots, settings, and available images
 01  Local shot plan         → /mixio:script-breakdown — enrich a supplied/existing breakdown, or create one if absent; preserve authored direction and plan generated video totaling at least 1.2× the final runtime with purposeful surplus coverage
 02  Continuity Checklist   → /mixio:continuity — write scene, shot, and cross-scene checks; identify generation risks and missing coverage
-03  Review + sync           → show exact Studio diff; wait for approval; sync and verify by readback
+03  Review + sync           → show exact Studio diff; proceed on chat confirmation/prior authorization; sync and verify by readback
 04  Reference readiness     → /mixio:reference-audit; build missing sheets/anchors with /mixio:sheets
 05  Shot planning           → /mixio:shot-planning — select methods/models, validate feasibility, review the production plan
-06  Generation              → /mixio:generate per approved batch, then /mixio:eval before delivery
+06  Generation              → /mixio:generate per confirmed/authorized batch, then offer /mixio:eval findings as a delivery checkpoint
 ```
 
 The local plan is a review artifact in the agent’s working context. Preserve the source screenplay unchanged. Mark proposed shot direction as `SCRIPTED`, `INFERRED`, or `OPEN DECISION`; missing sheets and anchors are readiness gaps, not blockers to local planning. Corrections stay in the local draft.
 
-Before any breakdown write, show the completed plan and exact Studio diff. Match updates to confirmed element IDs; flag ambiguous matches and unmatched existing shots, and never silently overwrite or delete them. Wait for explicit approval, then sync through existing primitives and read back persisted scenes, shots, and relations. Build missing sheets and anchors from the accepted plan before generation; image generation remains separately confirmed.
+Human checkpoints are interaction points, not Studio-status gates. Present the proposed work and ask for confirmation where a real choice or authorization is needed. A clear “proceed” in chat authorizes the presented scope; do not require a second approval action or persisted `approved` status in Studio, and do not ask again for the same scope. Continue independent work while a decision is open. Pause only the dependent action that needs the choice or authorization. If the user accepts a documented continuity/readiness risk, record it and continue when the live tool contract and project policy allow; never bypass server access, project policy, or schema constraints.
+
+Before any breakdown write, show the completed plan and exact Studio diff. Match updates to confirmed element IDs; flag ambiguous matches and unmatched existing shots, and never silently overwrite or delete them. On the user's confirmation—or earlier authorization covering that exact diff—sync through existing primitives and read back persisted scenes, shots, and relations. Build missing sheets and anchors from the accepted plan before generation; image generation remains separately confirmed unless already authorized.
 
 ## Conventions
 
 - Call `studio_describe_tools` before using an unfamiliar tool, and `studio_get_use_case_input_schema` before submitting an unfamiliar generation use case. Don't guess parameters.
 - Read `settings.references` on the project before creating references — `createPolicy` and `variantPolicy` can forbid writes this repo otherwise describes.
-- Before authoring a screenplay, read `skills/mixio-episode/references/screenplay-grammar.md`, call `studio_list_references({ projectId, limit })`, and copy exact `mentionableLooks` values for `#name.variant[.view]`; never hand-build a mention. Preserve `~location.landmark[.placement]` locks and standalone `[Key: Value · Key: Value]` paragraphs through breakdown. `studio_upsert_screenplay` writes a draft only; approval remains a human Studio action.
-- The normal breakdown path reads the current screenplay (non-empty native `SCREENPLAY` body first, then raw `script`/`metadata.fullScript`) without rewriting it. Plan locally and obtain approval for the exact diff before any scene, shot, or relation mutation.
+- Before authoring a screenplay, read `skills/mixio-episode/references/screenplay-grammar.md`, call `studio_list_references({ projectId, limit })`, and copy exact `mentionableLooks` values for `#name.variant[.view]`; never hand-build a mention. Preserve `~location.landmark[.placement]` locks and standalone `[Key: Value · Key: Value]` paragraphs through breakdown. `studio_upsert_screenplay` writes a draft; after chat confirmation or prior authorization, continue production from the read-back draft without a separate Studio approval status.
+- The normal breakdown path reads the current screenplay (non-empty native `SCREENPLAY` body first, then raw `script`/`metadata.fullScript`) without rewriting it. Plan locally and show the exact diff before any scene, shot, or relation mutation; chat confirmation or prior authorization for that scope is sufficient to write.
 - Shot metadata keys are `snake_case`; scene metadata keys are `camelCase`. Mixing them up is not rejected — the write boundary is permissive, so a mixed-up key is remapped or warned-and-passed-through, not thrown. It still lands in the wrong place (passthrough, unread by anything) and fails silently rather than loudly, which is worse: check by reading back what you wrote.
 - Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
 - **MCP generation reference binding**: Put images in the use-case schema’s `input.media` slots and bind prompt mentions with one public map: `{ "@tag": "exact URL from input.media" }`. Every map key must appear in the prompt; every mapped URL must match one media URL in this job; URLs must be unique. Reject missing, mismatched, duplicate, unused bindings and prompt tags without bindings. MCP callers must not send `slotTags` or a separate human-label map: the adapter derives Studio’s internal slot bindings and display labels from mention tags and reference metadata. `slotReferences` is normally derived from `input.media`; pass it only to override reference metadata or element links. Each batch job has its own `mentionMap`. Use the live use-case schema for model-specific media slots and parameters.

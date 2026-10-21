@@ -7,7 +7,7 @@ invoke: /mixio:screenwriting
 
 # Mixio Screenwriting Bridge
 
-This is the writer-development boundary between story work and Mixio production. Use the complete Mixio-owned `how-to-make-script` screenplay system for the eight requested routes, then hand off an approved screenplay package to `mixio-pipeline`.
+This is the writer-development boundary between story work and Mixio production. Use the complete Mixio-owned `how-to-make-script` screenplay system for the eight requested routes, then hand off the screenplay package and its quality findings to `mixio-pipeline`.
 
 ## Companion requirement
 
@@ -45,15 +45,15 @@ Do not confuse the layers:
 
 ## Handoff
 
-When the user asks for screenplay development before Mixio production, produce the handoff described in [screenplay-handoff.md](references/screenplay-handoff.md). The screenplay may be a draft, but its intent, constraints, and quality status must be explicit. Only `pass` or `pass_with_weaknesses` may cross from this writing route into production; `needs_revision` stops at the upstream writing layer. For a full production run based on a high-level script, outline, or underdeveloped screenplay, `/mixio:pipeline` must develop and review the director’s screenplay before shot breakdown. Use the relevant scene-writing, structure, and quality-gating routes; preserve the source story and dialogue while adding clearly labeled visual, continuity, and connective direction. A production-ready approved screenplay can proceed directly to breakdown.
+When the user asks for screenplay development before Mixio production, produce the handoff described in [screenplay-handoff.md](references/screenplay-handoff.md). The screenplay may be a draft, but its intent, constraints, and quality findings must be explicit. Treat `pass`, `pass_with_weaknesses`, and `needs_revision` as advisory quality outcomes: summarize any weaknesses and offer focused fixes, but do not block the user's requested next step when they confirm “proceed.” For a full production run based on a high-level script, outline, or underdeveloped screenplay, `/mixio:pipeline` develops the director’s screenplay before shot breakdown. Use relevant scene-writing, structure, and quality-gating routes; preserve the source story and dialogue while adding clearly labeled visual, continuity, and connective direction. A production-ready screenplay can proceed directly to breakdown without a persisted Studio approval status.
 
 At the handoff boundary:
 
 1. Resolve the Mixio project and episode according to `AGENTS.md`.
 2. Read the native screenplay grammar and list existing references.
 3. Normalize the screenplay into Mixio's native grammar and copy exact reference mentions; never invent Studio IDs or `#` tokens upstream.
-4. Present the complete proposed screenplay and a source-to-screenplay change map. Keep source facts/dialogue distinct from `INFERRED` direction and surface consequential changes as `OPEN DECISION`s. After approval to hand off, persist the native screenplay as a draft and read it back; Studio human approval is still required before production breakdown.
-5. Continue production through `mixio-pipeline`: approved screenplay, local breakdown, director-led Continuity Checklist, approval-gated sync, reference readiness, shot planning, and generation.
+4. Present the complete proposed screenplay and a source-to-screenplay change map as a checkpoint. Keep source facts/dialogue distinct from `INFERRED` direction and surface consequential changes as `OPEN DECISION`s. On the user's “proceed” or prior authorization for this scope, persist the native screenplay as a draft and read it back. Continue production from that confirmed draft; no separate Studio approval action/status is required.
+5. Continue production through `mixio-pipeline`: confirmed screenplay, local breakdown, director-led Continuity Checklist, confirmed sync, reference readiness, shot planning, and generation. If the user elects to proceed with an open story question, preserve it explicitly and continue unaffected work.
 
 If story intent changes after the breakdown has been synced (pipeline Step 03), return to the upstream route and re-run the relevant quality gate before re-entering production. A screenplay edit invalidates the local plan and its Studio diff; after sync it also invalidates downstream continuity, shot planning, and generated media.
 

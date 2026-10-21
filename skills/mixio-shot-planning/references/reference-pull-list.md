@@ -1,22 +1,24 @@
 # Reference Pull List
 
 Provenance: every column derives from live reads — `studio_get_production_context`
-(`lookBindings`), `metadata.pipeline.reference_pack_inventory` (Step 04 approval state),
+(`lookBindings`), `metadata.pipeline.reference_pack_inventory` (Step 04 selection state),
 the persisted shot plan (selected variant/view per shot), and `studio_list_references` /
 `studio_get_element` (exact image URLs). Live Studio schemas always override this file.
 
 The Reference Pull List is the concrete, per-episode extraction of the Reference readiness
 and Look-binding readiness checks: one row per (shot × media slot × entity selection) that
-Step 06 must attach to a job. If a row is absent or unresolved, the shot does not go to
-generation — that is what `REFERENCE_VARIANT_VIEW_NOT_READY` means in the audit report.
+Step 06 should attach to a job. If a row is absent or unresolved, report the limitation and
+offer a compatible reference, method, or user-accepted continuation when the live schema and
+project policy permit it. Do not claim an unresolved selection is bound or visually verified.
 
 ## Build procedure
 
 1. Read the persisted plan (Step 05 output) for every shot's selected character
    `variantId`/`variantName`, location configuration + camera-view label, and prop/style
    selections.
-2. Resolve each selection against `metadata.pipeline.reference_pack_inventory`: only
-   `approved` rows qualify. `proposed`/`rejected` rows are not pullable.
+2. Resolve each selection against `metadata.pipeline.reference_pack_inventory` and the user's
+   recorded chat decision. Use a selected/confirmed row. Do not pull a rejected candidate; a
+   draft or in-review Studio status alone does not override the user's explicit selection.
 3. Pull bindings once via `studio_get_production_context`'s `lookBindings`; do not
    re-query per shot.
 4. For each approved row, fetch the concrete image URL with `studio_get_element` (or the
@@ -38,20 +40,21 @@ Rules:
   its cuts' participants; a selection used only in cut 3 still needs one row.
 - **A location camera angle is resolved through the location's labeled view pack, never
   through a character-style `lookRef`.** If the shot's camera zone has no matching labeled
-  view, the row is written with status `MISSING` and the shot stays blocked until Step 04
-  builds and approves it.
+  view, write status `MISSING`, report the likely effect, and offer to build it or continue
+  with a compatible available input/method if the user accepts the limitation.
 - **URLs are per-variant, not per-entity.** The default look does not stand in for a
   required variant; a stale URL (element replaced since inventory write) is re-pulled from
   `studio_get_element`, not reused from memory.
-- The list is regenerated after an approved Step 03 breakdown change, a Step 04 reference
+- The list is regenerated after a confirmed Step 03 breakdown change, a Step 04 reference
   change, or a Step 05 plan update that changes a selection — persisted plans are stale the
   moment a variant mapping changes.
 
 ## Gate use
 
-- Step 05's Reference readiness check consumes this list: any `MISSING`, unapproved, or
-  ambiguous row is a blocking `REFERENCE_VARIANT_VIEW_NOT_READY` finding, and planning
-  stops before Step 05's batch output is handed to Step 06.
+- Step 05's Reference readiness check consumes this list: any `MISSING`, unselected, or
+  ambiguous row is a `REFERENCE_VARIANT_VIEW_NOT_READY` finding. Surface it with its impact;
+  continue planning and hand off to Step 06 when the user accepts the limitation and the
+  selected model schema/project policy allow the available inputs.
 - Step 06's pre-submit gate consumes it again: every asset in `input.media` must match a
   row (same URL/elementId), and every row's `@tag` must appear in the prompt with its
   exact media URL in the `mentionMap` value.

@@ -7,7 +7,7 @@ This is the canonical contract for text stored by `studio_upsert_screenplay`. Th
 - A `SCREENPLAY` element is one per episode. A non-empty `body` wins for breakdown, even while its Studio status is `draft`.
 - The episode `script` / `metadata.fullScript` is raw **Idea/Story** fallback text. Use it only when no screenplay has a usable body.
 - `studio_upsert_screenplay` creates or updates the draft. A human approves separately in the Studio Screenplay view.
-- Preserve the approved screenplay body verbatim when passing it to breakdown: native mentions, locks, annotations, line ordering, and source language are all part of the production source record. The raw episode script remains unchanged as the underlying story source.
+- Preserve the chat-confirmed screenplay body verbatim when passing it to breakdown: native mentions, locks, annotations, line ordering, and source language are all part of the production source record. The raw episode script remains unchanged as the underlying story source.
 
 ## Base screenplay form
 
@@ -42,7 +42,7 @@ She retrieves the MANILA DOSSIER from the center DRAWER.
 
 When given a high-level script, outline, or incomplete screenplay for production, develop it into an AI-ready screenplay before breakdown. Make the scene chain, action causes, staging, entrances/exits, geography, visual reveals, reactions, transitions, and material continuity explicit. Add establishing, reaction, insert, or connecting beats when they help the audience understand the action or connect adjacent moments. Treat these as director inferences, not new source facts.
 
-Keep a local change map from source beats to screenplay beats. Mark additions `INFERRED`; preserve source facts and dialogue; hold any consequential change to story, motive, or dialogue as `OPEN DECISION`. The labels belong in the review artifact and are not native screenplay tokens. Review the full proposed screenplay and change map before `studio_upsert_screenplay`; after approval, read back the saved draft. A saved draft still needs human Studio approval before it becomes the production baseline.
+Keep a local change map from source beats to screenplay beats. Mark additions `INFERRED`; preserve source facts and dialogue; surface any consequential change to story, motive, or dialogue as `OPEN DECISION`. The labels belong in the review artifact and are not native screenplay tokens. Present the full proposed screenplay and change map as a checkpoint before `studio_upsert_screenplay`. On chat confirmation or prior authorization covering this screenplay, write the draft and read it back. The confirmed read-back draft becomes the production baseline even if Studio still labels it `draft`; do not require a separate Studio approval action/status. If the user says proceed with an unresolved choice, keep it explicit and continue work that does not depend on inventing its answer.
 
 Write technical direction into screenplay action and supported `[Key: Value]` annotations. The parser recognizes only the keys listed below; unsupported details must remain clear prose or be captured in the companion director plan and structured shot breakdown. Do not imply that arbitrary annotations become structured Studio metadata.
 
@@ -69,7 +69,7 @@ Then copy the exact `mentionableLooks[].mention` or `mentionableLooks[].views[].
 
 A look with no distinct `views` correctly uses its two-segment `#root.look` mention. For a CHARACTER, the look identifies a script-required age/clothing variant and an optional third segment can identify a sheet view. For a LOCATION, the look identifies a scenario-required configuration (such as exterior or living room), and a third segment identifies a camera-view image within that configuration. `#root` and canonical `#char-…` forms are syntactically valid, but `mentionableLooks` is the authoritative safe form for a particular visual look; copy its exact value and do not hand-build tokens for variants/views that are not yet registered.
 
-`#` is deliberately separate from `@`: `@` is reserved for Studio's structured prompt mentions such as `@[Label](type:id)` (code-level structured wire format, e.g. `@[Tony](character:char_123)`). An unresolved `#` mention fails soft and remains literal text, so a typo does not stop breakdown; it also does not bind a reference. Treat an unresolved token as an error to fix, not as a fallback.
+`#` is deliberately separate from `@`: `@` is reserved for Studio's structured prompt mentions such as `@[Label](type:id)` (code-level structured wire format, e.g. `@[Tony](character:char_123)`). An unresolved `#` mention fails soft and remains literal text; it does not bind a reference. Report it as a readiness finding and offer a correction or registration. Continue with the literal text if the user accepts the limitation and the dependent tool schema allows it.
 
 ### Mention Validation Taxonomy & Quality Gate
 
@@ -82,14 +82,14 @@ Before remediating an unresolved entity or look, read `settings.references` with
 | Status / Reason | Meaning | Remediation |
 |---|---|---|
 | `RESOLVED` | Entity and look variant successfully resolved. | None needed. Ready for breakdown. |
-| `UNRESOLVED_ENTITY`<br>(`no element named "..." in this project`) | The character/location/prop element does not exist in Cast & World. | After the reference-policy check, register the entity via `studio_register_reference_entities`, then generate its look sheet. |
+| `UNRESOLVED_ENTITY`<br>(`no element named "..." in this project`) | The character/location/prop element does not exist in Cast & World. | Report the missing entity and its effect. If the user confirms registration and project policy allows it, register via `studio_register_reference_entities`, then build its sheet. Otherwise preserve the source name as text and continue where no bound reference is technically required. |
 | `UNRESOLVED_LOOK`<br>(`no look named "..." on element "..."`) | Entity exists, but the specific variant/configuration or view does not. | For local planning, preserve the source mention and record the missing row as a Step 04 readiness gap. Build it through `mixio-sheets` after the breakdown is accepted, subject to reference policy. If authoring screenplay text, use the exact new `mentionableLooks` token only after its image is approved. Otherwise correct a confirmed typo. **Never create a second duplicate character, hand-build a token, or create one location per camera angle.** |
-| `AMBIGUOUS`<br>(`ambiguous: 2 elements named "..." in this project`) | Two references collapse to one mention root slug. | Deduplicate or rename the conflicting reference element in Cast & World. |
+| `AMBIGUOUS`<br>(`ambiguous: 2 elements named "..." in this project`) | Two references collapse to one mention root slug. | Present the colliding references and ask which one the user intends before binding it. Continue planning with the name as prose; do not bind either one by guess. Renaming/deduplication is an option, not a prerequisite for unrelated work. |
 
 Script-required variants/views may be ordinary prose and provisional Step 04 inventory rows
 before their images are registered; do not invent `#` tokens for them. When authoring new
 screenplay text, convert an unresolved token to an existing canonical mention plus descriptive
-prose, or defer adding the exact variant/view token until Step 04 has produced an approved image
+prose, or defer adding the exact variant/view token until Step 04 has produced a chat-selected image
 and `mentionableLooks` value. During the local shot plan, preserve existing source text verbatim
 and report unresolved mentions as reference-readiness gaps; do not rewrite the screenplay to
 make planning pass. Unresolved mentions fail soft on write but do not bind references downstream.
@@ -170,4 +170,4 @@ Breakdown derives scene `heading`, `location`, `timeOfDay`, `transitionFromPrevi
 4. **ALL CAPS Props & Settings**: Capitalize every key prop and notable setting element on first appearance.
 5. **Standalone Annotations**: Place standalone `[Key: Value · Key: Value]` override blocks immediately before the beats they govern. Only recognized keys are parsed into structured overrides.
 6. **Spatial Locks**: Use `~location.landmark[.placement]` for advisory spatial continuity locks; never as an entity mention.
-7. **Review and Draft Upsert**: Show the developed screenplay and source-to-screenplay change map; wait for approval; upsert the full approved body as a draft via `studio_upsert_screenplay`, read it back, then preserve it verbatim through breakdown.
+7. **Review and Draft Upsert**: Show the developed screenplay and source-to-screenplay change map as a checkpoint; on chat confirmation or prior authorization, upsert the full body as a draft via `studio_upsert_screenplay`, read it back, then preserve it verbatim through breakdown. No persisted Studio approval status is required to continue.

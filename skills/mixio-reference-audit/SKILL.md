@@ -7,7 +7,7 @@ invoke: /mixio:reference-audit
 
 # Mixio Reference Audit
 
-Step 04 of `mixio-pipeline`, after the shot plan has been approved and synced. It compares the accepted plan with existing references and images, then runs again after any approved reference changes. The question it answers: **are the references this episode will generate against actually ready?** Missing items are production-readiness gaps; they do not block local planning.
+Step 04 of `mixio-pipeline`, after the shot plan has been confirmed in chat and synced. It compares the accepted plan with existing references and images, then runs again after confirmed reference changes. The question it answers: **are the references this episode will generate against actually ready?** Missing items are production-readiness findings; they do not block local planning or automatically block generation when the user accepts the limitation and the selected schema/project policy permit the job.
 
 A missing character image found here is one asset issue. The same gap found in Step 06 affects every shot that character appears in — re-generated blind, or blocked until someone notices.
 
@@ -20,13 +20,13 @@ A missing character image found here is one asset issue. The same gap found in S
 
 ## What it checks
 
-Seven categories, run in order. Each produces a finding list; the gate is at the end.
+Seven categories, run in order. Each produces a finding list and a checkpoint with recommended fixes, likely impact, and accepted limitations. Findings inform the user's decision; only an actual project-policy or input-schema constraint prevents the dependent action.
 
 ### 1. Completeness — script demand vs reference supply
 
 Read the accepted plan and persisted scene/shot relations, plus the episode's native `SCREENPLAY` and episode record. Use a non-empty screenplay `body`, including drafts; use episode `script` / `metadata.fullScript` only when no usable screenplay body exists, following `screenplay-grammar.md`. Extract scripted entity requirements from the source, then add inferred coverage and actual camera zones from the accepted plan. Cross-reference that combined demand against `studio_list_references({ projectId })`.
 
-For the final pipeline audit, require a present, confirmed `metadata.pipeline.reference_pack_inventory`; report `REFERENCE_PACK_INVENTORY_MISSING` and block Step 05 shot planning if it is absent, unconfirmed, or incomplete. This is a generation-readiness gate, not a blocker to local planning. Do not let a single image or `Default` look pass by itself. Compare screenplay-evidenced age/costume combinations and location configurations, plus the actual camera zones and coverage in the accepted plan, with the inventory and approved reference element data. A default-only pack passes when the accepted plan requires no other look/configuration. CAPS extraction alone cannot establish that a costume combination, location configuration, or angle pack exists.
+For the final pipeline audit, check `metadata.pipeline.reference_pack_inventory`. If it is absent, unconfirmed, or incomplete, report `REFERENCE_PACK_INVENTORY_MISSING` and explain what cannot be verified. Offer to build the inventory or continue with the user-accepted uncertainty; chat “proceed” is sufficient to continue when the model schema and project policy allow it. Never claim completeness without evidence. Do not let a single image or `Default` look pass by itself. Compare screenplay-evidenced age/costume combinations and location configurations, plus actual camera zones and coverage in the accepted plan, with the inventory and reference data. A default-only pack passes when the accepted plan requires no other look/configuration. CAPS extraction alone cannot establish that a costume combination, location configuration, or angle pack exists.
 
 **Judge `MISSING_IMAGE` by `hasImage` — never by `thumbnailUrl`/`previewUrl`.** `list_references` returns `thumbnailUrl`/`previewUrl` alongside it, and it's easy to grab the wrong pair: those two are a card-preview column that nothing populates when a Look is attached, so a reference with real turnaround images routinely still shows both as `null`. Reading those as the presence signal produces a false `MISSING_IMAGE` on every reference in the project — a wrong blocking finding on the roster's healthiest data, not its worst. `hasImage` (see `mixio-references`) is the real signal.
 
@@ -40,7 +40,7 @@ For the final pipeline audit, require a present, confirmed `metadata.pipeline.re
 | `MISSING_REQUIRED_VIEW` | A required location configuration lacks a camera-view image mapped to a planned shot zone |
 | `SCRIPT_REQUIREMENT_UNMAPPED` | A screenplay-evidenced character look, location configuration, or camera zone has no confirmed inventory row |
 | `REFERENCE_PACK_INVENTORY_MISSING` | The pipeline inventory is absent, empty before demand reconciliation, or unconfirmed, so variant/view completeness cannot be established |
-| `REFERENCE_PACK_NOT_APPROVED` | A required reference or variant pack is still draft/in review, or lacks human approval |
+| `REFERENCE_PACK_NOT_CONFIRMED` | The user has not selected a required reference or variant pack in the current chat/record; a chat confirmation counts even if Studio still shows `draft` or `in_review` |
 | `REJECTED_MEDIA_ACTIVE` | A candidate rejected by evaluation or human review remains in an active reference image store or is still shown as its card preview |
 
 ```
@@ -133,7 +133,7 @@ never remain in `referenceVariants`, legacy `characterDetails.looks`, or flat
 the card image. Retain its feedback and evaluation receipt outside the active
 media stores. Read the reference back to verify removal before clearing the
 finding; if a rejected preview cannot be cleared through a documented
-operation, keep the reference non-approved and block generation.
+operation, do not reuse that reference pack for generation. Offer another clean reference or a compatible route that omits it; continue unrelated planning and generation. Report that the rejected asset could not be safely removed, and never claim the pack is clean.
 
 If no vision-capable reviewer is available, use a compatible still-image
 evaluation profile only after checking the live catalog and contract and
@@ -141,10 +141,10 @@ receiving confirmation for the billable submission. Do not assume a video or
 storyboard profile accepts reference sheets. If neither visual path is
 available, record `VISUAL_REVIEW_UNAVAILABLE` for each affected required row,
         leave its visual status unresolved, and keep the Step 04 readiness audit open. A metadata-only
-check is not a visual pass. Progress may continue only after visual evidence is
-reviewed or the user explicitly overrides the unresolved row; record the
-override and rationale in the existing inventory/audit metadata. Evaluator
-results are evidence for human review, never approval.
+check is not a visual pass. Report the unresolved row and its limitation; continue
+when the user accepts it or with unaffected work. Record the choice and rationale
+in the working audit record. Evaluator results are evidence for human review, not
+an approval state.
 
 | Finding | Meaning |
 |---------|---------|
@@ -282,13 +282,13 @@ Metadata quality:      2 HIGH-severity gaps
 Policy:                0 violations
 Look bindings:         1 STALE_LOOK_REF
 
-BLOCKING findings (must resolve before Step 05 shot planning):
-  ❌ HALLWAY DOORWAY — MISSING_REF — appears in 4 script lines, 0 references
-  ❌ THE HOUSE / interior-living-room — MISSING_REQUIRED_VIEW — sofa-to-dining view has no approved image
-  ❌ TONY — REJECTED_MEDIA_ACTIVE — rejected teen-formal candidate remains in legacy attachments
-  ❌ CEREAL BOWL — MISSING_IMAGE_HIGH_USAGE — 2 shots depend on this prop
-  ❌ HALLWAY:night.reverse — VISUAL_REVIEW_UNAVAILABLE — required view has not been visually reviewed
-  ❌ TONY — missing visualAnchor — every prompt mentioning TONY will lack identity anchor
+High-priority findings (resolve or accept at the checkpoint):
+  ⚠️ HALLWAY DOORWAY — MISSING_REF — appears in 4 script lines, 0 references
+  ⚠️ THE HOUSE / interior-living-room — MISSING_REQUIRED_VIEW — sofa-to-dining view has no selected image
+  ⚠️ TONY — REJECTED_MEDIA_ACTIVE — rejected teen-formal candidate remains in legacy attachments
+  ⚠️ CEREAL BOWL — MISSING_IMAGE_HIGH_USAGE — 2 shots depend on this prop
+  ⚠️ HALLWAY:night.reverse — VISUAL_REVIEW_UNAVAILABLE — required view has not been visually reviewed
+  ⚠️ TONY — missing visualAnchor — every prompt mentioning TONY will lack identity anchor
 
 ADVISORY findings (review recommended):
   ⚠️  TONY — GENDER_MISMATCH — characterDetails.build="athletic female" but primary image presents male
@@ -298,14 +298,14 @@ ADVISORY findings (review recommended):
 CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSIAN RUG
 ```
 
-## Severity and gating
+## Finding priority and user checkpoints
 
-| Severity | Gate behavior |
+| Priority | Recommended response |
 |----------|--------------|
-| BLOCKING | Must be resolved before proceeding to Step 05 shot planning, or explicitly accepted by the user with rationale recorded |
-| ADVISORY | Surfaced for human decision and recorded in the audit; does not block shot planning |
+| HIGH_PRIORITY | Recommend resolving before generation. If the user accepts the documented risk in chat, record the decision and continue when the selected schema and project policy allow it. |
+| ADVISORY | Surface and record; continue. |
 
-**Blocking criteria:**
+**High-priority criteria:**
 - Any `MISSING_REF` for an entity appearing in ≥2 shots
 - Any `MISSING_IMAGE_HIGH_USAGE`
 - Any HIGH-severity metadata gap on a character appearing in ≥1 scene — a missing `visualAnchor` means every prompt mentioning that character lacks its identity anchor, no matter how few scenes it appears in
@@ -313,18 +313,18 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 - Any `GENDER_MISMATCH` confirmed by both text and vision (not advisory-only)
 - Any `STALE_LOOK_REF` — it renders the wrong look silently, with nothing in the UI to catch it before delivery
 - Any `MISSING_REQUIRED_VARIANT`, `MISSING_REQUIRED_VIEW`, or `REJECTED_MEDIA_ACTIVE` for a script-required reference pack
-- Any `REFERENCE_PACK_NOT_APPROVED` for media a planned shot will use
+- Any `REFERENCE_PACK_NOT_CONFIRMED` for media a planned shot will use
 - Any unexplained cross-view or cross-variant location geometry/landmark drift
 - Any high-confidence contradiction of the locked visual style, lighting/palette invariants, or explicit scale evidence
 - Any confirmed character-sheet deformation, hallucinated anatomy, identity drift, or unexplained wardrobe/accessory/color break
 - Any missing or misbound location view required by a declared shot camera zone
 - Any required visual row without reviewed evidence or a recorded user override
 
-Everything else is advisory. The user may say "proceed anyway" — record that decision in metadata so a later session knows it was acknowledged, not missed.
+These findings guide the checkpoint; they are not a second approval system. If the user says “proceed anyway,” record the accepted risk in the working production record and continue when technically and policy compatible. Do not write a guessed audit status or mutate unrelated Studio metadata just to record consent.
 
-### Enrichment completion gate (after Step 03, before Step 05)
+### Enrichment readiness review (after Step 03, before Step 05)
 
-Before the audit passes, confirm that the **reference enrichment** phase (`mixio-sheets`) populated the load-bearing fields required by the accepted shots. The local breakdown does not write reference details; it keeps missing sheets and anchors visible as readiness gaps until after the shot plan has been approved and synced. HIGH-severity fields must be present on every character/location that appears in any scene:
+Check whether the **reference enrichment** phase (`mixio-sheets`) populated the load-bearing fields used by the accepted shots. The local breakdown does not write reference details; keep missing sheets and anchors visible as readiness findings after the confirmed shot sync. HIGH-severity fields are recommended for every character/location that appears in any scene:
 
 **Characters — `characterDetails` (via `studio_update_reference`):**
 | Field | Required |
@@ -342,13 +342,13 @@ Before the audit passes, confirm that the **reference enrichment** phase (`mixio
 | `spatialLayout` | yes |
 | `depthAxes` | yes |
 
-These are the fields prompt materializers in Steps 05/06 rely on for visual continuity. If any are missing, treat the finding as BLOCKING and direct the fix to Step 04 (`mixio-sheets`) before generation planning; the gap never blocks local planning.
+These are fields prompt materializers in Steps 05/06 use for visual continuity. If any are missing, report the likely effect and recommend the fix in Step 04 (`mixio-sheets`). If the user accepts the risk, continue when the selected model input schema and project policy allow it; do not describe an advisory finding as a system or Studio block.
 
 ## Findings and remediation
 
 This audit is read-only. Report each finding with its evidence, severity, affected shot/reference, and proposed next action. Route reference creation or enrichment to `/mixio:references`, and sheets/anchors to `/mixio:sheets`. Before any reference write, read `studio_get_project({ projectId })` and follow `settings.references.createPolicy`, `variantPolicy`, and the type-specific `variantVocabulary`. Do not mutate references, attach media, upload files, or submit image-generation jobs from this audit.
 
-`MISSING_IMAGE_HIGH_USAGE` has no free synthetic fix. Report a permitted existing user-supplied asset when available; otherwise request an upload or separate image-generation approval. Missing reference readiness blocks shot planning/generation, not the accepted local plan. Any change to a shot or its reference bindings requires an updated diff and explicit approval before writing; re-run the affected audit checks after approved reference changes.
+`MISSING_IMAGE_HIGH_USAGE` has no free synthetic fix. Report a permitted existing user-supplied asset when available; otherwise ask whether to upload, generate, or proceed with the limitation. Chat “proceed” or prior authorization is enough for the selected action; do not require a separate Studio approval status. Missing reference readiness is a finding, not a planning blocker. Continue into generation when the user accepts the risk and the selected model schema/project policy permit it. Any shot or binding change goes into an updated diff checkpoint; write on chat confirmation or prior authorization and re-run affected audit checks.
 
 The remediation plan identifies the required action:
 
@@ -377,7 +377,7 @@ Fix: STALE_LOOK_REF — TONY'S APARTMENT:night
   ]})
 ```
 
-After an approved fix is applied through the appropriate skill, **re-run the audit** to confirm the affected blocking finding is resolved and each required visual row is reviewed or explicitly overridden.
+After a user-confirmed fix is applied through the appropriate skill, **re-run the audit** to update affected findings and record which visual rows have evidence, are accepted with a known limitation, or remain unresolved.
 
 ## Persisting the result
 
@@ -411,14 +411,14 @@ studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
 3. read `metadata.pipeline.reference_pack_inventory` and project reference policy
 4. run all 7 check categories and inspect every required look/view image → findings + visual coverage
 5. emit the REFERENCE AUDIT report with proposed remediation; do not write references or submit image jobs
-6. route approved fixes to `/mixio:references` or `/mixio:sheets`, then re-run the affected audit checks
-7. persist the completed Step 04 audit result → GATE → Step 05 Shot Planning
+6. route user-confirmed fixes to `/mixio:references` or `/mixio:sheets`, then re-run affected audit checks
+7. present the completed Step 04 audit result and accepted risks → continue to Step 05 Shot Planning
 ```
 
 ## Notes
 
-- Run once after the accepted breakdown is synced to identify gaps, then again after approved sheet/reference changes. Only the final Step 04 audit gates Step 05.
-- This audit never bypasses reference policy, mutates assets, or starts image generation. Local planning is complete before this readiness gate runs.
+- Run once after the confirmed breakdown is synced to identify gaps, then again after confirmed sheet/reference changes. Step 04 informs Step 05 and generation; a finding alone is not a hard gate.
+- This audit never bypasses reference policy, mutates assets, or starts image generation. Run it as a readiness checkpoint after local planning.
 - Re-run after any reference change in a later step. It's free (reads only) and a stale audit means a stale contract.
 - The duplicate check uses normalized names (lowercased, stripped of punctuation, collapsed whitespace). `aliasMatching` in project settings controls whether recorded aliases participate in *breakdown* matching — the audit checks aliases regardless, because it's looking for data quality, not runtime behavior.
-- On a project with 50+ references, emit the clean list as a count rather than naming each one. The blocking and advisory lists are what the user needs to act on.
+- On a project with 50+ references, emit the clean list as a count rather than naming each one. The high-priority and advisory findings are what the user needs to review.

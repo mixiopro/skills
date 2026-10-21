@@ -21,7 +21,7 @@ The 20% reserve is a floor. Plan more when the screenplay, performance, action, 
 
 Count each planned candidate clip once, including alternatives that replace rather than extend another shot. Count a `MULTI_CUT` output by its whole clip duration; its internal cuts are part of that same output. Count separate clips used in a sequence individually. Reusing a clip in the edit does not create another generated output. Still keyframes, reference sheets, dialogue audio, and failed or rejected attempts do not contribute video seconds to the reserve. Track retries separately from selected candidate coverage; the reserve does not authorize additional generation.
 
-Use approximate durations during breakdown. Recalculate with the live model's supported durations during shot planning and round the plan upward as needed. A duration or coverage change to approved direction returns to the applicable plan/diff for review. Keep any unknown final runtime as an open decision until it is resolved; do not invent a target.
+Use approximate durations during breakdown. Recalculate with the live model's supported durations during shot planning and round the plan upward as needed. A duration or coverage change to confirmed direction returns to the applicable plan/diff checkpoint. Keep any unknown final runtime as an open decision; do not invent a target. If the 1.2× generated-video target cannot be met, report the shortfall and options; proceed on the user's decision and record the trade-off.
 
 ## Keep an output ledger
 

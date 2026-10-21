@@ -32,7 +32,7 @@ Before rendering, keep a reviewable matrix with one row per required variant/vie
 |---|---|---|---|---|
 | Character or location | Exact permitted variant name | Exact image/view label | Supplied or existing asset, otherwise none | Reuse, generate, or ask |
 
-Derive provisional rows from the screenplay and available assets during local planning, then reconcile them after the approved shot plan is synced. Include inferred coverage, blocking, and camera directions from the accepted plan. Map a supplied image to the row it actually covers; one image may cover multiple rows only when its framing proves that coverage. Ask about ambiguous ages, clothing combinations, spatial groupings, or geography instead of filling gaps by invention. Present the completed matrix and missing candidate list for confirmation before the first billable reference render.
+Derive provisional rows from the screenplay and available assets during local planning, then reconcile them after the confirmed shot plan is synced. Include inferred coverage, blocking, and camera directions from the plan. Map a supplied image to the row it actually covers; one image may cover multiple rows only when its framing proves that coverage. Ask about ambiguous ages, clothing combinations, spatial groupings, or geography instead of filling gaps by invention. Present the completed matrix and missing candidate list before the first billable reference render. Proceed on chat confirmation or prior authorization for that render round; do not require a separate Studio approval status.
 
 For CHARACTER rows, record the screenplay cue and the exact `appearanceState.wardrobe` and/or age value that the approved variant represents, plus its affected scenes. If a prose cue cannot be mapped to one variant with confidence, ask the user to confirm the mapping. This explicit association is what breakdown uses to bind an appearance to a non-default variant; do not infer a `lookRef` from approximate string similarity. Add shot IDs to the row after Step 03 creates them.
 
@@ -49,13 +49,15 @@ review resumable.
 
 ## Candidate approval and retry
 
-Use the shared candidate approval and retry gate in `mixio-references`. Keep generated candidates outside active references until the applicable evaluator has run and the user approves them. Retain findings, evidence aliases, actionable repair feedback, and the human decision in the inventory row; evaluation is advisory and never approves a candidate on the user's behalf.
+Use the candidate review checkpoint in `mixio-references`. Keep generated candidates outside active references until the applicable evaluator has run and the user selects them in chat. Retain findings, evidence aliases, actionable repair feedback, and the user's decision in the inventory row; evaluation is advisory and never selects a candidate on the user's behalf. A chat decision is sufficient; no separate Studio approval status is required.
 
-For a new location configuration with no approved image to anchor evaluation,
+For a new location configuration with no selected image to anchor evaluation,
 use a representative staged candidate as the temporary `location-reference`
 only when the live evaluation contract accepts it; compare all candidate views
 to the confirmed orientation records and landmarks. Do not use a different
-configuration as an anchor. If no permitted anchor is available, keep the pack
-blocked and request a suitable source image.
+configuration as an anchor. If no permitted anchor is available, report that
+evaluation limit and ask whether to continue with the available evidence. If
+the user accepts the limitation, proceed where the tool contract permits and
+record that the pack was not fully evaluated.
 
-After approval, attach only accepted media and read the reference back. If a rejected candidate was already attached, remove it from every active look store and clear it from `thumbnailUrl`/`previewUrl` if it is still shown as the card image; see `mixio-references` for replacement and legacy-data checks. A failed readback blocks downstream shot generation.
+After the user's chat decision, attach only selected media and read the reference back. If a rejected candidate was already attached, remove it from every active look store and clear it from `thumbnailUrl`/`previewUrl` if it is still shown as the card image; see `mixio-references` for replacement and legacy-data checks. A failed readback is a technical integrity issue: report it and continue independent work while resolving it.

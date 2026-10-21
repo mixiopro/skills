@@ -7,17 +7,17 @@ invoke: /mixio:script-breakdown
 
 # Mixio Script Breakdown
 
-Prepare a complete local shot plan before writing a breakdown to Studio. The selected screenplay should already be the reviewed, director-developed production source; if the available material is only a high-level script or incomplete screenplay, route through Step 00.5 of `mixio-pipeline` before breakdown. When the user supplies a scene/shot breakdown or one already exists in Studio, use it as the baseline and enrich it; do not restart the scene-and-shot breakdown from the screenplay. Preserve its scene and shot order, authored beats, and user-stated direction. Add production detail and clearly labeled missing coverage without replacing the user's structure. When no usable breakdown exists, create the scene-and-shot structure from the approved screenplay. A supplied breakdown can serve as the source when no screenplay/script is available; state the evidence limit and do not invent missing source facts. Keep the approved screenplay unchanged during breakdown and label source facts separately from inferred direction.
+Prepare a complete local shot plan before writing a breakdown to Studio. The selected screenplay should be the confirmed, director-developed production source; if the available material is only a high-level script or incomplete screenplay, route through Step 00.5 of `mixio-pipeline` before breakdown. When the user supplies a scene/shot breakdown or one already exists in Studio, use it as the baseline and enrich it; do not restart the scene-and-shot breakdown from the screenplay. Preserve its scene and shot order, authored beats, and user-stated direction. Add production detail and clearly labeled missing coverage without replacing the user's structure. When no usable breakdown exists, create the scene-and-shot structure from the confirmed screenplay. A supplied breakdown can serve as the source when no screenplay/script is available; state the evidence limit and do not invent missing source facts. Keep the confirmed screenplay unchanged during breakdown and label source facts separately from inferred direction.
 
 Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md): the plan serves audience intent and sequence flow, while source facts, user-authored direction, inference, and open decisions remain distinct. Bring in relevant cinematography, production design, props, script-supervision, editing, sound, or action perspectives to answer craft-specific questions; record their recommendations in the plan rather than treating them as approved story facts.
 
-The normal path is **local analysis → director-led Continuity Checklist → exact Studio diff → explicit approval → sync and readback**. Do not use the write-through `script_breakdown` job as the normal path. This skill does not generate images, video, or audio.
+The normal path is **local analysis → director-led Continuity Checklist → exact Studio diff checkpoint → sync and readback on chat confirmation or prior authorization**. Do not use the write-through `script_breakdown` job as the normal path. This skill does not generate images, video, or audio.
 
 ## Choose the breakdown mode and read the current production
 
 1. Resolve the project and episode using `mixio-pipeline` scope rules. Never infer an ID.
 2. Identify the baseline before planning: a user-supplied breakdown, an existing Studio scene/shot breakdown, or no usable breakdown. If more than one exists, preserve each source and flag conflicts rather than silently choosing which authored direction to discard.
-3. Read the approved production screenplay when available. A non-empty native `SCREENPLAY` body takes precedence after screenplay development, even while its Studio status is draft; otherwise use episode `script` / `metadata.fullScript` as source material and develop a screenplay first for a full production run. Preserve the approved screenplay verbatim, including dialogue, `#mentions`, `~locks`, and standalone `[Key: Value]` paragraphs. See [screenplay grammar](../mixio-episode/references/screenplay-grammar.md). The screenplay grounds and checks an existing breakdown; it does not replace that breakdown as the planning baseline. If no screenplay/script exists but the user supplied a usable breakdown, use it as the source and state that limitation.
+3. Read the confirmed production screenplay when available. A non-empty native `SCREENPLAY` body takes precedence after screenplay development, even while its Studio status is draft; otherwise use episode `script` / `metadata.fullScript` as source material and develop a screenplay first for a full production run. Preserve the confirmed screenplay verbatim, including dialogue, `#mentions`, `~locks`, and standalone `[Key: Value]` paragraphs. See [screenplay grammar](../mixio-episode/references/screenplay-grammar.md). The screenplay grounds and checks an existing breakdown; it does not replace that breakdown as the planning baseline. If no screenplay/script exists but the user supplied a usable breakdown, use it as the source and state that limitation.
 4. Read current scenes/shots, project references and policy, and available image assets. Use exact canonical names and confirmed element IDs. Existing sheets and anchors help ground the plan; missing ones are recorded as readiness gaps.
 5. Keep all breakdown analysis and corrections in the local plan. Do not write screenplay, scene, shot, relation, or reference changes while drafting.
 
@@ -88,24 +88,24 @@ Read the current Studio graph again before comparison. Show a separate change ta
 
 Match by confirmed element ID and the current scene/shot content. Studio upserts also use scene and shot numbers, so verify each upsert key resolves to the intended ID before calling it. Flag ambiguous matches and unmatched existing shots. Never silently overwrite, renumber, or delete an existing shot. Leave uncertain changes out of the write set and ask a focused question.
 
-Show the finished shot table and the complete diff, then wait for explicit approval of that diff. If the user changes the plan, rerun the affected checks and show the revised diff before writing.
+Show the finished shot table and complete diff as a checkpoint. A clear chat “proceed” or prior authorization for this scope is sufficient to write; do not require a separate Studio approval status or ask again for an already authorized diff. If the user changes the plan, rerun affected checks and show only the revised portion before writing.
 
-## Sync after approval
+## Sync after confirmation
 
-Use the existing tools only after approval:
+On chat confirmation or prior authorization for the presented diff, use the existing tools:
 
 1. Apply the confirmed scene/shot additions or updates with `studio_upsert_scene_packages` or targeted `studio_revise_shot_specs` as appropriate.
-2. Resolve only confirmed Cast & World IDs. Register a missing reference only when it is included in the approved diff and `settings.references.createPolicy` permits it; `propose` and `link_only` require their respective user decision before writing.
-3. Add/update typed relations with `studio_link_graph` and appearance state for the approved shot content.
-4. Read persisted scenes, shots, references, and relations back. Compare fields and IDs against the approved diff; report exact successes and any partial or mismatched result.
+2. Resolve only confirmed Cast & World IDs. Register a missing reference only when it is included in the confirmed diff and `settings.references.createPolicy` permits it; for `propose`, chat confirmation of the exact proposal is sufficient. `link_only` remains a Studio policy boundary and permits linking existing references only.
+3. Add/update typed relations with `studio_link_graph` and appearance state for the confirmed shot content.
+4. Read persisted scenes, shots, references, and relations back. Compare fields and IDs against the confirmed diff; report exact successes and any partial or mismatched result.
 
 ### Reference policy and appearance bindings
 
-Read `settings.references` before syncing any missing reference. Under `createPolicy: propose`, emit the exact entity proposal and stop for approval; make no reference, package, or relation write. Under `createPolicy: link_only`, ask the user to select an existing reference and stop; make no reference, package, or relation write. These are blocking policy branches, not best-effort fallbacks.
+Read `settings.references` before syncing any missing reference. Under `createPolicy: propose`, show the exact entity proposal as a checkpoint; if the user says proceed, write it and verify readback. Under `createPolicy: link_only`, offer matching existing references; the configured policy does not permit creating a missing entity, so continue only with a selected existing reference or a chat-confirmed plan that does not depend on that entity. Never bypass the configured policy.
 
-Before authoring appearances, read `metadata.pipeline.reference_pack_inventory`. When a confirmed CHARACTER row maps the screenplay to an approved non-default variant, write that exact variant ID/name to `metadata.lookRef` on the character-to-shot `appears_in` relation (the relation’s per-appearance metadata, exposed as `appearanceState.lookRef` by the composed path), alongside the descriptive wardrobe state. Do not write `lookRef` to shot metadata or to a character reference globally. Never choose a variant by fuzzy text similarity. If an inventory mapping is ambiguous, hold the binding as an `OPEN DECISION`. After approval, use the composed path so it can write the explicit `lookRef`; read back the persisted character→shot relation and confirm its type, endpoints, and exact `metadata.lookRef` against the approved variant ID/name. Also confirm `get_production_context.lookBindings` resolves the expected variant when that field is available. Report `REQUIRED_LOOK_UNBOUND` if the required binding is missing or mismatched.
+Before authoring appearances, read `metadata.pipeline.reference_pack_inventory`. When a confirmed CHARACTER row maps the screenplay to a non-default variant, write that exact variant ID/name to `metadata.lookRef` on the character-to-shot `appears_in` relation (the relation’s per-appearance metadata, exposed as `appearanceState.lookRef` by the composed path), alongside the descriptive wardrobe state. Do not write `lookRef` to shot metadata or to a character reference globally. Never choose a variant by fuzzy text similarity. If an inventory mapping is ambiguous, keep it as an `OPEN DECISION` and ask a focused question; continue unaffected work. After chat confirmation, use the composed path so it can write the explicit `lookRef`; read back the persisted relation and check type, endpoints, and exact variant ID/name. Also confirm `get_production_context.lookBindings` resolves the expected variant when available. Report `REQUIRED_LOOK_UNBOUND` when the binding is missing or mismatched; let the user choose a compatible fallback if available.
 
-The complete existing write/readback contract is in [persistence-and-audit.md](references/persistence-and-audit.md). That reference documents the post-approval primitives; it does not change the local-first approval gate.
+The complete existing write/readback contract is in [persistence-and-audit.md](references/persistence-and-audit.md). That reference documents the existing primitives; it does not add a separate Studio approval-state requirement.
 
 ## Workflow
 
@@ -113,7 +113,7 @@ The complete existing write/readback contract is in [persistence-and-audit.md](r
 read source + current graph/assets
   → reason through intent, change, state, geography, coverage, flow, expression, feasibility
   → build and locally audit the shot table
-  → show the exact ID-matched Studio diff
-  → explicit user approval
+  → show the exact ID-matched Studio diff as a checkpoint
+  → chat confirmation or prior authorization for that scope
   → sync with existing primitives and verify by readback
 ```

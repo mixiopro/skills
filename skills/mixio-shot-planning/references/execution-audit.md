@@ -42,14 +42,14 @@ Execution audit findings:
   ⚠️  ACTION_DENSITY_HIGH:      Shot 5 (5 actions in 3s = 1.67 a/s) → extend or simplify
   ⚠️  DIALOGUE_TOO_FAST:        Shot 11 (22 words in 4s = 5.5 wps) → extend to 6.5s
 
-Blocking: 3 (must resolve)
+Invalid current job payloads: 3 (correct before submitting those jobs)
 Advisory: 2 (Studio's universal pacing heuristics; not per-model limits)
 ```
 
 Episodes with `shot_contract.mode: "multi_cut"` add a `MULTI_CUT` line to the archetype
 distribution and report the routed model per multi-cut shot (H3 Ref2Vid first — see
 `model-matching.md#multi-cut-routing`). Any `CUTS_SUM_MISMATCH` or `CUT_COUNT_EXCEEDED`
-finding is blocking, exactly like a duration finding.
+finding makes that current route/payload invalid; present compatible fixes and continue unrelated planning.
 
 ## Batch profiles
 
@@ -155,10 +155,11 @@ const episode = await studio_get_episode({ episodeId })
 const pipeline = episode.metadata?.pipeline ?? {}
 const presentedPlanDigest = calculate_plan_digest(plannedShots) // stable hash of the planned shot contracts
 
-// Mark the plan for user review before continuing to Step 06.
+// Persist completed planning. User review is a conversational checkpoint,
+// not an approval status that must be written to Studio.
 await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
   ...pipeline,
-  step_05: "awaiting_approval",
+  step_05: "complete",
   shot_plan: {
     ...pipeline.shot_plan,
     total_batches: 7,
@@ -172,19 +173,8 @@ await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipel
   }
 }}}})
 
-// After the user approves the production plan, re-read in case another pipeline step wrote state.
-const approvedEpisode = await studio_get_episode({ episodeId })
-const approvedPipeline = approvedEpisode.metadata?.pipeline ?? {}
-const approvedPlan = approvedPipeline.shot_plan ?? {}
-if (approvedPipeline.step_05 !== "awaiting_approval" ||
-    approvedPlan.plan_digest !== presentedPlanDigest) {
-  throw new Error("plan changed while approval was pending; re-present the current plan and await new approval")
-}
-await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
-  ...approvedPipeline,
-  step_05: "complete",
-  shot_plan: approvedPipeline.shot_plan
-}}}})
+// If the user requested a checkpoint, present the plan and honor their chat decision.
+// No persisted approval status or second update is required to proceed.
 ```
 
 Do not add a price estimate or cost-approval field to this planning artifact. Generation

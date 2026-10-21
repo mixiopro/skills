@@ -30,4 +30,4 @@ List missing shots/clips with their source beat, audience purpose, proposed dura
 
 ## Follow-through
 
-Keep open story decisions, reference-readiness gaps, and local corrections visible. Refresh affected items when the screenplay, coverage, look/reference, blocking, or generation route changes. Carry applicable constraints into each generation prompt/media binding and supported evaluation context. Record observed deviations against the item IDs, then propose a scoped repair for approval under the existing creative and generation-authorization gates.
+Keep open story decisions, reference-readiness gaps, and local corrections visible. Refresh affected items when the screenplay, coverage, look/reference, blocking, or generation route changes. Carry applicable constraints into each generation prompt/media binding and supported evaluation context. Record observed deviations against the item IDs, then present scoped repair options as a checkpoint. Continue on chat confirmation or prior authorization for that repair; pause only if a choice or billable authorization needed for that specific action is missing.

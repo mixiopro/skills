@@ -1,7 +1,7 @@
 # Breakdown persistence and relational audit example
 
-Use this example only after resolving scope and receiving approval for the exact local-plan diff.
-It documents post-approval sync, not permission to write. The reference policy decides whether an
+Use this example after resolving scope and presenting the exact local-plan diff as a checkpoint.
+Chat confirmation or prior authorization for that scope is sufficient to write. The reference policy decides whether an
 unmatched entity can be written, and IDs come from refreshed live context and persisted shots,
 never a hand-written UUID.
 
@@ -39,7 +39,7 @@ const extractedReferences = [
 const unmatched = extractedReferences.filter(item => !initialReferences.has(keyFor(item)))
 if (unmatched.length && createPolicy !== "allow") {
   const action = createPolicy === "propose"
-    ? "Surface this exact proposal and wait for approval"
+    ? "Surface this exact proposal as a checkpoint; write after chat confirmation"
     : "Ask the user to select an existing reference"
   throw new Error(`${action}; no reference, package, or relation write: ${JSON.stringify(unmatched)}`)
 }

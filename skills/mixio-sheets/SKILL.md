@@ -41,7 +41,7 @@ Read `mixio-references` for the write semantics (especially `attachments` vs `re
 | `studio_update_reference` | Attach images + `characterDetails`/`locationDetails`/`propDetails` |
 | `studio_list_references` | Check what already exists before rendering anything |
 
-## Always ask before rendering
+## Reference rendering checkpoint
 
 The user may already have art. Read the screenplay and current Cast & World references, then build a required variant/view matrix before asking what to render. Derive demand from screenplay evidence, not from registered `#` mentions alone: capture explicit age and costume changes from action, dialogue, and appearance notes; distinguish them from per-shot hair, injury, emotion, or carried-prop state. For locations, account for `INT.`/`EXT.`, named rooms and areas, environmental configurations required by the script, and stated camera geography. A single default is correct when the script requires no other look/configuration. Map supplied images to the exact character look or location configuration and camera-view row they cover. Use a supplied image as visual guidance when deriving missing variants or angles, but count it as coverage only for the row(s) its framing proves. One image does not establish that every script-required look or view is covered.
 
@@ -52,17 +52,18 @@ Reference gaps from the script:
     and dining-to-balcony views are still needed
   • THE HOUSE / exterior — no supplied view; front-establishing and door-reverse needed
 
-Confirm the variant/view inventory and which missing images may be generated.
-For anything you do not want generated, say "skip <row>" and mark it TEXT-ONLY.
-Keep every affected shot blocked from all generation while that required view
-remains in the confirmed inventory. Do not use text-only generation as a
-fallback; unblock only after the user explicitly revises the screenplay or
-removes the view dependency and the inventory is reconciled.
+Present the variant/view inventory and which missing images may be generated.
+A clear chat "proceed" or prior authorization for that round is enough to render.
+For anything the user does not want generated, say "skip <row>" and mark it
+TEXT-ONLY. If the user accepts a missing view, carry the limitation into the
+shot plan and continue when the selected schema accepts the available inputs;
+if it requires the image, offer a compatible model/method or state that technical
+constraint. Do not silently claim the missing view was evaluated.
 ```
 
 Two supplied images may be camera looks for one location variant. Map them to separate view rows (`[Image 1] = entry-wide; [Image 2] = reverse-to-windows`) rather than creating duplicate location entries. When room or indoor/outdoor grouping is ambiguous, show the proposed grouping and ask the user to confirm it.
 
-Do not render until the user confirms the inventory and first candidate round. For retries, evaluation, and human approval, follow the shared candidate gate in `mixio-references`. Attach only approved images; incomplete required rows remain readiness blockers for Step 05 shot planning and generation, not for the local shot plan.
+Present the inventory and first candidate round as a checkpoint. A clear chat “proceed” or prior authorization for that round is sufficient to render. For retries and candidate selection, follow the checkpoint in `mixio-references`; do not require a separate Studio approval state. Attach only media the user selects or has already authorized. Incomplete rows are readiness findings, not planning blockers; explain their likely effect and continue if the user accepts the risk and the model schema/project policy allow it.
 
 ## Check the project's reference policy first
 
@@ -121,12 +122,13 @@ limbs, impossible joints, hallucinated accessories, wardrobe/color changes,
 unexplained silhouette changes, and the requested skin surface. For a
 photorealistic/hyperrealistic target, clear poreless, airbrushed, waxy, or
 plastic-looking skin fails the panel. Hidden anatomy is `unobservable`, not
-implicitly approved. A failed panel blocks the sheet; it must be regenerated
-or replaced rather than averaged away. Run the modern `image-character`
+implicitly approved. A failed panel is a visible quality finding; recommend a
+repair, and if the user elects to proceed with the candidate record the accepted
+deviation. Run the modern `image-character`
 evaluation with ordered aliases and `reference-coverage.subject-kind=character`
 for a multi-view sheet, retaining the receipt with the reference asset.
 
-After evaluator review and human approval, attach the accepted sheet and persist the structured identity alongside it — one schema owns these fields for every surface. This sample shows an approved default sheet while other required variants may still be pending; in that case the whole reference stays `in_review`. Never attach a generated candidate before the user approves it.
+After evaluator review and the user's chat decision, attach the selected sheet and persist the structured identity alongside it — one schema owns these fields for every surface. This sample shows a selected default sheet while other required variants may still be pending; record that readiness status accurately. Never attach a generated candidate before the user selects it.
 
 ```
 studio_update_reference({
@@ -352,13 +354,13 @@ Without the `@scene1` token in the prompt and URL-valued `mentionMap` binding, p
 1. read the accepted shot plan and source → characters, canonical places, required looks, location configurations/views, camera zones, and story-critical props
 2. studio_get_project({ projectId }) → reference policies and allowed variant names
 3. studio_list_references({ projectId }) → existing entities, variants, and approved images
-4. build the variant × view matrix; map supplied images to exact rows; show gaps and ask the user to confirm the grouping and first render round
+4. build the variant × view matrix; map supplied images to exact rows; show gaps and confirm the grouping/render round in chat (prior authorization for the same scope is enough)
 5. register only policy-permitted canonical references; enrich character identity and place-wide location details
 6. render missing candidates outside the active reference; evaluate each character/location pack and retain the receipt + feedback
-7. apply the shared candidate approval/retry gate in `mixio-references`; show candidates for human approval
-8. attach only approved images; read back the reference and verify rejected media is absent from active stores
-9. after the reference packs are approved, confirm the separate scene-anchor render round; render per-scene anchors with the selected location configuration and character variants
-10. show every scene anchor for human approval → gate Step 05 shot planning on approved, complete reference packs and anchors
+7. apply the candidate review checkpoint in `mixio-references`; show candidates and request the user's chat decision
+8. attach only user-selected images; read back the reference and verify rejected media is absent from active stores
+9. present the separate scene-anchor render round; render per-scene anchors with the selected location configuration and character variants on confirmation or prior authorization
+10. show scene anchors as a checkpoint; if the user accepts incomplete packs/anchors, continue to Step 05 with limitations recorded when schema and project policy allow
 ```
 
 Persist the confirmed matrix and each row's confirmation, media status, evaluation run IDs,
@@ -370,4 +372,4 @@ free-form metadata. Step 04 checks the actual shot camera zones and required vie
 - Sheets are the cheapest place to fix a look. Re-rendering one sheet is one job; re-rendering the 12 shots that referenced a wrong sheet is twelve.
 - Wrong images already attached? Remove rejected media from the active reference stores and rebuild `referenceVariants` from approved images only. `attachments` merges; `referenceVariants` replaces. Read back `referenceVariants`, legacy `characterDetails.looks`, flat `attachments`, and `thumbnailUrl`/`previewUrl` before continuing. See `mixio-references`.
 - External URLs (Drive, Dropbox, third-party CDNs) frequently fail through `studio_upload_media_from_url` with `No files were uploaded`. Use the single [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts), then `upload_file({ path: asset_path, project_id, organization_id })` and update the reference/slot with `entry.publicUrl`.
-- Set `workflow.status` honestly (`draft` → `in_review` → `approved`). Keep candidate packs in review until evaluation and human approval are complete; downstream steps block on incomplete or non-approved required variants/views.
+- Set `workflow.status` honestly (`draft` → `in_review` → `approved`) from the user's chat decision and persisted readback; do not require a separate Studio approval action. Record incomplete or unselected variants/views as readiness findings, and continue on the user's accepted direction when technically and policy compatible.

@@ -114,7 +114,7 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 
 | Skill | Invoke | Description |
 |-------|--------|-------------|
-| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — project/episode setup → local director’s plan → director-led Continuity Checklist → approved Studio diff → reference readiness → shot planning → generation. |
+| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — project/episode setup → local director’s plan → director-led Continuity Checklist → chat-confirmed Studio diff → reference readiness → shot planning → generation. |
 | [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Build or enrich approved character defaults/variants, location configurations/views, prop sheets, and one wide anchor frame per scene after the breakdown is accepted. |
 | [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit the accepted plan against required looks/views, visual evidence, Cast & World completeness, duplicates, metadata, and policy before generation. |
 | [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Enrich a supplied or existing scene/shot breakdown with production detail, or create one when no breakdown exists; prepare the exact Studio diff for review. |
@@ -134,13 +134,13 @@ Step 00  Project + episode setup → resolve scope; read the current screenplay/
                                   references, existing shots, settings, and available images
 Step 01  Local shot plan         → /mixio:script-breakdown — enrich a supplied/existing breakdown, or create one if absent; plan generated video clips for at least 120% of final runtime
 Step 02  Continuity Checklist    → /mixio:continuity — director-led checklist for state, geography, screen direction, shot flow, and missing shots, reactions, and other edit coverage
-Step 03  Review + sync           → show exact Studio diff; wait for approval; sync and verify by readback
+Step 03  Review + sync           → show exact Studio diff; proceed on chat confirmation; sync and verify by readback
 Step 04  Reference readiness     → /mixio:reference-audit; build missing sheets/anchors with /mixio:sheets
 Step 05  Shot planning           → /mixio:shot-planning — select methods/models, validate feasibility, review the production plan
-Step 06  Generation              → /mixio:generate per approved batch, then /mixio:eval before delivery
+Step 06  Generation              → /mixio:generate per confirmed/authorized batch, then offer /mixio:eval findings as a delivery checkpoint
 ```
 
-The shot plan and checklist stay local until the user approves the exact Studio diff. Plan generated video duration at no less than 1.2× the intended post-production runtime: a 90-minute episode needs at least 108 minutes of generated clips, and a 1-minute final needs at least 72 seconds. Count alternate angles, emotional takes, reaction shots, listening coverage, inserts, and transitions as candidate clips; still keyframes do not add video duration. Increase the reserve when the edit or screenplay needs it. Shot planning reports candidate-clip duration separately from final-edit runtime and includes all candidates in the job/batch plan. Missing sheets and anchors are reported as readiness gaps and resolved before shot planning or generation. Image generation for reference sheets and anchors is separately confirmed; ask before video generation unless already authorized. Post-render `/mixio:eval` checks whether the media preserves identity, style, scale, lighting, palette, geography, and other expected state.
+The shot plan and checklist stay local until the user confirms the exact Studio diff in chat; an earlier “proceed” that covers the same scope is enough. Plan generated video duration at no less than 1.2× the intended post-production runtime: a 90-minute episode needs at least 108 minutes of generated clips, and a 1-minute final needs at least 72 seconds. Count alternate angles, emotional takes, reaction shots, listening coverage, inserts, and transitions as candidate clips; still keyframes do not add video duration. Increase the reserve when the edit or screenplay needs it. Shot planning reports candidate-clip duration separately from final-edit runtime and includes all candidates in the job/batch plan. Missing sheets and anchors are reported as readiness gaps; explain their effect and continue with the user's accepted direction when the live schema and project policy allow. Confirm billable image or video generation in chat unless already authorized. Post-render `/mixio:eval` checks whether the media preserves identity, style, scale, lighting, palette, geography, and other expected state.
 
 For one-off work, skip the pipeline:
 
@@ -152,7 +152,7 @@ User prompt: "Set up episode 3 and generate its opening shot"
 3. /mixio:episode    → create the episode, break the script into scenes/shots
 4. /mixio:generate   → submit the shot as a generation job, pulling in reference images
 5. /mixio:workspace  → upload any local renders, get public URLs
-6. /mixio:eval       → run a continuity/consistency evaluation before delivery
+6. /mixio:eval       → review continuity/consistency findings as a delivery checkpoint; user may accept documented deviations
 ```
 
 ## Models

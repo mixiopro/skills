@@ -7,18 +7,18 @@ invoke: /mixio:shot-planning
 
 # Mixio Shot Planning
 
-Step 05 of `mixio-pipeline`. Runs after the director-led Continuity Checklist (Step 02), approved breakdown sync (Step 03), and reference-readiness review (Step 04), before video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content feasible for that method?**
+Step 05 of `mixio-pipeline`. Runs after the director-led Continuity Checklist (Step 02), confirmed breakdown sync (Step 03), and reference-readiness review (Step 04), before video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content feasible for that method?**
 
 Fixed-ceiling batching assumed one model and one method. Shot planning acknowledges the live catalog, classifies each shot into a deterministic archetype, audits execution feasibility (action density, speaking rate, duration), and prepares the production plan. Ask before video generation unless the user has already authorized it.
 
 ## Prerequisites
 
-- An approved, persisted breakdown (Step 03), completed director-led Continuity Checklist (Step 02), and reference-readiness result (Step 04)
+- A persisted breakdown (Step 03), director-led Continuity Checklist (Step 02), and reference-readiness result (Step 04). Findings are surfaced at checkpoints; only schema, scope, or project-policy constraints prevent a dependent action.
 - Resolved project and episode scope (from numbered Studio lists); use persisted scene/shot IDs only — never infer a label
-- Every shot has `duration`, `camera_movement`, `action`, `audio` fields populated
-- The approved breakdown identifies the intended post-production runtime; planned generated-video duration must reach at least 1.2× that target, with every alternate and extra clip labeled by purpose and approximate duration
+- Use `duration`, `camera_movement`, `action`, and `audio` when present. If required data is missing, report the affected shot and continue planning the rest; only that job waits for the missing value if its schema requires it.
+- The confirmed breakdown identifies the intended post-production runtime; planned generated-video duration must reach at least 1.2× that target, with every alternate and extra clip labeled by purpose and approximate duration
 - `studio_list_use_cases({ outputType: "all" })` + `studio_get_use_case_input_schema({ useCaseId, modelId })` reachable (live catalog)
-- Project/episode settings read during setup and any missing production defaults confirmed and locked after breakdown acceptance (`settings.generation`, `settings.studio`)
+- Project/episode settings read during setup and any missing production defaults confirmed and locked (`settings.generation`, `settings.studio`)
 
 ## The three decisions per shot
 
@@ -51,6 +51,11 @@ Classify by inspecting `camera_movement`, `action`, `duration`, markers, scene a
 | **Text-to-video** | `T2V` | prompt-only `cinematic-video` model | Abstract, establishing shots with no prior frame, mood pieces |
 
 ### Classification rules
+
+Here `BLOCKING` means the current shot/job shape is invalid or incompatible with the live
+contract. It is not a workflow-wide stop: continue other shots and offer a schema-valid
+alternative or a focused question for the affected job. A quality/readiness concern may be
+accepted by the user; a malformed request cannot be submitted unchanged.
 
 Select the model and read its live duration schema before applying these rules. The resulting
 `model_max_per_pass` is an input to classification, not a value that can be read before model
@@ -149,7 +154,7 @@ duration_schema = schema?.properties?.parameters?.properties?.duration
 duration_contract = derive_numeric_duration_contract(duration_schema)
 if duration_contract is unreadable:
     FINDING: DURATION_SCHEMA_UNAVAILABLE — selected model exposes no readable duration contract
-    → BLOCKING: stop planning until the live schema is resolved or the user selects another model
+    → Do not submit a job for this unresolved route. Continue planning other shots and offer another model/use case or defer only this shot until its live contract is available.
 
 if duration_contract.allowed_values exists AND shot.duration not in numeric_allowed_values:
     FINDING: DURATION_NOT_SUPPORTED — Shot 9 (6s) is not one of [4s, 8s]
@@ -203,7 +208,7 @@ if speaking_rate > 0 and shot.duration < 2.5:
     → ADVISORY: Extend duration to allow natural speech cadence and lip sync
 ```
 
-Before video generation, plan dialogue audio from the approved transcript. Each speaking
+Before video generation, plan dialogue audio from the confirmed transcript. Each speaking
 character should have a stable Gemini TTS `voiceProfile.voiceId`; flag missing IDs for assignment
 in Cast & World. Prefer `gemini-3-8-flash-lite-tts` and include the required TTS jobs in the batch
 plan. Check the selected video model/use-case schema for audio-reference support; attach
@@ -215,24 +220,24 @@ the rendered dialogue URL only when an audio slot such as `audio_urls` is declar
 for each character_link / location_link / prop_link:
     if reference has no attached image AND model requires image reference:
         FINDING: REF_IMAGE_MISSING — model needs reference image for consistency
-        → BLOCKING: Resolve in Step 04 / mixio-references before Step 06
+        → The current job payload is not submittable. Offer a compatible image, a route that accepts available inputs, or a change in direction; continue planning other jobs meanwhile.
 
 for each shot's selected character variant and location configuration/view:
-    resolve each selection to an approved referenceVariants image
-    if no confirmed inventory row or no approved image matches:
+    resolve each selection to the image selected in chat and recorded in referenceVariants
+    if no selected inventory row or image matches:
         FINDING: REFERENCE_VARIANT_VIEW_NOT_READY — selection is absent, ambiguous, or unapproved
-        → BLOCKING: resolve the exact variant and labeled image in Step 04
+        → Report the uncertainty and offer an available reference, alternate route, or user-accepted continuation if schema permits.
     for each location image:
         verify its label maps to the confirmed orientation record and shot camera zone
         if missing or inconsistent:
             FINDING: LOCATION_VIEW_UNMAPPED — image does not prove the planned camera view
-            → BLOCKING: map or generate the required view and recheck the pack
+            → Report the visual coverage gap; offer to map/build the view or proceed with an accepted limitation if schema permits.
 
 for each character appearance with a confirmed non-default variant mapping:
-    require appearanceState.lookRef to match that approved variant id/name
+    require appearanceState.lookRef to match that selected variant id/name
     if missing or stale:
         FINDING: REQUIRED_LOOK_UNBOUND — wardrobe/age state maps to an approved look but the shot will fall back to the default
-        → BLOCKING: bind the mapped variant or return to the confirmed inventory if the mapping is wrong
+        → Report that the requested look would fall back to default; offer to correct the binding or continue with an accepted fallback.
 ```
 
 The inventory is entity-specific: a CHARACTER's approved sheet is its default,
@@ -245,11 +250,12 @@ label/URL in the persisted plan so Step 06 passes the correct approved image.
 This is the final post-breakdown reconciliation: compare each shot's mapped
 character appearance and actual camera zone/linked location with
 `metadata.pipeline.reference_pack_inventory`.
-If the shot needs a new or unapproved view, report a blocking
-`REFERENCE_VARIANT_VIEW_NOT_READY`, add a `proposed` row to the inventory, and
-stop shot planning. Return to Step 04 only after the user
-confirms the additional render round; then evaluate and approve the pack, rerun
-`mixio-reference-audit`, and restart Steps 03–05 because their outputs are stale.
+If the shot needs a new view, report `REFERENCE_VARIANT_VIEW_NOT_READY`, add a
+proposed row to the inventory, and show the visual consequence and options.
+Continue planning other shots. If the user confirms a render round, render and
+evaluate that candidate; otherwise proceed with the accepted limitation when
+the model schema and project policy allow it. Re-run affected checks after a
+reference or shot change; do not restart unaffected pipeline work.
 
 When these checks pass, emit the resolved rows as the episode's Reference Pull List
 ([references/reference-pull-list.md](references/reference-pull-list.md)) — it is the
@@ -262,7 +268,7 @@ for each character_link with a bound lookRef:
     resolve against reference's referenceVariants
     if unresolved:
         FINDING: LOOK_REF_UNRESOLVED — binding stale, will silently render default look
-        → BLOCKING: Re-bind variant or fix in Step 04 (STALE_LOOK_REF)
+        → Report `STALE_LOOK_REF`; re-bind if the named look is required, or offer a default/alternate look and record the user's choice.
 ```
 
 Pull character bindings once via `studio_get_production_context`'s `lookBindings` rather than per-shot queries. Carry each approved character `variantId`/`variantName` into the persisted plan. For locations, record the confirmed configuration `variantId`/`variantName` and exact labeled view URL; a generic `lookRef` check does not prove camera-view readiness (see `mixio-generate/references/reference-media.md`).
@@ -272,7 +278,7 @@ Pull character bindings once via `studio_get_production_context`'s `lookBindings
 For every media-bearing job, validate the public MCP binding contract before batching. The caller
 supplies `mentionMap` as `{ "@tag": "exact URL from input.media" }`; the adapter derives Studio’s
 internal `slotTags` and display labels. Do not ask MCP callers to provide those internal fields.
-Run this check before batching and carry zero blocking findings into the Step 05 gate:
+Run this check before batching. These are public MCP contract errors, so correct the affected job payload before submitting it; continue planning and preparing other valid jobs:
 
 ```
 for each shot with media references:
@@ -302,12 +308,14 @@ materialized prompt (`sequence_notes` plus the shot-spec prompt); an omitted cal
 grounding bypass. Descriptive prose may supplement a tag, never replace it. Record each validated
 mention and URL in the [Prompt & Mention Sheet](../mixio-generate/references/prompt-mention-sheet.md).
 Any `PROMPT_MENTION_MISSING`, `MENTION_MAP_MISSING`, `MENTION_URL_MISMATCH`,
-`MENTION_URL_DUPLICATE`, or `MENTION_MAP_ORPHANED` finding blocks the production summary and
-Step 06 approval until corrected.
+`MENTION_URL_DUPLICATE`, or `MENTION_MAP_ORPHANED` finding makes that job invalid
+under the public MCP contract. Correct the map/prompt or omit the unused reference;
+do not submit that invalid job. This does not stop unrelated valid jobs or require a
+separate Studio approval status.
 
 ### Natural skin prompt readiness
 
-When the locked visual style or user direction is photorealistic/hyperrealistic, inspect every shot where character skin is visible and ensure its effective prompt carries concrete natural-skin and anti-smoothing direction. Match detail to framing: fine pores, subtle tonal variation, peach fuzz, and faint expression lines belong in close views where they can resolve; use natural complexion and surface variation at wider scales. Specify soft, physically plausible light and natural contrast when skin appearance matters. Do not rely on `ultra-realistic`/`8K` slogans, and do not add unsupported scars, freckles, or numeric reference weights. Bind the approved character image when available and permitted; URL-valued `mentionMap` bindings and prompt `@` mentions remain mandatory. Missing skin direction is a blocking prompt-readiness finding for a realistic character close-up and must be corrected before the production summary.
+When the locked visual style or user direction is photorealistic/hyperrealistic, inspect every shot where character skin is visible and ensure its effective prompt carries concrete natural-skin and anti-smoothing direction. Match detail to framing: fine pores, subtle tonal variation, peach fuzz, and faint expression lines belong in close views where they can resolve; use natural complexion and surface variation at wider scales. Specify soft, physically plausible light and natural contrast when skin appearance matters. Do not rely on `ultra-realistic`/`8K` slogans, and do not add unsupported scars, freckles, or numeric reference weights. Bind the selected character image when available and permitted; URL-valued `mentionMap` bindings and prompt `@` mentions remain mandatory. Missing skin direction is a high-priority prompt-quality finding for a realistic character close-up. Recommend a correction and record any accepted deviation; this is not a schema gate.
 
 ### Continuity handoff feasibility
 
@@ -322,11 +330,10 @@ if shot is first in a new batch AND previous batch exists:
 
 ## Feasibility report
 
-Report archetype/model distribution and every finding with remediation, separating blocking from
-advisory work. Use the [worked format](references/execution-audit.md#feasibility-report); the report
+Report archetype/model distribution and every finding with remediation, separating invalid-current-job
+payloads from high-priority quality concerns and advisories. Use the [worked format](references/execution-audit.md#feasibility-report); the report
 must include any `PROMPT_MENTION_MISSING`, `MENTION_MAP_MISSING`, `MENTION_URL_MISMATCH`,
-`MENTION_URL_DUPLICATE`, or `MENTION_MAP_ORPHANED` finding with its asset, tag, and remediation. Resolve every blocker before
-advancing.
+`MENTION_URL_DUPLICATE`, or `MENTION_MAP_ORPHANED` finding with its asset, tag, and remediation. Correct affected invalid jobs before submission; continue all other work.
 
 ---
 
@@ -365,18 +372,26 @@ which extend coverage. The planned generated-video duration must be at least 1.2
 ## Persisting the plan
 
 Persist each shot's model, `generation_use_case`, and input contract with `studio_revise_shot_specs`,
-then write an **awaiting-approval** Step 05 summary to `episode.metadata.pipeline`. Explicit approval
-alone may change it to `step_05: "complete"`; see the [field shape and writes](references/execution-audit.md#plan-persistence).
+then write the completed Step 05 plan to `episode.metadata.pipeline`. The plan is a review
+checkpoint, not an approval state. A chat “proceed” or prior authorization for the presented
+scope is sufficient to continue; no `awaiting_approval` state or approval digest is required.
+See the [field shape and writes](references/execution-audit.md#plan-persistence).
 
 ---
 
-## Gate: Production Plan Approval
+## Production plan checkpoint
 
-**Step 06 cannot proceed until the user has reviewed and approved the production plan.**
+Present the production plan, coverage totals, model choices, and known execution risks. Continue
+on a clear chat confirmation or prior authorization for this scope. Do not require an additional
+Studio status change or ask again for an already confirmed plan. If the user asks to proceed with
+a documented advisory risk, record it and carry it into the generation prompt/evaluation when the
+schema allows. A schema-invalid request, unresolved scope, or project-policy restriction remains
+a technical constraint.
 
-Before asking, persist `step_05: "awaiting_approval"`, the production plan, and a stable plan
-digest. On approval, re-read the plan, verify the digest has not changed, and set
-`step_05: "complete"`. Step 06 handles video authorization under `mixio-generate`.
+Persist `step_05: "complete"` when planning is complete, with the plan details for recovery. If
+the plan changes materially after the checkpoint, show the changed portion and continue on the
+user's confirmation or prior authorization for that revised scope. Step 06 handles any separate
+billable-generation authorization under `mixio-generate`.
 
 Announce the close with the production plan, for example:
 `Step 05 — Shot Planning complete. 13 planned outputs (including 2 alternates) / 7 planning batches / 72.0s planned generated material for a 60.0s intended final edit. Please review the plan to proceed to Step 06.`
@@ -386,15 +401,15 @@ Announce the close with the production plan, for example:
 ## Workflow
 
 ```
-1. read approved breakdown (Step 03) + reference readiness from Step 04 + project settings + live model catalog
+1. read confirmed breakdown (Step 03) + reference readiness findings from Step 04 + project settings + live model catalog
 2. match each shot to the best model based on characteristics; read its live input schema and duration ceiling
 3. classify each shot into one of 6 archetype families (GRID / MULTI_CUT / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V), using the selected model ceiling
 4. run execution audit (duration limits, action density, speaking rate, dialogue/voice readiness, audio-reference support, references, prompt @ mentions + URL-valued mentionMap)
-5. resolve blocking feasibility findings (split shots, adjust durations, assign missing character voice IDs, plan TTS dialogue before video, embed @ mentions, bind URLs in mentionMap, remove orphan bindings)
+5. prepare schema-valid job payloads (split/reassign unsupported durations, assign missing voice IDs when dialogue TTS is requested, plan TTS before video, embed @ mentions, bind URLs in mentionMap, remove orphan bindings); keep high-priority quality findings visible as accepted risks when the user chooses to proceed
 6. group into contiguous batches per model-specific ceilings
 7. emit PRODUCTION SUMMARY with archetype distribution, model assignments, job counts, and execution risks
-8. studio_revise_shot_specs → persist plan in shot metadata; persist `step_05: "awaiting_approval"` and a plan digest in episode metadata.pipeline
-9. GATE — user reviews the production plan → verify plan digest and persist `step_05: "complete"` → Step 06 Video Generation
+8. studio_revise_shot_specs → persist plan in shot metadata; persist the complete plan and `step_05: "complete"` in episode metadata.pipeline
+9. CHECKPOINT — present plan and risks; proceed on chat confirmation/prior authorization, then enter Step 06 under the user's generation authorization
 ```
 
 ## Notes

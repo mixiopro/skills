@@ -54,7 +54,7 @@ accepts the shot; re-read the schema per episode. The catalog values below were 
 | 2 | `seedance_reference_to_video_v2` | `auto,3–15` | per schema | Provider tokens `@Image/@Video/@Audio{n}` |
 | 3 | `kling_o3_standard_reference_to_video` (or `_pro_`) | `3–15` | per schema | Slots `primary`/`endFrame`/`references`; `@Element`/`@Image{n}`; ≤2 `<<<voice_{n}>>>` |
 | 4 | `gemini_omni_multishot` | `3–10` | **`16:9`/`9:16` only** | `image_urls` only; `<IMAGE_REF_{n}>`/`@Image{n}` ≤9 — **skipped when the shot exceeds 10s or delivery is neither 16:9 nor 9:16** |
-| — | no route accepts | re-plan as `SEQUENCE` | — | Create separate schema-valid segment jobs from the authored direction; choose each job's whole-output duration from its schema and ensure segment durations sum to the intended shot length. If they cannot, re-author the shot timing under approval. Get approval for the multi-job result before generation. Do not snap `cuts[]` to a supposed per-cut model minimum. |
+| — | no route accepts | re-plan as `SEQUENCE` | — | Create separate schema-valid segment jobs from the authored direction; choose each job's whole-output duration from its schema and ensure segment durations sum to the intended shot length. If they cannot, present timing options as a checkpoint and continue with the user's choice. Confirm the multi-job batch in chat or rely on prior authorization before billable generation. Do not snap `cuts[]` to a supposed per-cut model minimum. |
 
 - Duration types differ: H3 and seedance use string enums with `auto`; kling and gemini use
   numeric enums. Read the live schema per route; never assume a type or a ceiling.

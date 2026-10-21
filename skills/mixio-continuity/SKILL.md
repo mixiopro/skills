@@ -13,7 +13,7 @@ Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.m
 
 The checklist is a written planning artifact, not a pass/fail score. Use it to guide shot-plan corrections, prompt/reference preparation, and post-render evaluation. It does not replace `/mixio:eval`, which checks whether generated media follows the approved plan; evaluation submissions are billable and require confirmation unless already authorized.
 
-**Normal mode is read-and-correct locally.** Do not call Studio mutation tools to repair an unapproved plan. If the user asks to check already-persisted shots, report a proposed diff and wait for approval before changing them.
+**Normal mode is read-and-correct locally.** Do not mutate Studio while drafting an unpresented correction. If the user asks to check persisted shots, present the proposed diff as a checkpoint; chat confirmation or prior authorization for that scope is sufficient to apply it. A Studio approval status is not required. Continue independent checklist work while a choice is open.
 
 ## Inputs and grounding
 
@@ -56,7 +56,7 @@ For each checklist item, identify the controlling character/prop/location record
 
 ### 6. Editorial coverage and generated-material reserve
 
-Treat the stated runtime as the intended post-production duration. The minimum planned generated video duration is 1.2× that target: a 90-minute final needs at least 108 minutes of generated clips; a 1-minute final needs at least 72 seconds. Count every planned alternate angle, emotional take, reaction/listener clip, insert, transition, and other candidate video output because each consumes generation and gives editorial choice. Do not count still keyframes as video seconds. Confirm every extra has a purpose and relationship to the shot it can replace or extend. Report final target and total planned generated-video duration separately; plan more than 1.2× when the script or editorial needs warrant it. Flag a shortfall as `COVERAGE` and keep the plan open before the Step 03 approval diff.
+Treat the stated runtime as the intended post-production duration. The minimum planned generated video duration is 1.2× that target: a 90-minute final needs at least 108 minutes of generated clips; a 1-minute final needs at least 72 seconds. Count every planned alternate angle, emotional take, reaction/listener clip, insert, transition, and other candidate video output because each creates an editorial option. Do not count still keyframes as video seconds. Give every extra a purpose and relationship to the shot it can replace or extend. Report final target and total planned generated-video duration separately; plan more than 1.2× when the script or editorial needs warrant it. Flag a shortfall as `COVERAGE`, explain the trade-off at the Step 03 checkpoint, and continue on the user's direction rather than treating it as a pipeline-wide stop.
 
 ## Checklist artifact and local corrections
 
@@ -75,11 +75,11 @@ Use the [editorial coverage ledger](../mixio-pipeline/references/editorial-cover
 
 Use these categories: `COVERAGE`, `CAUSE`, `PROP`, `PRESENCE`, `BLOCKING`, `FACING`, `POSTURE`, `WARDROBE`, `AXIS`, `FLOW`, `CAMERA`, `AUDIO`, `ANCHOR`, `SOURCE`, and `READINESS`.
 
-Apply grounded local corrections, then update the affected checklist items and shot rows. Keep unresolved concerns visible rather than reducing the checklist to a clean/failed verdict. An open story decision is not silently “fixed”; present alternatives and hold affected sync until the user decides. A readiness gap may remain visible in the approved plan and must be handled before generation.
+Apply grounded local corrections, then update the affected checklist items and shot rows. Keep unresolved concerns visible rather than reducing the checklist to a clean/failed verdict. Never silently “fix” an open story decision: present alternatives. If the user says proceed without choosing, keep the decision open and continue with unaffected work. A readiness gap may remain visible in the plan; explain its likely effect and let the user decide whether to proceed. Continue when the user accepts the risk and the live schema/project policy allow it.
 
 ## If checking persisted shots
 
-Read current records first and identify each by confirmed Studio element ID. Return the proposed before/after changes and any relation updates. Do not use `studio_revise_shot_specs`, `studio_link_graph`, `studio_update_shot_state`, or another mutation until the user approves the exact correction diff. After approval, write through the appropriate existing primitive and read the records back to verify the changes.
+Read current records first and identify each by confirmed Studio element ID. Return the proposed before/after changes and any relation updates as a checkpoint. On the user's chat confirmation—or existing authorization covering that diff—write through the appropriate existing primitive and read the records back. Do not require a separate Studio approval state. If the user asks for an audit only, report the diff without writing.
 
 ## Workflow
 

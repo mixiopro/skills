@@ -35,7 +35,7 @@ constraints:
 
 Fields that do not apply may be `null` or an empty list. Do not use placeholders such as `TBD`, `unknown`, or `n/a` to satisfy the shape. If a required story decision is unresolved, report it as a quality-gate weakness or ask for clarification.
 
-`pass` and `pass_with_weaknesses` are eligible for Mixio intake. `needs_revision` is a hard stop: return to the upstream route and resolve the listed corrections before locking the screenplay in Mixio.
+All three outcomes are review findings, not authorization states. Summarize `needs_revision` items and offer focused corrections. If the user confirms the presented screenplay or has already authorized that scope, continue into Mixio with the findings recorded; preserve consequential unresolved story choices as `OPEN DECISION` rather than inventing answers. Resolve a question only when the next dependent action cannot be specified without it.
 
 ## What crosses the boundary
 
@@ -51,9 +51,9 @@ The upstream layer sends story intent, craft decisions, source text, and review 
 After receiving the package, Mixio performs the following in order:
 
 1. **Project and episode setup:** resolve scope, then read the current screenplay/script, references, existing shots, settings, and available images.
-2. **Source selection:** read `screenplay-grammar.md` when interpreting or authoring native screenplay text. A non-empty native `SCREENPLAY` body is the source; otherwise use the existing episode script or supplied high-level source. Preserve whichever source is selected verbatim during shot planning. Do not require an outline or scene card to be expanded into screenplay form unless the user asked for screenplay development. When the user explicitly requests screenplay authoring or revision in Mixio, save the approved text as a draft with `studio_upsert_screenplay`; Studio screenplay approval remains a human action.
-3. **Local production plan:** build and audit the director’s shot plan before any breakdown write; show the exact Studio diff and wait for approval.
-4. **Approved sync and readiness:** sync the approved breakdown and verify readback, then audit and build missing references/anchors before shot planning.
+2. **Source selection:** read `screenplay-grammar.md` when interpreting or authoring native screenplay text. A non-empty native `SCREENPLAY` body is the source; otherwise use the existing episode script or supplied high-level source. Preserve whichever source is selected verbatim during shot planning. Do not require an outline or scene card to be expanded into screenplay form unless the user asked for screenplay development. When the user requests screenplay authoring or revision in Mixio, present the text as a checkpoint; on chat confirmation or prior authorization, save it as a draft with `studio_upsert_screenplay` and continue from its read-back body without requiring a Studio approval status.
+3. **Local production plan:** build and audit the director’s shot plan before any breakdown write; show the exact Studio diff as a checkpoint and proceed on chat confirmation or prior authorization for that scope.
+4. **Confirmed sync and readiness:** sync the confirmed breakdown and verify readback, then audit and build missing references/anchors before shot planning.
 5. **Shot planning and generation:** select methods/models, follow the user's generation-authorization instructions, then generate and evaluate through the production pipeline.
 
 The native screenplay body remains the source of truth for breakdown once it is non-empty. The local shot plan preserves the selected source and labels visual additions as sourced, inferred, or open decisions.
