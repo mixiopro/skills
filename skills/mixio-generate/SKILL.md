@@ -152,9 +152,11 @@ to rewrite or stage a revised prompt.
 |------|--------------------------------------|-------------|
 | **Auto** | `"enhance"` | Studio may enrich and rewrite the prompt using linked character, location, camera, and style context. |
 | **Raw** | `"off"` | **Use for verbatim prompts, custom LoRA trigger words, exact benchmark tests, or pre-crafted directions.** Bypasses all LLM prompt rewriting and sends your exact prompt directly to the generation model. |
-| **Review** | `"enhance_and_review"` | Enhances the prompt and holds it for user inspection/editing before submitting the final GPU job. |
+| **Review** | `"enhance_and_review"` | In the Studio UI, enhances the prompt and holds it for user inspection/editing before submission. This is not an approval gate for direct MCP calls: `studio_submit_studio_job` and `studio_generate_image` submit immediately, and the MCP surface has no draft-job approval/submission tool. Do not use this mode to promise a review pause over MCP. |
 
 Pass `promptEnhancementMode` directly to `studio_submit_studio_job` or within `context.intent`:
+
+For direct MCP submission, `"enhance_and_review"` only carries the mode through the request; it does not open the Studio UI review step or defer job submission. If the user needs to review an enhanced prompt before a billable job, use the Studio review flow and submit only after they approve it. `mode: "async"` controls execution behavior and is not a draft or approval state. `studio_get_studio_job_api_schema` documents API routes but does not expose a callable MCP draft-job approval operation.
 
 ```js
 studio_submit_studio_job({

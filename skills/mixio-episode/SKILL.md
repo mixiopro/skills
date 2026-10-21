@@ -44,7 +44,9 @@ A screenplay is its own per-episode `SCREENPLAY` element, distinct from the raw 
 
 | Tool | Purpose |
 |------|---------|
-| `studio_upsert_screenplay` | `{ projectId, episodeId, body, name? }` — creates the screenplay on first call and updates that same episode's screenplay thereafter. It always writes a **draft**; approval is a separate human action in Studio's Screenplay view. Never report it as approved. |
+| `studio_upsert_screenplay` | `{ projectId, episodeId, body, name? }` — creates the screenplay on first call and updates that same episode's screenplay thereafter. It has no status input: creation sets **draft**, while an update preserves existing metadata status and does not record approval. Editing an approved screenplay invalidates approval of the changed body even if its old status remains `approved`; obtain human review again in Studio. Use Studio's Screenplay review action to record approval. Never use generic metadata updates to simulate screenplay approval. |
+
+Chat approval authorizes the assistant to proceed with the approved work; it does not update the persisted screenplay status. If a later workflow requires Studio to record screenplay approval and the status is still `draft`, stop at that gate and tell the user the remaining Studio action. There is no screenplay-approval MCP tool.
 
 `body` is standard screenplay text—sluglines, action beats, character cues, dialogue, and audio/SFX paragraphs—with core authoring conventions:
 
@@ -75,7 +77,7 @@ A screenplay is its own per-episode `SCREENPLAY` element, distinct from the raw 
 ```
 Include `linked_character_ids`/`linked_location_ids`/`linked_prop_ids` in shot metadata to auto-create relations to the project's Cast & World elements — this replaces manually calling `create_element` + `create_relation` yourself.
 
-These tools do not replace the planning/review gate. Before a production breakdown write, compare the local plan to the current episode, confirm each update’s element ID and upsert key, show the exact diff, and wait for approval.
+These tools do not replace the planning/review gate. Before a production breakdown write, compare the local plan to the current episode, confirm each update’s element ID and upsert key, show the exact diff, and wait for approval. An approved scene status or shot state is a separate persisted state change; do not set it to bypass approval of a proposed breakdown diff. A direct user request to mark an unambiguous scene or shot approved authorizes that state change. Read the state back.
 
 **`studio_revise_shot_specs`** / **`studio_update_shot_state`** both take `{ projectId, shots: [{ shotId, ... }] }` (max 100). Every target must be a `SHOT` in that project; an invalid target rejects the whole call during preflight. Use `revise_shot_specs` for content changes, `update_shot_state` for approval/review workflow — they're separate tools because state changes shouldn't silently overwrite creative metadata and vice versa.
 
