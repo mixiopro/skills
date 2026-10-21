@@ -187,9 +187,9 @@ studio_submit_studio_job({
 })
 ```
 
-For **Audio / Gemini TTS** (`text-to-speech`), raw transcript reading is controlled by `input.parameters.auto_enhance_ssml`:
-- `auto_enhance_ssml: true` (default) — wraps transcript in SSML tags and performance directions.
-- `auto_enhance_ssml: false` — reads the verbatim transcript text without performance guidance injection.
+For character voice and dialogue generation, prefer **Gemini 3.8 Flash Lite TTS** (`gemini-3-8-flash-lite-tts`) through `text-to-speech`. Read its live input schema before submitting. It exposes `gemini_voice_id`, optional `gemini_voice_id_secondary`, `speaker_mode`, `gemini_speech_mode`, and `gemini_speech_style`; the transcript is spoken verbatim. Use `speaker_mode: "multi"` only for the supported two-voice case, and match each selected voice to the characters’ stable `characterDetails.voiceProfile.voiceId` assignments. Generate dialogue audio before the corresponding video job so the finished audio can guide it.
+
+TTS models in the current catalog include `gemini-3-8-flash-lite-tts`, `gemini_3_1_flash_tts_preview`, and `elevenlabs_tts_multilingual_v2`; use the Gemini 3.8 model as the default for voice/dialogue unless the user or project settings choose another model. TTS produces audio output. Preserve the generated audio URL and, when the selected video use case/model schema accepts audio references (for example `audio_urls` on `multi-shot-video`), include it as a reference for video generation. Do not assume every video model accepts audio: check its live schema. If it has no audio input, keep the transcript/dialogue direction in the video prompt and do not send an unsupported audio slot.
 
 `settings.generation`: `defaultModelByUseCase` (video pins such as `cinematic-video` and `multi-shot-video`), `defaultParametersByUseCase`, `defaultDurationByUseCase`, `defaultAspectRatioByOutputType`, `defaultResolutionByOutputType`, `recommendedStylePresetIds`, `inferenceMode`.
 `settings.studio`: `preferredVideoModel`, `videoDurationSeconds`, `defaultStylePrompt`, `defaultVideoShotMode`, `visualStyle`, `toneAndMood`, `cinematographyDirection`.
@@ -271,7 +271,7 @@ include only slots and parameters accepted by the selected live schema.
 
 ## Audio
 
-Reachable, undiscoverable by filter. `text-to-speech` and `voice-change` are `outputType: AUDIO`, which `list_use_cases`' enum cannot express — call it with `outputType: "all"`. Then the normal path: `get_use_case_input_schema({ useCaseId: "text-to-speech", modelId: "elevenlabs_tts_multilingual_v2" })` → `submit_studio_job`. Models: `elevenlabs_tts_multilingual_v2`, `gemini_3_1_flash_tts_preview`, `elevenlabs_speech_to_speech`. Lip-sync is `outputType: VIDEO`, not audio. Mixing and final assembly are not on the MCP surface at all.
+Reachable, undiscoverable by filter. `text-to-speech` and `voice-change` are `outputType: AUDIO`, which `list_use_cases`' enum cannot express — call it with `outputType: "all"`. Then the normal path: `get_use_case_input_schema({ useCaseId: "text-to-speech", modelId: "gemini-3-8-flash-lite-tts" })` → `submit_studio_job`. Prefer `gemini-3-8-flash-lite-tts` for dialogue and character voices; retain the chosen voice ID on the character. Other supported TTS models include `gemini_3_1_flash_tts_preview` and `elevenlabs_tts_multilingual_v2`; `elevenlabs_speech_to_speech` is for voice conversion. Lip-sync is `outputType: VIDEO`, not audio. Mixing and final assembly are not on the MCP surface at all.
 
 ## References
 

@@ -151,6 +151,8 @@ Full field set: `role` (enum), `age`, `personality`, `build`, `skin`, `hair`, `e
 
 The three voice fields are structured, not strings: `voiceProfile` takes `{ provider?, voiceId?, voiceName?, language?, accent?, genderPresentation?, agePresentation?, tone?, deliveryStyle?, notes?, previewUrl? }`, `voiceReference` takes `{ sampleAudioMediaId?, sampleAudioUrl?, language?, notes?, label? }`, and `voiceRegistrations` is a provider-keyed record. `looks` is owned by the variant layer — write looks through `referenceVariants`, not by hand here.
 
+For speaking characters, assign a stable Gemini TTS voice in `characterDetails.voiceProfile.voiceId`. Use the exact voice ID selected from the live `text-to-speech` schema/voice selector (for example, a supported prebuilt voice such as `Zephyr`); do not invent an ID. Keep that choice consistent across dialogue generations for the character. `voiceProfile` records the character-level assignment; `voiceReference` is for an audio sample when a workflow explicitly needs one.
+
 `visualAnchor` is the single feature that makes the character recognizable across models — name it explicitly, and repeat it in shot prompts.
 
 ### Mint the mention tag with the sheet

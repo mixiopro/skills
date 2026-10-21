@@ -25,7 +25,7 @@ This is the craft layer — which model tends to produce better results for whic
 
 | Shot characteristic / Archetype | Better model candidates | Why |
 |---------------------------------|------------------------|-----|
-| **Dialogue / lip sync** | Models with audio input support (future); currently Veo for natural mouth motion | Lip sync naturalism varies |
+| **Dialogue / lip sync** | Pre-generate character dialogue with Gemini 3.8 Flash Lite TTS (`gemini-3-8-flash-lite-tts`) and attach the audio only when the selected video model/use-case schema accepts audio references (for example H3 `multi-shot-video` `audio_urls`). Some video models, including the checked Seedance I2V and Gemini Omni schemas, expose no audio-reference slot; preserve dialogue in the prompt for those routes. | Lip sync naturalism varies; audio input support is model- and use-case-specific |
 | **Fast action / fights** | Seedance, Kling | Better temporal coherence under rapid motion |
 | **Slow / cinematic camera** | Veo, Sora | Smooth, intentional camera choreography |
 | **Static holds / reactions** | Any (`SINGLE`) — cheapest option wins | Low complexity, all models handle simple holds |

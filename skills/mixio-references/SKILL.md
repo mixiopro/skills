@@ -131,6 +131,11 @@ Character `lookRef` resolution order at generation time is shot → scene → th
 
 Structured detail params (type-gated — sent fields are ignored if the element isn't that type, and are deep-merged, not replaced):
 - `characterDetails` (CHARACTER only): `role`, `age`, `personality`, `build`, `skin`, `hair`, `distinctiveFeatures`, `visualAnchor`, `wardrobeNotes`, `bio`, `backstory`, `motivations`, `speechStyle`, `relationshipsSummary`, `castingNotes`, `voiceProfile`, `voiceReference`, `voiceRegistrations`
+
+For a speaking character, use `characterDetails.voiceProfile.voiceId` for the exact stable voice
+ID selected for the preferred Gemini TTS model. Read the live `text-to-speech` schema/voice
+selector and store its exact ID; do not invent one. Keep the assignment consistent across that
+character’s dialogue. `voiceReference` is a sample-audio field and is separate from the voice ID.
 - `locationDetails` (LOCATION only): `setting`, `timePeriod`, `mood`, `lighting`, `palette`
 - `propDetails` (PROP only): `category`, `material`, `significance`
 - `workflow.status`: `draft` | `in_review` | `approved` | `rejected` | `archived`

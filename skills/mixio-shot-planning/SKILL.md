@@ -203,6 +203,12 @@ if speaking_rate > 0 and shot.duration < 2.5:
     → ADVISORY: Extend duration to allow natural speech cadence and lip sync
 ```
 
+Before video generation, plan dialogue audio from the approved transcript. Each speaking
+character should have a stable Gemini TTS `voiceProfile.voiceId`; flag missing IDs for assignment
+in Cast & World. Prefer `gemini-3-8-flash-lite-tts` and include the required TTS jobs in the batch
+and cost plan. Check the selected video model/use-case schema for audio-reference support; attach
+the rendered dialogue URL only when an audio slot such as `audio_urls` is declared.
+
 ### Reference readiness (cross-check with Step 04)
 
 ```
@@ -388,8 +394,8 @@ Announce the close with the production plan, for example:
 1. read approved breakdown (Step 03) + reference readiness from Step 04 + project settings + live model catalog
 2. match each shot to the best model based on characteristics; read its live input schema and duration ceiling
 3. classify each shot into one of 6 archetype families (GRID / MULTI_CUT / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V), using the selected model ceiling
-4. run execution audit (duration limits, action density, speaking rate, references, prompt @ mentions + URL-valued mentionMap)
-5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions, bind URLs in mentionMap, remove orphan bindings)
+4. run execution audit (duration limits, action density, speaking rate, dialogue/voice readiness, audio-reference support, references, prompt @ mentions + URL-valued mentionMap)
+5. resolve blocking feasibility findings (split shots, adjust durations, assign missing character voice IDs, plan TTS dialogue before video, embed @ mentions, bind URLs in mentionMap, remove orphan bindings)
 6. group into contiguous batches per model-specific ceilings
 7. emit PRODUCTION SUMMARY with archetype distribution, model assignments, job counts, and execution risks
 8. studio_revise_shot_specs → persist plan in shot metadata; persist `step_05: "awaiting_approval"` and a plan digest in episode metadata.pipeline
