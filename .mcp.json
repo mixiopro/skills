@@ -8,7 +8,8 @@
         "@mixio-pro/mcp@0.6.0"
       ],
       "env": {
-        "MIXIO_BASE_URL": "${user_config.mixio_base_url}"
+        "MIXIO_BASE_URL": "${user_config.mixio_base_url}",
+        "MIXIO_API_KEY": "${user_config.mixio_api_key}"
       }
     }
   }

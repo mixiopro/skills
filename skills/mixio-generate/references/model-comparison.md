@@ -87,4 +87,4 @@ Practical consequences:
 
 ## 4. Prompt ceilings
 
-`models.json` → `prompting.promptMaxCharacters`, present on 15 of 75 models: nine Kling routes at 2500, four Svara/LTX routes at 5000, `grok_imagine_video` at 4096, and `elevenlabs-sound-effects-v2` at 450. MiniMax H3 has no Mixio ceiling; all other models without the field have no declared ceiling, which means unknown, not unlimited.
+`models.json` → `prompting.promptMaxCharacters`, declares model-specific prompt ceilings when configured; read current values from the catalog rather than assuming one global limit. MiniMax H3 has no Mixio ceiling; all other models without the field have no declared ceiling, which means unknown, not unlimited.

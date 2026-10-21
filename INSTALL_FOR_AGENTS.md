@@ -20,8 +20,8 @@ This single command will:
 1. Create `~/.mixio` and `~/.agents` global directories.
 2. Install all 13 Mixio skills (`mixio-*`) and place `AGENTS.md`.
 3. Install the Mixio-owned `how-to-make-script` screenplay system, including its eight requested routes, protocols, rubrics, knowledge atoms, schemas, examples, license, and provenance.
-4. Auto-configure the `@mixio-pro/mcp` MCP server in my agent configuration.
-5. Register the skills to all installed AI coding agents.
+4. Configure the `@mixio-pro/mcp` server in the supported JSON-based agent configs. For Codex, install the Codex plugin using the repository marketplace instructions in `README.md`, or configure the MCP server manually.
+5. Register the skills at the agent paths supported by the installer.
 
 After running the script, verify the connection with `studio_ping` and list my available projects with `studio_list_projects`.
 

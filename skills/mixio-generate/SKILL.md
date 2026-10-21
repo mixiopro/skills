@@ -11,16 +11,7 @@ Submit and track Studio generation jobs through the proxied `studio_*` MCP tools
 
 Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md) when translating an accepted shot into a generation request. Preserve its purpose, action, staging, camera direction, and continuity; if the chosen path cannot do so, return a proposed change for review instead of quietly rewriting the shot.
 
-Every claim below is grounded in the `mixiopro/studio` repo and cited inline so it can be re-verified. The catalog is the source of truth; this skill is a snapshot.
-
-**Catalog snapshot — verified 2026-09-10** against the checked-in catalogs in `mixiopro/studio`:
-
-| | Count | Source |
-|---|---|---|
-| Use cases | **42** — 17 `STUDIO`, 13 `IMAGE`, 6 `VIDEO`, 6 `AUDIO` | `api/agent-api/shared_schemas/use-cases.json` |
-| Model entries | **75** (includes workflow pseudo-models such as `video-preproduction`) | `api/agent-api/shared_schemas/models.json` |
-| Capability profiles / model bindings | 12 / 42 | `api/agent-api/shared_schemas/video-direction.json` |
-| Presets | attached to 9 use cases via `presetSlots` | `api/agent-api/shared_schemas/presets.json` |
+Use the live tool and generation contracts for the active endpoint. Source paths below explain implementation details; historical catalog snapshots can differ from the deployed service. Recheck before spending rather than relying on fixed model or use-case counts.
 
 Re-derive before spending: prefer `studio_get_contract`. It returns a versioned, digested contract for a direct tool (`{ target: "tool", toolName }`), generation pair (`{ target: "generation", useCaseId, modelId }`), Studio element metadata (`{ target: "element", elementType }`), or open project settings (`{ target: "project-settings" }`). For generation, `studio_get_use_case_input_schema({ useCaseId, modelId })` remains a compatible generation-only read from the same UI resolution path (spec `specs/022-mcp-use-case-input-schema/spec.md`).
 
@@ -37,7 +28,7 @@ Registrations: `apps/app-kalaasetu/src/app/api/mcp/server.ts`.
 |---|---|---|
 | `studio_get_contract({ target, ... })` | **Preferred versioned contract read.** `target: "tool"` returns any hosted tool's input schema, examples, constraints, and applicable semantic rules; `"generation"` resolves a use case/model; `"element"` resolves Studio metadata; `"project-settings"` documents the open settings shape. Every result has `contractVersion` and `contractDigest`. | For a generation contract, pass `modelId` when the selected model is known. The digest identifies the exact contract read; fetch again when it changes rather than relying on this snapshot. |
 | `studio_list_use_cases` | `id`, `label`, `outputType`, `description`, `supportedModels`, `count` | Filter by the requested artifact type (`VIDEO` for video; `all` for cross-type discovery). The live video catalog currently returns seven task-specific cases. Does **not** return `surfaces`, `media`, `parameters`, `presetSlots`, `intent`, or `studio`. `workflowId` is mapped but is always `undefined` — the field does not exist on `UseCaseDef` (server.ts:2938) |
-| `studio_list_generation_models` | with `useCaseId`: `{ id, label }` per model. Unfiltered: `{ id, label }` × 75 | **Broken — do not rely on it.** `mediaType: "image"` returns `{models:[],count:0}`, verified. It filters on `m.mediaType \|\| m.outputType`, and `ModelDef` has neither field (`packages/shared/src/schemas/generation/schema.ts:771` — only `label`, `providers`, `pricing`, `prompting`, `roleSlotPolicy`, `videoReferenceBudget`, `organizationNameIncludes`), so `provider`, `mediaType`, `outputType` and `supportedUseCases` serialize away as `undefined` and the filter matches nothing (server.ts:2887). Use `supportedModels` from `list_use_cases`, or `model.options` from `studio_get_generation_catalog_detail`, instead |
+| `studio_list_generation_models` | Live model IDs, labels, `mediaTypes`, providers, and supported use cases; enabled organization-specific models may also appear | Filter by `mediaType` or `useCaseId` when supported by the live contract. The image filter returned populated model metadata through mixio-cli on 2026-10-21. Read the selected use-case/model schema before submission. |
 | `studio_get_use_case_input_schema({ useCaseId, modelId })` | **The authoritative per-model contract.** JSON Schema 2020-12 for `{ prompt?, media, parameters }`, plus `supportedModels` and resolved `presets` | **Always pass `modelId`.** Omitting it resolves a different model and therefore a different schema: `image-hub` with no `modelId` yields `gpt_image_2` (auto is unsupported for `IMAGE`, so it falls back to `models[0]`), `cinematic-video` yields `ltx_2_3_quality_image_to_video` (auto rule). Throws `No model could be resolved for <id>` on the three model-less Studio use cases: `studio-lock-references`, `studio-storyboard-keyframes`, `studio-batch-image-generation`. Responses for the 9 preset-bearing use cases are large — they inline the full preset catalog |
 | `studio_get_generation_catalog_detail({ useCaseId, modelId, surface, projectId })` | Same contract flat (`media[]`, `parameters[]` with `options`), plus `supportedActions` and `configDigest` | Needs `projectId`. Use it when you need action ids; the live `multi-shot-video` contract returns `generation.video` and `generation.video.batch` |
 | `studio_cancel_studio_job({ jobId, projectId })` | `{ job: { id, status, previouslyTerminal }, message }` | **Exists** (server.ts:1951). Already-terminal jobs return their status without error. Earlier guidance in this skill that cancellation was HTTP-only was wrong |
@@ -52,7 +43,7 @@ Registrations: `apps/app-kalaasetu/src/app/api/mcp/server.ts`.
 | **Model ranking / "when to use what"** | `models.json` → `autoSelection.rules`: ordered `preferredModels` per use case, output type and media signal | Image rules prefer `gemini_image`; video rules prefer a compatible H3 route. `STUDIO` use cases resolve defaults from their ordered model list and production settings |
 | **Per-model input capability** | `video-direction.json` → `capabilityProfiles` + `modelBindings`: `profileId`, `supportedInputRoles`, `unsupportedInputRoles`, `promptMode`, `aspectHandling`, `lifecycle`, `routeId` | This is the real strengths/limits layer. A `prompted-frame-anchored-video` model (Seedance I2V, Kling 2.6 Pro, LTX, Grok) takes `primary` + `endFrame` and **rejects 7 other roles**; `prompted-text-video` models reject all 9. Table in `references/model-comparison.md`. Bindings inherit their profile's roles unless they override them (`packages/shared/src/schemas/generation/index.ts:resolveGenerationDirectionInputPolicy`) |
 | **Reference caps** | `models.json` → `defaults.stillImageReferencePolicy.maxProviderImages` (**10**) with `coverageOrder`/`fillOrder`/`slotByRole`; `defaults.videoReferenceBudget.maxProviderImages` (**9**), overridden per model — listed Kling routes cap at **4** | Excess references are truncated by policy order, not rejected. Attach only the references that matter, in role order. |
-| **Prompt length ceiling** | `models.json` → `prompting.promptMaxCharacters`, present on **15** of 75 models (nine Kling routes at 2500, four Svara/LTX routes at 5000, Grok at 4096, and ElevenLabs sound effects at 450); MiniMax H3 deliberately has no Mixio ceiling | Models without the field have no declared ceiling. Studio's own production path truncates against it (`getPromptMaxCharacters` in `production-job-preparation.ts`); you cannot read it over MCP |
+| **Prompt length ceiling** | `models.json` → `prompting.promptMaxCharacters`, model-specific when declared in the source catalog | Models without the field have no declared ceiling. Studio's own production path truncates against it (`getPromptMaxCharacters` in `production-job-preparation.ts`); you cannot read it over MCP |
 | **Speed / quality tradeoff** | `models.json` → `providers[].requirements`: `balanced \| speed \| cost \| quality` | The **only** such signal in the catalog. There is no fps field, no max-resolution field, no benchmark or quality ranking anywhere in it. If asked which model is "best", say the catalog does not rank models and offer `autoSelection` order instead of inventing a comparison |
 | **`surfaces` (studio vs generate)** | `use-cases.json` → `surfaces` | See §3. **`outputType` is not a proxy for it**: `image-edit`, `character-locking`, `refine-character-image`, `character-multi-angle` are `outputType: IMAGE` but `surfaces: ["studio"]`; the two `avgc-*` use cases are on both; `kling-multi-shot-video` has `surfaces: []` and appears in neither UI while still being submittable |
 
@@ -202,8 +193,7 @@ or old Studio preferred-model field cannot make an unsupported model/control val
 
 Media slots require real URLs, not Payload media IDs. Resolve the approved character look or
 location view and the URL using [`reference-media.md`](references/reference-media.md). For local
-files, upload first; for external URLs, use `mixio-workspace`'s validated download-and-upload
-fallback. Read the selected model's live schema for its exact media slots and cardinality.
+files, upload first; for external URLs, use the [safe external-media recipe](../mixio-workspace/SKILL.md#ingest-external-media-urls-google-drive-cdns-third-party-hosts) in `mixio-workspace`. Read the selected model's live schema for its exact media slots and cardinality.
 
 ### Link every job to everything it knows about
 
@@ -263,6 +253,8 @@ Before calling `generate_image`, `submit_studio_job`, or `batch_submit_studio_jo
 - [ ] **Prompt embedding**: The effective prompt contains every map key exactly as an `@tag` where its reference acts. For a sequence use case with no caller `prompt`, validate `sequence_notes` plus the materialized shot prompt.
 - [ ] **No missing or orphaned bindings**: Reject missing, mismatched, duplicate, or unused map entries, and prompt tags with no binding. Keep the map scoped per job in batch submissions.
 - [ ] **No ungrounded prose**: Descriptive text may supplement a mention, but it never replaces the required `@tag` token.
+- [ ] **Continuity Checklist**: Apply the approved scene/shot/transition items to the effective prompt, controlling reference URLs, expected start/end state, and cut handoff. Refresh affected items when a reference/look or generation route changes; see the [checklist template](../mixio-continuity/references/checklist-template.md).
+- [ ] **Candidate outputs**: Each approved main/alternate clip has its own existing-schema submission and the deepest confirmed context, including its owning `shotId`. Track each output once in the [coverage ledger](../mixio-pipeline/references/editorial-coverage.md) and reconcile usable footage after rendering.
 - [ ] **Realistic skin**: For photorealistic/hyperrealistic human imagery, confirm the effective image/video prompt includes framing-appropriate natural skin texture and excludes smoothing/plastic gloss; for video, include temporal texture and identity consistency.
 
 The complete, model-specific submission shape is in
@@ -275,8 +267,8 @@ Reachable, undiscoverable by filter. `text-to-speech` and `voice-change` are `ou
 
 ## References
 
-`references/model-comparison.md` — `autoSelection` ranking, model capability data, and per-model input-role capability. All three are catalog facts no MCP tool exposes.
+`references/model-comparison.md` — `autoSelection` ranking, model capability data, and per-model input-role capability. Consult the live model/generation contracts first; use source catalog details for fields the endpoint does not expose.
 
-`references/prompt-mention-sheet.md` — the pre-submit pairing sheet: slot key ↔ `@tag` ↔ mention label ↔ route token, with the per-model token table and H3 cut-line grammar.
+`references/prompt-mention-sheet.md` — the pre-submit binding sheet: media URL ↔ `@tag` ↔ reference metadata ↔ compiled route token, with the per-model token table and H3 cut-line grammar.
 
 `references/job-take-report.md` — optional per-job take report template; using it does not add a required metadata write or selection policy.

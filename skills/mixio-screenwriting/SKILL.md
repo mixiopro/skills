@@ -39,7 +39,7 @@ The screenplay system owns premise, character pressure, structure, scene/dialogu
 
 Do not confuse the layers:
 
-- `rewrite-doctor` diagnoses story and text layers; `mixio-continuity` audits persisted shot logic.
+- `rewrite-doctor` diagnoses story and text layers; `mixio-continuity` creates the director-led Continuity Checklist for the local or persisted shot plan.
 - `quality-gating` checks screenplay contracts and craft lenses; `mixio-reference-audit` checks Cast & World readiness.
 - Upstream-only writing work needs no Studio project/episode lookup and must not submit billable jobs.
 
@@ -53,7 +53,7 @@ At the handoff boundary:
 2. Read the native screenplay grammar and list existing references.
 3. Normalize the screenplay into Mixio's native grammar and copy exact reference mentions; never invent Studio IDs or `#` tokens upstream.
 4. Present the complete proposed screenplay and a source-to-screenplay change map. Keep source facts/dialogue distinct from `INFERRED` direction and surface consequential changes as `OPEN DECISION`s. After approval to hand off, persist the native screenplay as a draft and read it back; Studio human approval is still required before production breakdown.
-5. Continue production through `mixio-pipeline`: approved screenplay, local breakdown, local continuity review, approval-gated sync, reference readiness, shot planning, and generation.
+5. Continue production through `mixio-pipeline`: approved screenplay, local breakdown, director-led Continuity Checklist, approval-gated sync, reference readiness, shot planning, and generation.
 
 If story intent changes after the breakdown has been synced (pipeline Step 03), return to the upstream route and re-run the relevant quality gate before re-entering production. A screenplay edit invalidates the local plan and its Studio diff; after sync it also invalidates downstream continuity, shot planning, and generated media.
 

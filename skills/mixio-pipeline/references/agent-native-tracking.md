@@ -14,14 +14,14 @@ Use this guide for full, multi-step Mixio episode runs. Agent platforms expose d
 Keep the native goal/task plan short and phase-based. It should capture:
 
 1. **Objective:** what result the user asked for in this confirmed project and episode.
-2. **Milestones:** resolve scope and read raw source/current screenplay; develop and review the director’s screenplay when needed; get approval, draft-upsert, and read back; build the local director/specialist shot plan; audit continuity; show the exact breakdown diff; wait for approval; sync and read back; resolve reference readiness; plan production; generate and evaluate only when included and approved.
+2. **Milestones:** resolve scope and read raw source/current screenplay; develop and review the director’s screenplay when needed; get approval, draft-upsert, and read back; build the local director/specialist shot plan; write the director-led Continuity Checklist and verify the 1.2× generated-video plan; show the exact breakdown diff; wait for approval; sync and read back; resolve reference readiness; plan production; generate and evaluate only when included and approved.
 3. **Constraints:** preserve the raw script as story source; mark screenplay additions as inference; do not write the screenplay draft or breakdown before its respective approval; respect separate image-generation and cost gates.
-4. **Evidence:** source-to-screenplay change map, reviewed screenplay, explicit screenplay approval, persisted draft readback, reviewed shot plan and diff, explicit breakdown approval, persisted Studio readback, readiness and cost approvals, and evaluation results as applicable.
+4. **Evidence:** source-to-screenplay change map, reviewed screenplay, explicit screenplay approval, persisted draft readback, reviewed shot plan/output ledger, Continuity Checklist and diff, explicit breakdown approval, persisted Studio readback, readiness and cost approvals, and evaluation results as applicable.
 5. **Stop and resume conditions:** stop at each required user decision. On resume, re-resolve the scope and read current Studio state before continuing.
 
 Example objective:
 
-> Prepare an approved, AI-ready director’s screenplay and continuity-checked shot plan for the confirmed episode. Preserve the raw script as story source; show the screenplay and its inferred additions for approval before draft-upsert. Then show the exact breakdown diff and wait for separate approval before syncing. Read persisted changes back. Continue into image generation or paid production only if separately requested and approved.
+> Prepare an approved, AI-ready director’s screenplay and shot plan with its director-led Continuity Checklist for the confirmed episode. Preserve the raw script as story source; show the screenplay and its inferred additions for approval before draft-upsert. Then show the exact breakdown diff and wait for separate approval before syncing. Read persisted changes back. Continue into image generation or paid production only if separately requested and approved.
 
 ## The tracker is not the production record or an approval
 

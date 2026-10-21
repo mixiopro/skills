@@ -12,7 +12,6 @@
   "homepage": "https://mixio.pro",
   "repository": "https://github.com/mixiopro/skills",
   "license": "Apache-2.0",
-  "logo": "assets/logo.png",
   "category": "developer-tools",
   "keywords": [
     "media",

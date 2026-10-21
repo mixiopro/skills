@@ -5,11 +5,11 @@ Use this cycle to make a director’s shot plan complete before the user approve
 ## Cycle
 
 1. **Plan:** `/mixio:script-breakdown` maps each approved screenplay beat to a purposeful shot and labels direction `SCRIPTED`, `INFERRED`, or `OPEN DECISION`.
-2. **Audit:** `/mixio:continuity` checks beat coverage, cause and effect, character/prop state, geography, staging, cuts, camera, and sound.
+2. **Continuity Checklist:** `/mixio:continuity` writes scene-, shot-, and cross-scene/shot checks for beat coverage, cause and effect, character/prop state, geography, staging, cuts, camera, sound, generation risks, and missing coverage.
 3. **Correct locally:** Fix the cause at the shot where the state changes; update dependent rows and keep the approved screenplay as the baseline.
-4. **Re-audit:** Repeat the affected checks. Keep story-changing ambiguity visible as a question with alternatives.
+4. **Update checklist:** Recheck affected rows and revise the checklist after local corrections. Keep story-changing ambiguity visible as a question with alternatives.
 5. **Review:** Present the full table and exact proposed Studio diff. Match updates to confirmed element IDs and flag ambiguous or unmatched shots.
-6. **Wait:** Make no breakdown write until the user approves that diff. If the plan changes, re-audit and present a revised diff.
+6. **Wait:** Make no breakdown write until the user approves that diff. If the plan changes, update the checklist and present a revised diff.
 7. **Sync and verify:** After approval, use existing Studio primitives and read the scene, shot, and relation records back against the approved diff.
 
 ## Decision rules

@@ -73,7 +73,9 @@ PRODUCTION SUMMARY
 
 Total shots:                    13
 Total batches:                   7
-Rendered runtime:            53.0s
+Intended final-edit runtime:  40.0s
+Planned generated video:      53.0s
+Editorial reserve:            13.0s (32.5%; minimum 20%)
 Planning batches:                7  (contiguous orchestration groups)
 Generation submissions:         28  (15 keyframe submissions + 13 shot-scoped video submissions)
 
@@ -106,6 +108,8 @@ High-risk boundaries:
 Rapid pacing sections:
   Batches 2, 3 — 3+ consecutive RAPID/PUNCHY shots
 ```
+
+The generated total counts each candidate video output once. It is distinct from the final cut. Add alternate-output jobs and their image/audio requirements to these totals when present; use the [output ledger](../../mixio-pipeline/references/editorial-coverage.md).
 
 ## Plan persistence
 
@@ -161,7 +165,7 @@ await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipel
   shot_plan: {
     ...pipeline.shot_plan,
     total_batches: 7,
-    total_runtime: 53.0,
+    total_runtime: 53.0, // generated candidate video seconds; intended final edit is 40s in this example
     models_used: ["gpt_image_2", "veo_3_1", "seedance_image_to_video_v2", "sora_2", "seedance_text_to_video_pro"],
     archetypes: { SINGLE: 6, DUAL_FRAME: 3, MASTER_ANCHOR_MULTI_SHOT: 2, SEQUENCE: 1, T2V: 1 },
     keyframe_submissions: 15,

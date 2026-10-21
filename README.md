@@ -8,7 +8,7 @@ AI agent skills for media generation, workspace management, and creative workflo
 
 ## Install
 
-Pick one. Each method configures the Mixio MCP server and loads skills into your agent.
+Pick one to load the skills. The one-line installer configures supported MCP settings, and the plugins bundle MCP configuration. Skill-only installs need the separate MCP setup below.
 
 ### One-line installer (Recommended)
 
@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/mixiopro/skills/main/install.sh | b
 irm https://raw.githubusercontent.com/mixiopro/skills/main/install.ps1 | iex
 ```
 
-This single command sets up the global `~/.mixio` folder, installs all skills into `~/.agents/skills` and `~/.mixio/skills`, places `AGENTS.md`, and automatically registers them into all detected AI agents (Claude Code, Codex, Gemini/Antigravity, Kiro, Cursor, OpenCode, Copilot, Hermes, etc.).
+This command sets up the global `~/.mixio` folder, installs the skills into `~/.agents/skills` and `~/.mixio/skills`, places `AGENTS.md`, and registers skills and MCP settings at the agent paths supported by the installer (Claude Code, Codex, Gemini/Antigravity, Kiro, Cursor, OpenCode, Copilot, and Hermes).
 
 **Want your agent to do it?** Paste [INSTALL_FOR_AGENTS.md](./INSTALL_FOR_AGENTS.md) into any AI coding agent — it covers both steps, installing the skills and configuring the MCP server. Longer reference in [INSTALL.md](./INSTALL.md).
 
@@ -49,13 +49,15 @@ Then configure the MCP server (see [Manual](#manual-any-agent) below) — the sk
 Inside Claude Code:
 
 ```
-/plugin install mixiopro/skills
+/plugin marketplace add mixiopro/skills
+/plugin install mixio@mixio
 ```
 
 ### Codex plugin
 
 ```bash
-codex plugin add mixiopro/skills
+codex plugin marketplace add mixiopro/skills
+codex plugin add mixio@mixio
 ```
 
 ### Manual (any agent)
@@ -112,11 +114,11 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 
 | Skill | Invoke | Description |
 |-------|--------|-------------|
-| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — project/episode setup → local director’s plan → local continuity audit → approved Studio diff → reference readiness → shot planning → generation. |
+| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — project/episode setup → local director’s plan → director-led Continuity Checklist → approved Studio diff → reference readiness → shot planning → generation. |
 | [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Build or enrich approved character defaults/variants, location configurations/views, prop sheets, and one wide anchor frame per scene after the breakdown is accepted. |
 | [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit the accepted plan against required looks/views, visual evidence, Cast & World completeness, duplicates, metadata, and policy before generation. |
 | [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Enrich a supplied or existing scene/shot breakdown with production detail, or create one when no breakdown exists; prepare the exact Studio diff for review. |
-| [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Audit local coverage, character/prop state, geography, and shot-to-shot flow before Studio sync. Pair with `/mixio:eval` after rendering. |
+| [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Write a director-led Continuity Checklist for state, geography, coverage, and flow within shots and across scenes before Studio sync. Pair with `/mixio:eval` after rendering. |
 | [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot into 6 structural archetypes (grid, multi-cut, sequence, master anchor multi-shot, single/dual frame, t2v), match to best model, audit execution feasibility, and group into generation batches with a credit-costed production summary. |
 
 Tool skills are reference docs for the MCP surface and are safe to use standalone. Production skills encode the craft and the gating — start at `/mixio:pipeline` for a full episode.
@@ -130,15 +132,15 @@ Optional pre-production: use `/mixio:screenwriting` and the owned `how-to-make-s
 ```
 Step 00  Project + episode setup → resolve scope; read the current screenplay/script,
                                   references, existing shots, settings, and available images
-Step 01  Local shot plan         → /mixio:script-breakdown — enrich a supplied/existing breakdown, or create one if absent; plan surplus coverage for the final edit
-Step 02  Local coverage audit    → /mixio:continuity — correct and re-check state, geography, coverage, and flow
+Step 01  Local shot plan         → /mixio:script-breakdown — enrich a supplied/existing breakdown, or create one if absent; plan generated video clips for at least 120% of final runtime
+Step 02  Continuity Checklist    → /mixio:continuity — director-led checklist for state, geography, screen direction, shot flow, and missing shots, reactions, and other edit coverage
 Step 03  Review + sync           → show exact Studio diff; wait for approval; sync and verify by readback
 Step 04  Reference readiness     → /mixio:reference-audit; build missing sheets/anchors with /mixio:sheets
 Step 05  Shot planning           → /mixio:shot-planning — select methods/models, validate feasibility, estimate cost, get approval
 Step 06  Generation              → /mixio:generate per approved batch, then /mixio:eval before delivery
 ```
 
-The shot plan and continuity corrections stay local until the user approves the exact Studio diff. The runtime target describes the intended post-production cut: plan more generated material than that target, with useful alternate shots and extra coverage for selection, trimming, and alignment. Shot planning reports generated-material duration separately from final-edit runtime and includes surplus outputs in its cost estimate. Missing sheets and anchors are reported as readiness gaps and resolved before shot planning or generation. Image generation for reference sheets and anchors is separately confirmed; video generation requires cost approval unless already authorized. Post-render `/mixio:eval` checks whether the media preserves identity, style, scale, lighting, palette, geography, and other expected state.
+The shot plan and checklist stay local until the user approves the exact Studio diff. Plan generated video duration at no less than 1.2× the intended post-production runtime: a 90-minute episode needs at least 108 minutes of generated clips, and a 1-minute final needs at least 72 seconds. Count alternate angles, emotional takes, reaction shots, listening coverage, inserts, and transitions as candidate clips; still keyframes do not add video duration. Increase the reserve when the edit or screenplay needs it. Shot planning reports candidate-clip duration separately from final-edit runtime and includes all candidates in its cost estimate. Missing sheets and anchors are reported as readiness gaps and resolved before shot planning or generation. Image generation for reference sheets and anchors is separately confirmed; video generation requires cost approval unless already authorized. Post-render `/mixio:eval` checks whether the media preserves identity, style, scale, lighting, palette, geography, and other expected state.
 
 For one-off work, skip the pipeline:
 

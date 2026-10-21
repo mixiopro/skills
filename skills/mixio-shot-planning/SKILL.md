@@ -7,16 +7,16 @@ invoke: /mixio:shot-planning
 
 # Mixio Shot Planning
 
-Step 05 of `mixio-pipeline`. Runs after the local continuity audit (Step 02), approved breakdown sync (Step 03), and reference-readiness review (Step 04), before video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content feasible for that method?**
+Step 05 of `mixio-pipeline`. Runs after the director-led Continuity Checklist (Step 02), approved breakdown sync (Step 03), and reference-readiness review (Step 04), before video generation (Step 06). Answers: **how should each shot be generated, by which model, using what structural archetype, and is the shot's content feasible for that method?**
 
 Fixed-ceiling batching assumed one model and one method. Shot planning acknowledges the live catalog, classifies each shot into a deterministic archetype, audits execution feasibility (action density, speaking rate, duration), and prepares the production plan. Video generation costs the most, image generation comes next, and other operations cost little. Ask before video generation unless the user has already authorized it.
 
 ## Prerequisites
 
-- An approved, persisted breakdown (Step 03), completed local continuity audit (Step 02), and reference-readiness result (Step 04)
+- An approved, persisted breakdown (Step 03), completed director-led Continuity Checklist (Step 02), and reference-readiness result (Step 04)
 - Resolved project and episode scope (from numbered Studio lists); use persisted scene/shot IDs only — never infer a label
 - Every shot has `duration`, `camera_movement`, `action`, `audio` fields populated
-- The approved breakdown identifies the intended post-production runtime and marks proposed extra coverage/alternates with their editorial purpose and approximate duration
+- The approved breakdown identifies the intended post-production runtime; planned generated-video duration must reach at least 1.2× that target, with every alternate and extra clip labeled by purpose and approximate duration
 - `studio_list_use_cases({ outputType: "all" })` + `studio_get_use_case_input_schema({ useCaseId, modelId })` reachable (live catalog)
 - Project/episode settings read during setup and any missing production defaults confirmed and locked after breakdown acceptance (`settings.generation`, `settings.studio`)
 
@@ -28,7 +28,7 @@ For every shot, determine:
 2. **Model** — which engine produces it (the execution engine matched to shot characteristics)
 3. **Feasibility** — whether the shot's duration, action density, dialogue, and reference bindings fit model constraints
 
-Then group into deterministic batches and prepare the production plan for user review.
+Apply these decisions to every candidate in the approved [output ledger](../mixio-pipeline/references/editorial-coverage.md), including alternate takes attached to their owning confirmed shot. Refresh the applicable Continuity Checklist constraints for the selected route. Then group compatible work into batches and prepare the production plan for user review.
 
 ---
 
@@ -358,9 +358,7 @@ Report model assignments, archetype distribution, job counts, execution risks, a
 cross-model boundaries. Report the intended final-edit runtime separately from the total planned
 generated-material duration. Count every additional shot and alternate output in the latter, even
 when it is an editorial substitute for another shot; make clear which outputs are alternates and
-which extend coverage. The planned generated-material duration must exceed the intended final-edit
-runtime, so the editor can select, trim, align, and pace the cut. Do not present the sum of generated
-durations as the final cut runtime. Include all surplus outputs in job counts and the cost estimate.
+which extend coverage. The planned generated-video duration must be at least 1.2× the intended final-edit runtime, so the editor can select, trim, align, and pace the cut. For a 90-minute final, plan at least 108 minutes of generated clips; for a 1-minute final, plan at least 72 seconds. Count every alternate angle, emotional take, reaction/listener shot, insert, transition, and other candidate clip. Do not count still keyframes as video seconds or present generated duration as final cut runtime. Plan more when the screenplay or edit needs it. Use the [editorial coverage ledger](../mixio-pipeline/references/editorial-coverage.md) to avoid double-counting internal cuts or reused clips. Include all surplus outputs in job counts and the cost estimate.
 State the relative cost order once: video generation costs the most,
 image generation comes next, and other operations cost little. Omit per-job price itemization.
 Generation authorization follows `mixio-generate` and the user's stated permission level.

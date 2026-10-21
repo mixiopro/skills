@@ -16,7 +16,7 @@ This single command:
 1. Creates the global `~/.mixio` folder and `~/.agents` store.
 2. Clones or updates the complete suite of Mixio skills and `AGENTS.md`.
 3. Auto-discovers and registers skills across all installed AI agents (**Claude Code**, **Codex**, **Gemini / Antigravity**, **Kiro**, **Cursor**, **OpenCode**, **GitHub Copilot**, **Hermes Agent**).
-4. Configures the `@mixio-pro/mcp` MCP server in each agent's configuration.
+4. Configures the MCP server in supported JSON-based agent configs. Codex requires its plugin or manual MCP configuration; installing skill files alone does not configure the server.
 
 ---
 
@@ -43,12 +43,13 @@ Add `@mixio-pro/mcp` to your agent's MCP config (e.g. `~/.claude/claude_desktop_
 
 No install step or setup wizard — `npx` fetches it on first run. It creates a local cache at `~/.mixio/mcp-cache.db` (SQLite) that maps local files to their uploaded Mixio URLs.
 
-## Method 2: Clone skills only
+## Method 2: Clone and register skills only
 
 If you already have an MCP server configured and just want the skill docs:
 
 ```bash
-git clone --depth 1 https://github.com/mixiopro/skills.git ~/.mixio/skills
+git clone --depth 1 https://github.com/mixiopro/skills.git ~/mixio-skills
+npx skills add ~/mixio-skills -g -y
 ```
 
 ### Screenplay development system
@@ -67,20 +68,21 @@ Use `/mixio:screenwriting` for idea, premise, character/world, structure, scene,
 Interactively:
 ```
 /plugin marketplace add mixiopro/skills
-/plugin install mixio@mixiopro/skills
+/plugin install mixio@mixio
 ```
 Scripted (no chat, no dotfile editing — the key is prompted for and stored securely, not written to settings.json):
 ```bash
 claude plugin marketplace add mixiopro/skills
-claude plugin install mixio@mixiopro/skills --config mixio_api_key=sk-your-key-here
+claude plugin install mixio@mixio --config mixio_api_key=sk-your-key-here
 ```
 Bundles the `mixio` MCP server (`.mcp.json`, auto-discovered).
 
 ### Codex
 ```bash
-codex plugin add mixiopro/skills
+codex plugin marketplace add mixiopro/skills
+codex plugin add mixio@mixio
 ```
-Bundles the `mixio` MCP server too (`.codex-plugin/plugin.json` points at `.codex-plugin/mcp.json`). Codex has no install-time key prompt — export `MIXIO_API_KEY` in your environment before running Codex; the server inherits it.
+The marketplace uses the legacy-compatible `.claude-plugin/marketplace.json` catalog; see the [official plugin packaging guide](https://developers.openai.com/plugins/build/plugins). Bundles the `mixio` MCP server too (`.codex-plugin/plugin.json` points at `.codex-plugin/mcp.json`). Codex has no install-time key prompt — export `MIXIO_API_KEY` in your environment before running Codex; the server inherits it.
 
 ### Cursor
 Clone this repo into your project, Cursor auto-discovers `.cursor-plugin/plugin.json`. MCP server config is not bundled for this method — use Method 1.

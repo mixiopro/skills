@@ -11,7 +11,7 @@ Prepare a complete local shot plan before writing a breakdown to Studio. The sel
 
 Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md): the plan serves audience intent and sequence flow, while source facts, user-authored direction, inference, and open decisions remain distinct. Bring in relevant cinematography, production design, props, script-supervision, editing, sound, or action perspectives to answer craft-specific questions; record their recommendations in the plan rather than treating them as approved story facts.
 
-The normal path is **local analysis → local continuity review → exact Studio diff → explicit approval → sync and readback**. Do not use the write-through `script_breakdown` job as the normal path. This skill does not generate images, video, or audio.
+The normal path is **local analysis → director-led Continuity Checklist → exact Studio diff → explicit approval → sync and readback**. Do not use the write-through `script_breakdown` job as the normal path. This skill does not generate images, video, or audio.
 
 ## Choose the breakdown mode and read the current production
 
@@ -47,11 +47,11 @@ Run these questions in story order. Each shot should solve an audience, action, 
 - Establish geography when the audience needs orientation. Do not add a generic wide shot to every scene; a direct start or purposeful disorientation may serve better.
 - Keep screenplay facts and authored direction distinct. The screenplay-development review labels additions; a useful extra breakdown shot may also be `INFERRED`. A choice that changes story facts or character intent is an `OPEN DECISION` with options for the user.
 - Do not add dialogue or rewrite screenplay action to make the plan easier. Put proposed visual direction in the shot plan.
-- Treat a stated runtime as the intended duration after post-production. Plan more generated material than that final runtime so the editor can select, trim, align, and pace the sequence. Add extra shots or clearly identified alternates when they provide useful coverage or choices; give each a purpose and approximate duration. Do not force generated shot durations to sum exactly to the target runtime or shorten action just to make them fit. Mark proposed surplus coverage `INFERRED`, and carry it into the production and cost plan; this direction is not billable-generation approval.
+- Treat a stated runtime as the intended duration after post-production. Plan generated video equal to at least 1.2× the final runtime so the editor can select, trim, align, and pace the sequence. Add extra shots or clearly identified alternates when they provide useful coverage or choices; give each a purpose and approximate duration. Do not force generated shot durations to sum exactly to the target runtime or shorten action just to make them fit. Mark proposed surplus coverage `INFERRED`, and carry it into the production and cost plan; this direction is not billable-generation approval.
 
 ## Produce the local shot table
 
-For an existing breakdown, keep its scenes and shots as the baseline rows and enrich them in the local review table. For a new breakdown, segment the source into scenes and dramatic beats. In both modes, preserve original order and line references. Add visual coverage where it is missing, plus editorial surplus where it gives the editor meaningful choices. Label provenance at the shot level and split it when a row mixes source and inference—for example, `SCRIPTED beat; INFERRED framing and camera move`. Use this table in the user-visible review:
+For an existing breakdown, keep its scenes and shots as the baseline rows and enrich them in the local review table. For a new breakdown, segment the source into scenes and dramatic beats. In both modes, preserve original order and line references. Add visual coverage where it is missing, plus editorial surplus where it gives the editor meaningful choices. Label provenance at the shot level and split it when a row mixes source and inference—for example, `SCRIPTED beat; INFERRED framing and camera move`. Use this table in the user-visible review and add the [output ledger](../mixio-pipeline/references/editorial-coverage.md) for the main takes, alternate angles/emotions, reactions, inserts, and bridges:
 
 | Scene / shot | Source beat | Audience purpose / POV | Action, framing, and camera | Character, prop, and space state | Connection from / to | Provenance and rationale | Readiness gaps |
 |---|---|---|---|---|---|---|---|
@@ -73,10 +73,10 @@ Before presenting the diff, confirm:
 - Each shot has a purpose and each transition has a visual, action, sound, or time/space relationship to its neighbors.
 - Inferred direction does not silently settle a story-changing question.
 - If a user-supplied or existing breakdown was the baseline, its authored scenes, shots, order, and direction remain recognizable in the enriched table; every proposed structural change is called out separately.
-- Planned generated material exceeds the intended post-production runtime and includes useful extra coverage or alternates, with their purpose and approximate durations visible.
+- Planned generated video reaches at least 1.2× the intended post-production runtime. The [output ledger](../mixio-pipeline/references/editorial-coverage.md) identifies each candidate clip, purpose, owning shot, alternate relationship, approximate duration, and checklist items; still keyframes are excluded.
 - Existing images ground only the details they actually show. Missing sheets/anchors are listed as readiness gaps; do not claim visual validation without an image.
 
-Use `/mixio:continuity` for the full local audit. Fix the local plan and repeat the affected checks before preparing the Studio diff.
+Use `/mixio:continuity` to create the director-led Continuity Checklist. Resolve grounded coverage gaps locally and include the checklist with the proposed Studio diff.
 
 ## Prepare the exact Studio diff
 

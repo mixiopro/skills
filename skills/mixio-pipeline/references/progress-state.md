@@ -1,17 +1,22 @@
 # Pipeline Progress State
 
-The director’s screenplay change map, shot plan, and local continuity corrections are review
+The director’s screenplay change map, shot plan/output ledger, and Continuity Checklist are review
 artifacts in the agent’s current context. They are not persisted before their respective
 approvals and use no new Studio schema. If context is lost before screenplay approval, rebuild
 the screenplay draft from the raw script, current screenplay, references, and user decisions. If
-lost before shot sync, rebuild the plan from the approved screenplay, references/assets, and
-Studio graph. After sync, read back the persisted graph and resume from that state.
+lost before shot sync, rebuild the plan, output ledger, and checklist from the approved screenplay, references/assets, and
+Studio graph. After sync, read back the persisted graph, reconstruct the checklist against current direction/references, and resume from that state.
 
 After an approved sync, store only durable production state in existing project, episode, and
 shot metadata. Preserve unrelated values when updating `metadata.pipeline`:
 
 ```javascript
-studio_update_episode({ projectId, episodeId, updates: { metadata: { pipeline: {
+const episode = await studio_get_episode({ episodeId })
+const currentMetadata = episode.metadata ?? {}
+studio_update_episode({ projectId, episodeId, updates: { metadata: {
+  ...currentMetadata,
+  pipeline: {
+  ...currentMetadata.pipeline,
   aspect_ratio,
   anchor_aspect_ratio,
   shot_contract: { mode: "multi_cut", band: "10-15" },

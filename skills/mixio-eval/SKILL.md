@@ -10,14 +10,13 @@ invoke: /mixio:eval
 Evaluate rendered media before delivery, and evaluate reference-image candidates
 during Step 04 only when the live catalog explicitly supports still-image
 comparison. This skill uses the modern hosted Studio evaluator gateway. For
-pre-render screenplay and shot-spec continuity audits, use `mixio-continuity`.
+the director-led Continuity Checklist before rendering, use `mixio-continuity`.
 
 Use the shared [director’s lens](../mixio-pipeline/references/directors-lens.md) for the evaluation question: does the result communicate the accepted shot’s purpose and connect to its neighbors? Apply only relevant craft checks—for example, cinematography for framing/light/movement, script supervision for state and screen direction, editing for transitions, and sound design when audio evidence is available. Use supported plan, shot-plan, shot, and expected-state context where available, and distinguish creative-direction mismatches from technical image defects.
 
 ## Boundary with `mixio-continuity`
 
-Use `mixio-continuity` for the pre-render, text-and-shot-spec audit that can
-correct screenplay or shot metadata before pixels are generated. Use this skill
+Use `mixio-continuity` to write scene, shot, and transition checklist items and propose grounded corrections to the local plan before rendering. Use this skill
 for post-rendered sequence evidence, or for a reference candidate only when a
 listed profile and live contract accept still-image candidates plus the needed
 approved-reference/expected-state evidence. When a request is ambiguous, route
@@ -297,6 +296,8 @@ For cross-angle checks, describe the scene geography rather than only saying
 landmarks, frame regions, eyeline, and any deliberate axis crossing. Record
 identity, pose, wardrobe, and prop state separately from geography so a subject
 can remain the same while a handoff or prop placement still fails.
+
+Carry applicable items from the approved [Continuity Checklist](../mixio-continuity/references/checklist-template.md) into the live contract's supported prompt, `shot-plan`, `shots`, or plan context. Provide the actual reference and neighboring media evidence the selected profile needs. Report observed deviations against checklist items, including absent reactions/connective coverage and broken emotional or causal progression; a planning checkbox does not prove rendered compliance.
 
 ## What the strict continuity review covers
 
