@@ -18,6 +18,6 @@ Use this cycle to make a director’s shot plan complete before the user approve
 - The screenplay-development step may add useful connective visual direction as `INFERRED`; the raw script remains the story source. At shot planning, further inferred coverage is allowed. Do not invent dialogue, motivations, or story facts to close a gap.
 - Missing sheets, reference images, and anchors are generation-readiness gaps. They do not block local planning; resolve them before generation.
 - A clear ID match can be updated. An uncertain match remains out of the write set until clarified. Never silently overwrite or delete an unmatched shot.
-- Image generation and cost approval stay downstream of the accepted breakdown.
+- Image generation and generation authorization stay downstream of the accepted breakdown.
 
 The local draft is ephemeral and uses no new Studio schema. After context loss, rebuild it from the current source and Studio graph; prior analysis is not approval.

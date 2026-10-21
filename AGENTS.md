@@ -75,7 +75,7 @@ The `how-to-make-script` root skill is vendored under `skills/how-to-make-script
 | `mixio-reference-audit` | `/mixio:reference-audit` | Audit the accepted plan against reference looks/views, visual evidence, Cast & World consistency, duplicates, and metadata before generation |
 | `mixio-script-breakdown` | `/mixio:script-breakdown` | Enrich a supplied/existing scene-and-shot breakdown, or create one from the script when absent; prepare an approval-gated Studio diff |
 | `mixio-continuity` | `/mixio:continuity` | Director-led Continuity Checklist covering scene, shot, cross-scene/shot risks and missing coverage before Studio sync; pair `/mixio:eval` with rendered media |
-| `mixio-shot-planning` | `/mixio:shot-planning` | 6 structural archetypes (incl. `MULTI_CUT` 10–15s) + model matching, execution audit, batches, and cost approval |
+| `mixio-shot-planning` | `/mixio:shot-planning` | 6 structural archetypes (incl. `MULTI_CUT` 10–15s) + model matching, execution audit, and batches |
 
 For story work, start with `/mixio:screenwriting`; do not look up a Studio project or episode until the screenplay handoff is ready. For production work, use `/mixio:pipeline` to coordinate the gated steps. Invoke a production skill directly when you only need that one step — each one's description says which of its siblings it isn't, and falls back to `mixio-pipeline` when that's still unclear.
 
@@ -94,7 +94,7 @@ PRE Story development + screenplay handoff → Mixio-owned `how-to-make-script` 
 02  Continuity Checklist   → /mixio:continuity — write scene, shot, and cross-scene checks; identify generation risks and missing coverage
 03  Review + sync           → show exact Studio diff; wait for approval; sync and verify by readback
 04  Reference readiness     → /mixio:reference-audit; build missing sheets/anchors with /mixio:sheets
-05  Shot planning           → /mixio:shot-planning — select methods/models, validate feasibility, estimate cost, get approval
+05  Shot planning           → /mixio:shot-planning — select methods/models, validate feasibility, review the production plan
 06  Generation              → /mixio:generate per approved batch, then /mixio:eval before delivery
 ```
 
@@ -112,7 +112,7 @@ Before any breakdown write, show the completed plan and exact Studio diff. Match
 - Never write a placeholder (`TBD`, `unknown`, `n/a`) to satisfy a required field. Readers filter those, so the shot persists and renders blank.
 - **MCP generation reference binding**: Put images in the use-case schema’s `input.media` slots and bind prompt mentions with one public map: `{ "@tag": "exact URL from input.media" }`. Every map key must appear in the prompt; every mapped URL must match one media URL in this job; URLs must be unique. Reject missing, mismatched, duplicate, unused bindings and prompt tags without bindings. MCP callers must not send `slotTags` or a separate human-label map: the adapter derives Studio’s internal slot bindings and display labels from mention tags and reference metadata. `slotReferences` is normally derived from `input.media`; pass it only to override reference metadata or element links. Each batch job has its own `mentionMap`. Use the live use-case schema for model-specific media slots and parameters.
 - Upload final outputs with `upload_file` for permanent URLs, and use `studio_evals_evaluate_media` plus `studio_evals_get_evaluation_result` before delivering to a client.
-- Generation is billable. Ask before video unless the user has said otherwise.
+- Generation is billable. Ask before video unless the user has already authorized it; do not add a separate cost-review approval gate.
 
 ## MCP server
 

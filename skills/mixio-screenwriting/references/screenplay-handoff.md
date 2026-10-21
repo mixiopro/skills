@@ -54,7 +54,7 @@ After receiving the package, Mixio performs the following in order:
 2. **Source selection:** read `screenplay-grammar.md` when interpreting or authoring native screenplay text. A non-empty native `SCREENPLAY` body is the source; otherwise use the existing episode script or supplied high-level source. Preserve whichever source is selected verbatim during shot planning. Do not require an outline or scene card to be expanded into screenplay form unless the user asked for screenplay development. When the user explicitly requests screenplay authoring or revision in Mixio, save the approved text as a draft with `studio_upsert_screenplay`; Studio screenplay approval remains a human action.
 3. **Local production plan:** build and audit the director’s shot plan before any breakdown write; show the exact Studio diff and wait for approval.
 4. **Approved sync and readiness:** sync the approved breakdown and verify readback, then audit and build missing references/anchors before shot planning.
-5. **Shot planning and generation:** select methods/models, confirm cost, then generate and evaluate through the production pipeline.
+5. **Shot planning and generation:** select methods/models, follow the user's generation-authorization instructions, then generate and evaluate through the production pipeline.
 
 The native screenplay body remains the source of truth for breakdown once it is non-empty. The local shot plan preserves the selected source and labels visual additions as sourced, inferred, or open decisions.
 

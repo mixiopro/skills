@@ -98,9 +98,6 @@ Keyframe submissions:                 15 (6 single + 3×2 dual + 2 master-derive
 Keyframe outputs:                     18 (the sequence parent orchestrates 4 child frame jobs)
 Video generation jobs:                13 (one scoped video submission per shot; batches do not replace them)
 
-Relative cost note: Video generation costs the most, image generation comes next,
-and other operations cost little.
-
 High-risk boundaries:
   Batch 3→4: cross-model (Seedance→Veo) — continuity frame critical
   Batch 6→7: scene transition — less critical
@@ -190,5 +187,5 @@ await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipel
 }}}})
 ```
 
-The relative cost order is the operational guidance: video generation costs the most, image
-generation comes next, and other operations cost little. Use this relative order in planning.
+Do not add a price estimate or cost-approval field to this planning artifact. Generation
+authorization follows the user's stated permission and `mixio-generate`.

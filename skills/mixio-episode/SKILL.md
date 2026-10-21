@@ -128,7 +128,7 @@ Use these for element types without a dedicated tool (SCENE, SHOT, KEYFRAME, etc
 9. studio_link_graph → apply approved character/shot relations and appearance state
 10. read persisted scenes, shots, and relations back → verify against the approved diff
 11. /mixio:reference-audit, then /mixio:sheets for missing generation references (confirm image work)
-12. /mixio:shot-planning → choose method/model and approve cost
+12. /mixio:shot-planning → choose method/model and review the production plan
 13. → mixio-generate: submit_studio_job scoped to { projectId, episodeId, shotId }
 ```
 

@@ -15,8 +15,8 @@ Keep the native goal/task plan short and phase-based. It should capture:
 
 1. **Objective:** what result the user asked for in this confirmed project and episode.
 2. **Milestones:** resolve scope and read raw source/current screenplay; develop and review the director’s screenplay when needed; get approval, draft-upsert, and read back; build the local director/specialist shot plan; write the director-led Continuity Checklist and verify the 1.2× generated-video plan; show the exact breakdown diff; wait for approval; sync and read back; resolve reference readiness; plan production; generate and evaluate only when included and approved.
-3. **Constraints:** preserve the raw script as story source; mark screenplay additions as inference; do not write the screenplay draft or breakdown before its respective approval; respect separate image-generation and cost gates.
-4. **Evidence:** source-to-screenplay change map, reviewed screenplay, explicit screenplay approval, persisted draft readback, reviewed shot plan/output ledger, Continuity Checklist and diff, explicit breakdown approval, persisted Studio readback, readiness and cost approvals, and evaluation results as applicable.
+3. **Constraints:** preserve the raw script as story source; mark screenplay additions as inference; do not write the screenplay draft or breakdown before its respective approval; respect separate image-generation and generation-authorization gates.
+4. **Evidence:** source-to-screenplay change map, reviewed screenplay, explicit screenplay approval, persisted draft readback, reviewed shot plan/output ledger, Continuity Checklist and diff, explicit breakdown approval, persisted Studio readback, readiness decisions, generation authorization, and evaluation results as applicable.
 5. **Stop and resume conditions:** stop at each required user decision. On resume, re-resolve the scope and read current Studio state before continuing.
 
 Example objective:
@@ -27,7 +27,7 @@ Example objective:
 
 - Use native goals and task lists for progress visibility and continuation cues, not as the source of truth for screenplay, project, episode, shots, or relations. Studio remains authoritative for persisted production state.
 - Keep the detailed, unapproved shot table in the working context. A goal, task checkbox, saved plan, or completed milestone does not approve it or authorize a Studio write.
-- An approval gate is satisfied only by the user’s explicit decision. A task list marked complete cannot approve a diff, a rendered sheet, or a credit spend.
+- An approval gate is satisfied only by the user’s explicit decision. A task list marked complete cannot approve a diff, a rendered sheet, or a billable generation.
 - A persistent goal does not grant open-ended authority to continue through approval gates or submit billable jobs.
 - If the working context is lost before sync, rebuild the local plan from the current source and Studio graph; never assume an old plan or tracker describes current Studio state.
 
