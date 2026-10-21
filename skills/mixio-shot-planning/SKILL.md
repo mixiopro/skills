@@ -1,6 +1,6 @@
 ---
 name: mixio-shot-planning
-description: "Classify each shot into 6 structural archetypes (incl. MULTI_CUT for 10–15s multi-cut shots), match to model capabilities, validate duration and action density, verify prompt @ mentions and paired mention maps, and group shots into generation batches — the model-aware layer between continuity and video generation. Video generation costs the most, image generation comes next, and other operations cost little. Submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
+description: "Classify each shot into 6 structural archetypes (incl. MULTI_CUT for 10–15s multi-cut shots), match to model capabilities, validate duration and action density, verify prompt @ mentions and URL-valued mentionMap bindings, and group shots into generation batches — the model-aware layer between continuity and video generation. Video generation costs the most, image generation comes next, and other operations cost little. Submitting the actual generation job is mixio-generate. Unclear which step you need → mixio-pipeline."
 version: 0.4.0
 invoke: /mixio:shot-planning
 ---
@@ -263,41 +263,45 @@ Pull character bindings once via `studio_get_production_context`'s `lookBindings
 
 ### Prompt mention & mention map validation (Universal Invariant across all models & methods)
 
-Regardless of the model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX) or generation method (SINGLE, DUAL_FRAME, MULTI_KF, GRID, MULTI_CUT, T2V), the prompt materializer and provider compilers require prompt text to contain explicit `@` mention tokens to map media references to model-specific tokens (`Image 1`, `@Image1`, `@tag`) or perform subject grounding. Failure to include `@` tokens or omitting `mentionMap` causes models to guess identity and waste generation work (e.g. incident `b463831e-ac6f-4a40-a2b2-0ebde2527c92`). Run this check before batching and carry zero blocking findings into the Step 05 gate:
+For every media-bearing job, validate the public MCP binding contract before batching. The caller
+supplies `mentionMap` as `{ "@tag": "exact URL from input.media" }`; the adapter derives Studio’s
+internal `slotTags` and display labels. Do not ask MCP callers to provide those internal fields.
+Run this check before batching and carry zero blocking findings into the Step 05 gate:
 
 ```
-for each shot with media references (primary, endFrame, references, character_ref,
-location_ref, style_ref, asset_ref, clothing_ref, image_urls, motionRef, audioRef,
-enhancer_context, and every other schema-declared media slot):
-    assets = flatten_media_slots(input.media)  # referenceIdentityKey = exact elementId/mediaId/url;
-                                               # retain slot/index for diagnostics only
+for each shot with media references:
+    assets = flatten_media_slots(input.media)  # retain slot/index for diagnostics
     effective_prompt = prompt if prompt is present else materialized_prompt(sequence_notes, shot_spec)
-    if assets.length == 0:
-        continue
-    if slotTags is missing OR mentionMap is missing:
-        FINDING: MENTION_MAP_UNPAIRED — media requires both maps
-        → BLOCKING: create one slotTags + mentionMap pair for every asset
-    for each assetKey, asset in assets:
-        tag = slotTags[asset.referenceIdentityKey]
-        if tag is missing OR tag does not start with '@' OR effective_prompt contains tag zero times:
-            FINDING: PROMPT_MENTION_MISSING — asset has no prompt @tag
-            → BLOCKING: embed @tag where that asset acts
-        if mentionMap[tag] is missing or blank:
-            FINDING: MENTION_MAP_UNPAIRED — slot tag has no label binding
-            → BLOCKING: add mentionMap[tag] with the asset's human-readable label
-    if any tag value is assigned to more than one asset:
-        FINDING: MENTION_TAG_COLLISION — one @tag points at multiple assets
-        → BLOCKING: assign a unique tag and label to each asset
-    if any slotTags key has no asset OR any mentionMap key is not used by slotTags:
-        FINDING: MENTION_MAP_ORPHANED — maps do not match active media
-        → BLOCKING: remove orphan entries or bind them to a real asset
+    urls = all media URLs in this job
+    if any URL is duplicated:
+        FINDING: MENTION_URL_DUPLICATE — one URL cannot identify two references
+        → BLOCKING: use distinct URLs for each reference
+    for each [tag, url] in mentionMap:
+        if url does not exactly match one URL in input.media:
+            FINDING: MENTION_URL_MISMATCH — map URL is absent from this job’s media
+            → BLOCKING: correct the URL or media slot
+        if effective_prompt contains tag zero times:
+            FINDING: PROMPT_MENTION_MISSING — mapped tag is absent from the prompt
+            → BLOCKING: embed the exact @tag where that asset acts
+    if a prompt @tag has no mentionMap entry, or a media reference identified in the prompt has no binding:
+        FINDING: MENTION_MAP_MISSING — prompt and media bindings are incomplete
+        → BLOCKING: add the exact URL binding or remove the unused mention
+    if any mentionMap entry is unused:
+        FINDING: MENTION_MAP_ORPHANED — map contains an unused binding
+        → BLOCKING: remove orphan entries
 ```
 
-For a sequence use case that intentionally leaves the caller `prompt` unset, validate the effective materialized prompt (`sequence_notes` plus the shot-spec prompt); an omitted caller field is not a grounding bypass. Descriptive prose may supplement a tag, never replace it. Record every validated pairing in the [Prompt & Mention Sheet](../mixio-generate/references/prompt-mention-sheet.md), which also carries the per-route token vocabulary (`<Picture n>`, `@Image{n}`, `<IMAGE_REF_{n}>`, …) that Step 06's compilers expect. Any `PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or `MENTION_MAP_ORPHANED` finding blocks the production summary and Step 06 approval until corrected.
+For a sequence use case that intentionally leaves the caller `prompt` unset, validate the effective
+materialized prompt (`sequence_notes` plus the shot-spec prompt); an omitted caller field is not a
+grounding bypass. Descriptive prose may supplement a tag, never replace it. Record each validated
+mention and URL in the [Prompt & Mention Sheet](../mixio-generate/references/prompt-mention-sheet.md).
+Any `PROMPT_MENTION_MISSING`, `MENTION_MAP_MISSING`, `MENTION_URL_MISMATCH`,
+`MENTION_URL_DUPLICATE`, or `MENTION_MAP_ORPHANED` finding blocks the production summary and
+Step 06 approval until corrected.
 
 ### Natural skin prompt readiness
 
-When the locked visual style or user direction is photorealistic/hyperrealistic, inspect every shot where character skin is visible and ensure its effective prompt carries concrete natural-skin and anti-smoothing direction. Match detail to framing: fine pores, subtle tonal variation, peach fuzz, and faint expression lines belong in close views where they can resolve; use natural complexion and surface variation at wider scales. Specify soft, physically plausible light and natural contrast when skin appearance matters. Do not rely on `ultra-realistic`/`8K` slogans, and do not add unsupported scars, freckles, or numeric reference weights. Bind the approved character image when available and permitted; `@` mentions/maps remain mandatory. Missing skin direction is a blocking prompt-readiness finding for a realistic character close-up and must be corrected before the production summary.
+When the locked visual style or user direction is photorealistic/hyperrealistic, inspect every shot where character skin is visible and ensure its effective prompt carries concrete natural-skin and anti-smoothing direction. Match detail to framing: fine pores, subtle tonal variation, peach fuzz, and faint expression lines belong in close views where they can resolve; use natural complexion and surface variation at wider scales. Specify soft, physically plausible light and natural contrast when skin appearance matters. Do not rely on `ultra-realistic`/`8K` slogans, and do not add unsupported scars, freckles, or numeric reference weights. Bind the approved character image when available and permitted; URL-valued `mentionMap` bindings and prompt `@` mentions remain mandatory. Missing skin direction is a blocking prompt-readiness finding for a realistic character close-up and must be corrected before the production summary.
 
 ### Continuity handoff feasibility
 
@@ -314,8 +318,8 @@ if shot is first in a new batch AND previous batch exists:
 
 Report archetype/model distribution and every finding with remediation, separating blocking from
 advisory work. Use the [worked format](references/execution-audit.md#feasibility-report); the report
-must include any `PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or
-`MENTION_MAP_ORPHANED` finding with its asset, tag, and remediation. Resolve every blocker before
+must include any `PROMPT_MENTION_MISSING`, `MENTION_MAP_MISSING`, `MENTION_URL_MISMATCH`,
+`MENTION_URL_DUPLICATE`, or `MENTION_MAP_ORPHANED` finding with its asset, tag, and remediation. Resolve every blocker before
 advancing.
 
 ---
@@ -384,8 +388,8 @@ Announce the close with the production plan, for example:
 1. read approved breakdown (Step 03) + reference readiness from Step 04 + project settings + live model catalog
 2. match each shot to the best model based on characteristics; read its live input schema and duration ceiling
 3. classify each shot into one of 6 archetype families (GRID / MULTI_CUT / SEQUENCE / MASTER_ANCHOR_MULTI_SHOT / SINGLE or DUAL_FRAME / T2V), using the selected model ceiling
-4. run execution audit (duration limits, action density, speaking rate, references, prompt @ mentions + mentionMap)
-5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions, pair slotTags + mentionMap, remove orphans)
+4. run execution audit (duration limits, action density, speaking rate, references, prompt @ mentions + URL-valued mentionMap)
+5. resolve blocking feasibility findings (split shots, adjust durations, embed @ mentions, bind URLs in mentionMap, remove orphan bindings)
 6. group into contiguous batches per model-specific ceilings
 7. emit PRODUCTION SUMMARY with archetype distribution, model assignments, job counts, and execution risks
 8. studio_revise_shot_specs → persist plan in shot metadata; persist `step_05: "awaiting_approval"` and a plan digest in episode metadata.pipeline

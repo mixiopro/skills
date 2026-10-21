@@ -1,46 +1,38 @@
 # Prompt & Mention Sheet
 
-Provenance: pairing rules and universal invariants come from the AGENTS.md "Mandatory
-prompt `@` mentions" contract and `mixio-shot-planning`'s Prompt mention validation;
-per-route token grammars come from `studio_get_use_case_input_schema` route compilers and
-the model catalogs as recorded in `model-comparison.md`. Live Studio schemas always
-override this file.
+Provenance: the public MCP binding contract is defined by `AGENTS.md` and the live generation
+MCP tool descriptions. Model-specific media slots and provider token grammars come from the live
+use-case schema and route catalog; those live sources override this sheet.
 
-The sheet is the pre-submit artifact for one job: one table pairing every media asset
-with the `@tag` embedded in the prompt, the human label behind that tag, and the token
-each routed provider will compile it to. Step 06's gate validates the **job** against
-the **sheet** — if they disagree, fix the job, not the sheet, unless the plan changed.
+Use this as the pre-submit worksheet for one job. It helps verify that each prompt mention is
+bound to the right image URL and that the tag appears in the effective prompt. The public MCP
+payload has one binding map: `mentionMap` maps `@tag` to the exact URL in that job’s
+`input.media`. The MCP adapter derives Studio’s internal `slotTags` and labels. Callers must not
+send those internal fields or a separate label map.
 
-## Pairing table
+## Per-job reference worksheet
 
-Fill one row per asset in `input.media` (every schema-declared slot: `primary`,
-`endFrame`, `references`, `character_ref`, `location_ref`, `style_ref`, `asset_ref`,
-`clothing_ref`, `image_urls`, `motionRef`, `audioRef`, `enhancer_context`, …):
+Record one row for every reference that the prompt identifies by a mention. The `input.media`
+slot and cardinality come from the selected model’s live use-case schema. Use distinct URLs for
+distinct references, even if the images depict the same entity.
 
-| Studio reference identity key (`slotTags` key) | `input.media` source | `@tag` | mentionMap label | compiled token (routed model) | where the tag appears in the prompt |
+| Reference / local provenance | `input.media` slot | Exact media URL | `@tag` / `mentionMap` key | Compiled token (routed model) | Where tag appears in prompt |
 |---|---|---|---|---|---|
-| `sceneAnchorId` | `image_urls[0]` | `@scene1` | Scene 1 kitchen wide / approved view cam-a | H3: semantic tag (compiler-mapped) | context + shot plan |
-| `tonyId` | `image_urls[1]` | `@tony` | Tony / `tony.v2.suit` | H3: semantic tag | subject |
-| `watchId` | `image_urls[2]` | `@watch` | Tony's watch (prop) | H3: semantic tag | subject |
+| Scene 1 kitchen wide / approved view cam-a | `image_urls[0]` | `https://.../scene1.png` | `@scene1` | H3: semantic tag (compiler-mapped) | context + shot plan |
+| Tony / `tony.v2.suit` | `image_urls[1]` | `https://.../tony.png` | `@tony` | H3: semantic tag | subject |
+| Tony’s watch (prop) | `image_urls[2]` | `https://.../watch.png` | `@watch` | H3: semantic tag | subject |
 
-`slotTags` is keyed by Studio's reference identity key, not the `input.media` slot name or
-array index. Use `selectedElements.identityKey` when one is supplied; for URL-only media with no
-identity key, use the exact URL string as the key. `slotReferences` is keyed by media slot and
-does not change the `slotTags` key format. Do not guess a key from `primary` or `references[0]`.
+Rules (blocking):
 
-Rules (all blocking):
-
-- **One-to-one coverage both ways.** Every asset has exactly one `slotTags` entry; every
-  `@tag` key in `mentionMap` has a non-empty label; no tag maps to two assets; no
-  `mentionMap` entry with no asset (orphan).
-- **The tag must literally occur in the effective prompt** — zero occurrences fails
-  `PROMPT_MENTION_MISSING`. A tag used only in `sequence_notes`/prose without the `@`
-  form does not count.
-- **Labels are human-readable and non-empty** — "Tony / tony.v2.suit", not "ref1".
-- Never hand-author provider tokens (`Image 1`, `@Image1`, `<IMAGE_REF_1>`) in the
-  authored prompt; those are compiler output. The compiled-token column records what
-  the compiler will emit so the reviewer can check grounding without knowing the
-  authoring rule per model.
+- Every `mentionMap` value must exactly match a URL in this job’s `input.media`.
+- URLs must be unique within the job; one URL cannot disambiguate two references.
+- Every `mentionMap` key must appear as the exact `@tag` in the effective prompt.
+- Reject missing bindings, URL mismatches, duplicate URLs, unused map entries, and prompt tags
+  that have no map entry.
+- Never send `slotTags` or a human-label map from an MCP caller. The adapter derives internal
+  bindings and labels from the URL-valued map, media, and reference metadata.
+- Never hand-author provider tokens (`Image 1`, `@Image1`, `<IMAGE_REF_1>`) in the authored
+  prompt; those are compiler output. The compiled-token column is for review only.
 
 ## Route token table
 
@@ -72,11 +64,17 @@ complete cut details as plain prose rather than H3's bracketed shot headers.
 ## Worked example (12s MULTI_CUT, H3)
 
 ```
-slotTags   { [sceneAnchorId]: "@scene1", [tonyId]: "@tony", [watchId]: "@watch" }
+input.media {
+  image_urls: [
+    { url: "https://.../scene1.png" },
+    { url: "https://.../tony.png" },
+    { url: "https://.../watch.png" }
+  ]
+}
 mentionMap {
-  "@scene1": "Scene 1 kitchen wide / approved view cam-a",
-  "@tony":   "Tony / tony.v2.suit",
-  "@watch":  "Tony's watch (prop)"
+  "@scene1": "https://.../scene1.png",
+  "@tony":   "https://.../tony.png",
+  "@watch":  "https://.../watch.png"
 }
 
 prompt (six exact H3 sections; abbreviated example):
@@ -99,7 +97,6 @@ non_diegetic_music
 N/A.
 ```
 
-Before submitting, run the sheet through the same checks as
-`mixio-shot-planning`'s mention validation: coverage both ways, tag occurrence in the
-effective prompt, non-empty labels, no duplicate assignment. Any failure is a blocking
-finding and the job is not submitted.
+Before submitting, run the worksheet through `mixio-shot-planning`’s MCP mention validation:
+URL matches, URL uniqueness, exact tag occurrence in the effective prompt, no unused maps, and no
+prompt tags without bindings. Any failure is blocking and the job is not submitted.

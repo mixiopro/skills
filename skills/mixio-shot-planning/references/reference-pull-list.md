@@ -22,7 +22,7 @@ generation — that is what `REFERENCE_VARIANT_VIEW_NOT_READY` means in the audi
 4. For each approved row, fetch the concrete image URL with `studio_get_element` (or the
    inventory's recorded URL when it is still confirmed current).
 5. Reserve the `@tag` the shot's prompt will use for that asset — the same tag that lands
-   in `slotTags`/`mentionMap` (see `mixio-generate`'s prompt-mention-sheet.md).
+   in the URL-valued `mentionMap` (see `mixio-generate`'s prompt-mention-sheet.md).
 
 ## Row format
 
@@ -54,4 +54,4 @@ Rules:
   stops before Step 05's batch output is handed to Step 06.
 - Step 06's pre-submit gate consumes it again: every asset in `input.media` must match a
   row (same URL/elementId), and every row's `@tag` must appear in the prompt with its
-  paired `mentionMap` label.
+  exact media URL in the `mentionMap` value.

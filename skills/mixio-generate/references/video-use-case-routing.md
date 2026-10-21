@@ -82,7 +82,6 @@ await studio_submit_studio_job({
   },
   selectedElements: approvedReferencedElements,
   slotReferences: approvedSlotReferences,
-  slotTags,
   mentionMap,
   promptEnhancementMode: "off"
 })
@@ -99,14 +98,16 @@ Studio does not silently rewrite authored cut, camera, dialogue, or reference di
 `contextSelectionMode: "curated"` with only the selected graph elements and explicit media;
 do not rely on automatic scene context to add missing references.
 
-Whenever media is present, keep all three representations aligned:
+Whenever media is present, align these public MCP fields:
 
 - `input.media`: schema-valid URLs in the exact model slots;
-- `slotTags` and `mentionMap`: one-to-one reference-identity/tag/label pairs (not slot/index keys);
+- `mentionMap`: each `@tag` maps to its exact, unique URL in this job’s `input.media`;
 - `prompt`: each exact `@tag` appears where the referenced subject or asset acts.
 
-Use the reference identity key, not the `input.media` slot/index, for `slotTags`; the
-[Prompt & Mention Sheet](prompt-mention-sheet.md) shows the pairing format.
+The adapter derives Studio’s internal `slotTags` and display labels. Do not send those internal
+fields or a separate label map. `slotReferences` is usually derived from `input.media`; provide it
+only to override reference metadata or element links. The [Prompt & Mention Sheet](prompt-mention-sheet.md)
+shows the pre-submit checks.
 
 Read the selected character look and location configuration/view before building these inputs.
 Pass the approved variant on the media reference or select the matching graph entity so Studio

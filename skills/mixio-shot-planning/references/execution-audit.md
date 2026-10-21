@@ -38,7 +38,7 @@ Model assignments:
 Execution audit findings:
   ❌ DURATION_OUT_OF_RANGE:     Shot 9 (18s) > veo_3_1 max (8s) → split into 3 segments
   ❌ PROMPT_MENTIONS_MISSING:   Shot 7 (Gary Player ref attached but 0 @ tags) → embed @asset1
-  ❌ MENTION_MAP_UNPAIRED:      Shot 7 (slotTags has @asset1 but mentionMap missing) → pair mentionMap
+  ❌ MENTION_MAP_MISSING:       Shot 7 (@asset1 has no URL binding) → map @asset1 to its exact input.media URL
   ⚠️  ACTION_DENSITY_HIGH:      Shot 5 (5 actions in 3s = 1.67 a/s) → extend or simplify
   ⚠️  DIALOGUE_TOO_FAST:        Shot 11 (22 words in 4s = 5.5 wps) → extend to 6.5s
 

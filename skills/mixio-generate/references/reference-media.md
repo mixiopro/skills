@@ -38,6 +38,7 @@ Media slots accept real URLs, not Payload media IDs. Resolve them in this order:
 4. For external URLs, use `mixio-workspace`'s validated download-and-upload fallback. Do not
    pass third-party URLs directly to generation slots.
 
-If media is present, each selected asset still needs its exact reference identity key in
-`slotTags`, a human-readable `mentionMap` label, and an authored `@tag` in the effective prompt.
-The [Prompt & Mention Sheet](prompt-mention-sheet.md) defines the key and token pairing.
+For MCP generation, bind each prompt `@tag` to the exact URL in the job’s `input.media` through
+`mentionMap`; use unique URLs and include every tag in the effective prompt. Do not send Studio’s
+internal `slotTags` or a human-label map. The adapter derives them. The
+[Prompt & Mention Sheet](prompt-mention-sheet.md) defines the pre-submit checks.

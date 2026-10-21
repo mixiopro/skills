@@ -66,7 +66,7 @@ accepts the shot; re-read the schema per episode. The catalog values below were 
 - `cuts[]` stays passthrough on the shot — the job prompt embeds every populated per-cut field,
   including framing, angle, lens, camera movement, action, blocking, and audio. H3 Ref2Vid uses
   the prompt grammar in `mixio-generate/references/prompt-mention-sheet.md`.
-- The prompt `@` mention + `slotTags`/`mentionMap` gate applies to multi-cut jobs unchanged.
+- The prompt `@` mention + URL-valued `mentionMap` gate applies to multi-cut jobs unchanged.
 
 ```
 Model recommendation — Shot 7

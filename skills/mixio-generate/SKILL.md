@@ -132,12 +132,12 @@ A job that "succeeded" with warnings ran **with your parameters removed**. Check
 2. studio_get_project(projectId)                           → resolve the per-use-case model pin
 3. studio_get_use_case_input_schema({ useCaseId, modelId }) → exact media slots + parameters
 4. studio_list_references(projectId) → studio_get_element   → approved media URLs and variants (§6)
-5. Compose prompt + schema-valid `input.media`/parameters + selectedElements; add paired
-   mention maps and prompt `@tag`s whenever media is present (§6)
+5. Compose prompt + schema-valid `input.media`/parameters + selectedElements; add URL-valued
+   `mentionMap` bindings and prompt `@tag`s for referenced media (§6)
 6. studio_submit_studio_job({ jobType: "video", model, useCaseId, prompt,
      input: { media, parameters }, context: { projectId, episodeId, sceneId, shotId,
        outputPolicy: "scoped_asset", contextSelectionMode: "curated" },
-     selectedElements, slotReferences, slotTags, mentionMap,
+     selectedElements, slotReferences, mentionMap,
      promptEnhancementMode: "off" })                       → job id + tracking + schemaWarnings
 7. read schemaWarnings; if non-empty, stop, fix the input, then submit again
 8. studio_get_job_status({ jobId, projectId })             → poll to COMPLETED
@@ -174,7 +174,6 @@ studio_submit_studio_job({
   input: { media, parameters },
   selectedElements,
   slotReferences,
-  slotTags,
   mentionMap,
   promptEnhancementMode: "off",
   context: {
@@ -213,14 +212,16 @@ fallback. Read the selected model's live schema for its exact media slots and ca
 | `context` | `{ projectId, episodeId?, sceneId?, shotId?, outputPolicy: "scoped_asset", contextSelectionMode: "curated" }` | Deepest production scope plus requested output placement |
 | `selectedElements` | `[{ id, type, identityKey?, mentionCode? }]` | Which characters/locations/props the prompt refers to. `type` ∈ `CHARACTER`, `LOCATION`, `PROP`, `SHOT`, `SCENE`. Also what a character look-binding fallback resolves against — see [reference media](references/reference-media.md) |
 | `slotReferences` | `{ <schema-declared slot>: { url, variantId?, variantName? } or [...] }` | Explicit URL provenance and selected reference variant, using fields declared by the live tool contract |
-| `slotTags` | `{ <referenceIdentityKey>: "@tag" }` | Binds each active reference identity to its exact semantic mention; see the [Prompt & Mention Sheet](references/prompt-mention-sheet.md) for key selection |
-| `mentionMap` | `{ "@tag": "Human Label" }` | Binds that tag to a subject. **Both maps are required** for a tag to bind |
+| `mentionMap` | `{ "@tag": "exact URL from input.media" }` | Public binding from the prompt token to its exact media URL; URLs must be unique within the job |
 | `prompt` | authored string | Contains each exact `@tag` where the referenced asset acts; skill-managed video uses `promptEnhancementMode: "off"` |
 | `input.media` | `{ <schema-declared slot>: { url } or [{ url }] }` | Actual media URLs; the selected model's schema defines valid slots and singular/array shape |
 
-The MCP contract can derive mention data when references are provided. Skill-managed jobs still
-send explicit `slotTags` and `mentionMap` with the authored prompt, and validate the serialized
-shape before submitting.
+MCP callers send the URL-valued `mentionMap`; the adapter derives Studio’s internal `slotTags` and
+display labels from the mentions, media, and reference metadata. Do not send `slotTags` or a separate
+label map. Include each exact `@tag` in the prompt and map it to the matching URL in this job’s
+`input.media`. Give each reference a distinct URL. The server rejects missing, mismatched, duplicate,
+unused, or prompt-missing bindings. `slotReferences` is normally derived from `input.media`; pass it
+only to override reference metadata or element links. In batches, each job has its own media and map.
 
 ### Mentions — binding an image to a subject (Universal across all models)
 
@@ -229,12 +230,12 @@ prompt do; the route compiler maps them into its provider grammar (H3 Ref2Vid us
 `<Picture N>`/`<Video N>`/`<Audio N>` forms; other providers use their catalog grammar). Callers
 do not author provider tokens directly.
 
-This is a universal architectural requirement across every image, keyframe, storyboard, and video generation path and every model family (Hailuo, Kling, Seedance, Veo, Sora, Gemini, Wan, LTX, Flux, etc.). A provider may render the tag differently, but it still needs the semantic mention and its paired maps before compilation.
+This public MCP contract applies across image, keyframe, storyboard, and video generation. The adapter translates the URL-valued map into Studio’s internal bindings and labels; MCP callers provide only `mentionMap`.
 
 #### Mandatory Invariants
 
 1. **Prompts MUST ALWAYS contain `@` mentions for all active assets/references** (e.g. `@asset1`, `@tony`, `@scene1`). Any asset passed via `media` (`primary`, `references`, `character_ref`, `location_ref`, `enhancer_context`, or another schema-declared slot) must be embedded in the prompt string where the subject acts. Plain descriptive prose without `@` tokens will fail grounding.
-2. **Paired `slotTags` AND `mentionMap` are MANDATORY when media is present**: the maps use the exact active reference identity keys and semantic tags (`{ [referenceIdentityKey]: "@tag" }`, `{ "@tag": "Human Label / Description" }`). The pair is one-to-one: every active reference has one tag, every tag has a non-empty label, and neither map may contain an orphan entry. Prompt-only jobs with no media need no slot maps. The maps are top-level submit fields; see `references/prompt-mention-sheet.md` for key selection.
+2. **URL-valued `mentionMap` is the public binding contract**: send `{ "@tag": "exact URL from input.media" }` for each prompt mention that binds a reference. Every map key must appear in the prompt; each URL must match one media URL in this job, and URLs must be unique. Do not send internal `slotTags` or a separate label map. See `references/prompt-mention-sheet.md` for pre-submit checks.
 
 For identity key selection, canonical tag construction, and route-specific token grammar, use the
 [Prompt & Mention Sheet](references/prompt-mention-sheet.md). Always author semantic `@tag`s and
@@ -245,7 +246,7 @@ let the selected route compile provider tokens; do not hand-write `Image 1`, `@I
 
 When a human subject is intended to look photorealistic or hyperrealistic, carry explicit natural-skin direction in the effective prompt for every image, keyframe, and video where skin is visible. Describe real surface detail—fine pores and natural tonal variation, plus peach fuzz or faint expression lines when the framing can resolve them—and request an appropriate soft, physically plausible light source and natural contrast. Preserve only freckles, scars, asymmetry, and other features supported by the approved reference or character record. Explicitly avoid poreless smoothing, airbrushing, beauty-filter retouching, waxy/plastic gloss, and a CGI mannequin finish. Avoid relying on vague `ultra-realistic` or `8K` slogans to produce skin texture.
 
-For video, include the surface cues in the action prompt and state that facial identity, complexion, and natural texture remain stable through motion and across cuts; reject temporal smoothing/flicker or a texture change between frames. Use an approved character image in the schema-declared identity/reference slot when available and permitted, and bind it with the required `@tag`, `slotTags`, and `mentionMap`. Never invent a numeric reference-strength parameter: use one only if the selected model's live schema exposes it. Skin detail must fit the shot scale; do not demand individually visible pores in a wide shot.
+For video, include the surface cues in the action prompt and state that facial identity, complexion, and natural texture remain stable through motion and across cuts; reject temporal smoothing/flicker or a texture change between frames. Use an approved character image in the schema-declared identity/reference slot when available and permitted, and bind it with the required `@tag` and URL-valued `mentionMap`. Never invent a numeric reference-strength parameter: use one only if the selected model's live schema exposes it. Skin detail must fit the shot scale; do not demand individually visible pores in a wide shot.
 
 #### Multi-cut prompt serialization (`MULTI_CUT` shots)
 
@@ -257,16 +258,15 @@ artifact Step 06 validates. Never reduce a cut to shot type and action.
 
 #### Preflight Gating Checklist (Step 06)
 
-Before calling `studio_submit_studio_job` for any billable generation:
-- [ ] **Asset coverage**: Flatten every schema-declared `input.media` slot (including inherited scene anchors and look-bound references); each reference identity key has exactly one `slotTags` entry.
-- [ ] **Paired maps**: Both maps exist when media is non-empty; every `slotTags` value is a unique `@tag` with a non-empty `mentionMap` label.
-- [ ] **Prompt embedding**: The effective prompt contains every mapped tag at least once where that asset acts. For a sequence use case with no caller `prompt`, validate `sequence_notes` plus the materialized shot prompt instead of treating the omission as a bypass.
-- [ ] **No orphaned or colliding tags**: Reject unused `slotTags`/`mentionMap` entries, duplicate tag assignments, and any media asset without a map pair (`PROMPT_MENTION_MISSING`, `MENTION_MAP_UNPAIRED`, `MENTION_TAG_COLLISION`, or `MENTION_MAP_ORPHANED`).
+Before calling `generate_image`, `submit_studio_job`, or `batch_submit_studio_jobs` for billable generation:
+- [ ] **URL coverage**: Every `mentionMap` value exactly matches a URL in this job’s schema-declared `input.media`; each URL is unique.
+- [ ] **Prompt embedding**: The effective prompt contains every map key exactly as an `@tag` where its reference acts. For a sequence use case with no caller `prompt`, validate `sequence_notes` plus the materialized shot prompt.
+- [ ] **No missing or orphaned bindings**: Reject missing, mismatched, duplicate, or unused map entries, and prompt tags with no binding. Keep the map scoped per job in batch submissions.
 - [ ] **No ungrounded prose**: Descriptive text may supplement a mention, but it never replaces the required `@tag` token.
 - [ ] **Realistic skin**: For photorealistic/hyperrealistic human imagery, confirm the effective image/video prompt includes framing-appropriate natural skin texture and excludes smoothing/plastic gloss; for video, include temporal texture and identity consistency.
 
 The complete, model-specific submission shape is in
-[`video-use-case-routing.md`](references/video-use-case-routing.md). Treat its example as illustrative and
+[`video-use-case-routing.md`](references/video-use-case-routing.md). It uses the public URL-valued `mentionMap`; treat its example as illustrative and
 include only slots and parameters accepted by the selected live schema.
 
 ## Audio

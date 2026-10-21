@@ -105,7 +105,7 @@ When the locked project style or user direction calls for photorealistic or hype
 
 For these projects, write the canonical complexion plus stable surface/finish direction into `characterDetails.skin` so the shared prompt projection carries it into image and video jobs. Example: `"medium olive complexion with natural tonal variation and realistic, softly textured skin; no artificial gloss"`. Keep scars and distinctive marks in `distinctiveFeatures`; don't put temporary flushing, sweat, lighting, or per-shot condition in this stable field.
 
-Example prompt direction (include the required `@` token and paired maps whenever reference media is supplied):
+Example prompt direction (include a matching `@` token and URL-valued `mentionMap` binding whenever reference media is supplied):
 
 ```text
 Photorealistic neutral character turnaround of @tony, matching the approved identity reference and documented complexion. At face-view scale retain natural fine pores, subtle tonal variation, soft peach fuzz, faint expression lines, and mild natural asymmetry; preserve only established marks. Soft broad neutral daylight with gentle camera-left shaping, natural contrast, plausible portrait-lens perspective, and crisp unretouched low-noise focus. No dramatic HDR, airbrushing, poreless smoothing, beauty-filter finish, waxy/plastic shine, or CGI mannequin skin. Keep identity, age, hair, and default wardrobe consistent in every view.
@@ -163,7 +163,7 @@ So decide the tag **once, here**, and record it in pipeline state next to the re
 
 - Keep the reference name short and unambiguous. `Tony` is a good tag; `Tony Russo (protagonist, ep1)` slugifies into something nobody will type consistently.
 - Do not name two references so they collapse to the same slug. `TONY'S APARTMENT` and `Tonys Apartment` are one tag, and whichever image loses the race silently stops binding.
-- Pair every tag in `slotTags` with exactly one non-empty `mentionMap` entry (`{ "@tony": "Tony Russo" }`) when submitting generation payloads. Record the asset key, tag, and human label together; an asset with no pair is not ready for Step 05.
+- In MCP generation payloads, bind each prompt tag to the exact media URL with `mentionMap` (for example `{ "@tony": "https://.../tony.png" }`). Do not send `slotTags` or a separate human label; the adapter derives internal bindings and labels. Keep URLs unique and include every tag in the prompt.
 
 **Do not put per-shot state here.** Hair state, condition/damage, and carried props are properties of an *appearance*, not of the character, and belong on the `appears_in` relation's `appearanceState` — see `mixio-script-breakdown`. A soaked-hair value on the character is one global truth that is only correct in a few shots.
 
@@ -329,25 +329,20 @@ Also record it in `metadata.pipeline.anchors` if you want a resumable index — 
 
 When an anchor frame is passed in `input.media` (for instance as `enhancer_context` or `location_ref`), the generation prompt MUST explicitly bind it using its `@` mention tag (e.g. `@scene1` or `@anchor1`) alongside character tags (`@tony`, `@asset1`).
 
-Pair the anchor asset in `slotTags` and `mentionMap`:
-The keys below are the exact URL-only `input.media` asset keys; when `slotReferences` supplies an `elementId` or `mediaId`, use that exact provenance key instead.
+Bind each anchor mention in the public `mentionMap` to its exact URL in `input.media`. `slotReferences` can be omitted unless you need to override derived reference metadata or element links.
 
 ```json
 {
-  "slotTags": {
-    "https://studio.mixio.pro/api/media/file/scene1_anchor.png": "@scene1",
-    "https://studio.mixio.pro/api/media/file/tony_ref.png": "@tony"
-  },
   "mentionMap": {
-    "@scene1": "Scene 1 Apartment Anchor",
-    "@tony": "Tony"
+    "@scene1": "https://studio.mixio.pro/api/media/file/scene1_anchor.png",
+    "@tony": "https://studio.mixio.pro/api/media/file/tony_ref.png"
   }
 }
 ```
 And embed in the prompt:
 `"@tony sits at the edge of the bed under @scene1 lighting and layout, looking up toward the doorway."`
 
-Without the `@scene1` token in the prompt and paired `slotTags`/`mentionMap`, provider compilers cannot map the anchor to model tokens (`Image 2`, `@Element1`), causing the model to ignore the spatial truth and invent arbitrary room geometry.
+Without the `@scene1` token in the prompt and URL-valued `mentionMap` binding, provider compilers cannot map the anchor to model tokens (`Image 2`, `@Element1`), causing the model to ignore the spatial truth and invent arbitrary room geometry.
 
 ## Workflow
 
