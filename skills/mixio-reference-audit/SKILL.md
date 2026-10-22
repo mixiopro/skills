@@ -158,7 +158,7 @@ an approval state.
 
 ### 2.5 Scene-anchor cast and position coverage
 
-Compare each scene anchor and its location position guide against the accepted shot plan, complete screenplay cast ledger, and all `appears_in` relations. Include special/cameo appearances, story-relevant background roles, off-screen entrances, exits, and returns; reconcile aliases to canonical identities. The opening anchor depicts only characters present at scene open. Later entrants must be represented in the guide by a reserved position/entry route but must not appear early. Distinct characters need distinct faces unless the screenplay explicitly calls for an intentional duplicate identity/role. Visually compare faces against the character sheets and each other. If no vision-capable reviewer or compatible image-evaluation path is available, mark the visual check unresolved; do not claim a pass.
+Compare each scene anchor and its location position guide against the accepted shot plan, complete screenplay cast ledger, and all `appears_in` relations. If the saved `metadata.pipeline.reference_audit.anchor_cast_ledger` is missing or stale, reconstruct it from those sources before comparing images. Report a per-scene matrix with canonical character/reference, source shot IDs or screenplay entrance cue, opening presence, first entrance/special condition, guide color/position, and visual-review status. Include special/cameo appearances, story-relevant background roles, off-screen entrances, exits, and returns; reconcile aliases to canonical identities. The opening anchor depicts only characters present at scene open. Later entrants must be represented in the guide by a reserved position/entry route but must not appear early. Distinct characters need distinct faces unless the screenplay explicitly calls for an intentional duplicate identity/role. Visually compare faces against the character sheets and each other. If no vision-capable reviewer or compatible image-evaluation path is available, mark the visual check unresolved; do not claim a pass.
 
 | Finding | Meaning |
 |---------|---------|
@@ -167,6 +167,28 @@ Compare each scene anchor and its location position guide against the accepted s
 | `ANCHOR_UNSCRIPTED_PERSON` | The anchor contains an unaccounted-for person |
 | `POSITION_GUIDE_MISSING` | A multi-person location/scene has no color-coded translucent position guide, or the guide omits a character/entry zone |
 | `FACE_COLLISION` | Two distinct characters appear to share a face without an intentional duplicate in the screenplay |
+
+Persist the matrix and source evidence with `reference_audit` in the existing free-form `metadata.pipeline` record:
+
+```json
+{
+  "sceneId": "scene-id",
+  "sceneNumber": 2,
+  "characters": [
+    {
+      "referenceId": "character-id",
+      "name": "MAY",
+      "sourceShotIds": ["shot-2-4"],
+      "openingPresence": false,
+      "firstEntrance": "shot-2-4",
+      "entranceCondition": "enters through the side door",
+      "guideColor": "violet",
+      "guidePosition": "side-door entry zone",
+      "visualReview": "reviewed"
+    }
+  ]
+}
+```
 
 Treat these findings as high priority before shot generation. Present the exact cast/shot evidence and recommended correction; follow the normal user checkpoint for accepted limitations. Never silently add, remove, or duplicate a character.
 
