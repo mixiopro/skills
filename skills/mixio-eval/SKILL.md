@@ -205,6 +205,16 @@ Interpret the result as a review packet:
 - if the evidence is insufficient, propose `sequence` or `full-delivery`
   review rather than inventing a precise segment.
 
+For video repair, use the finding's time/frame range to identify the smallest
+affected segment. When evaluation does not localize the fault, inspect a
+timecoded still grid sampled from the video and use the visible evidence to
+bound the segment. Keep unaffected approved footage and references. Recommend
+full-shot or broader replacement only when the fault spans that scope, the
+evidence cannot isolate it, or the selected generation route cannot produce a
+smaller segment; state which case applies. Before any regeneration, show the
+exact replacement prompt and inputs for each job and get the user's
+confirmation. An evaluation result or repair plan never authorizes generation.
+
 The generic core findings remain authoritative for verdict and evidence. The
 repair plan is advisory and must be preserved alongside the evaluation receipt
 and the human decision.

@@ -251,6 +251,7 @@ artifact Step 06 validates. Never reduce a cut to shot type and action.
 #### Preflight Gating Checklist (Step 06)
 
 Before calling `generate_image`, `submit_studio_job`, or `batch_submit_studio_jobs` for billable generation:
+- [ ] **Video prompt and input confirmation**: Before every video submission or regeneration, show the user each job's exact effective prompt and exact input set, then wait for explicit confirmation. Include the model/use case, output target and scope, schema-valid media slots with their exact asset/URL bindings, `mentionMap`, parameters (including duration and aspect ratio when supported), and prompt-enhancement mode. For batches, enumerate these details per video job so the user can confirm the whole batch knowingly. A prior authorization counts only when it covered these same displayed prompts and inputs; a general batch or cost authorization alone does not.
 - [ ] **URL coverage**: Every `mentionMap` value exactly matches a URL in this job’s schema-declared `input.media`; each URL is unique.
 - [ ] **Prompt embedding**: The effective prompt contains every map key exactly as an `@tag` where its reference acts. For a sequence use case with no caller `prompt`, validate `sequence_notes` plus the materialized shot prompt.
 - [ ] **No missing or orphaned bindings**: Reject missing, mismatched, duplicate, or unused map entries, and prompt tags with no binding. Keep the map scoped per job in batch submissions.
@@ -262,6 +263,8 @@ Before calling `generate_image`, `submit_studio_job`, or `batch_submit_studio_jo
 The complete, model-specific submission shape is in
 [`video-use-case-routing.md`](references/video-use-case-routing.md). It uses the public URL-valued `mentionMap`; treat its example as illustrative and
 include only slots and parameters accepted by the selected live schema.
+
+For a regeneration, first localize the fault from evaluation findings and their time/frame ranges, or inspect a timecoded still grid when evaluation does not locate it. Present the evidence and the narrowest affected segment, then prepare a job only for that segment. Preserve unaffected approved footage and references. Do not regenerate the full video by default. If the selected model or tool cannot generate that segment independently, explain the limit and offer the smallest supported segment or shot-level replacement; wait for confirmation of its exact prompt and inputs before submitting. If the evidence cannot localize the fault, say so and ask whether to inspect more evidence or replace a broader scope rather than guessing.
 
 ## Audio
 
