@@ -156,6 +156,20 @@ an approval state.
 | `HALLUCINATION_OR_IMAGE_ARTIFACT` | Unwanted content or a visible generation defect undermines the reference |
 | `VISUAL_REVIEW_UNAVAILABLE` | A required row has no completed vision or compatible image-evaluation review |
 
+### 2.5 Scene-anchor cast and position coverage
+
+Compare each scene anchor and its location position guide against the accepted shot plan, complete screenplay cast ledger, and all `appears_in` relations. Include special/cameo appearances, story-relevant background roles, off-screen entrances, exits, and returns; reconcile aliases to canonical identities. The opening anchor depicts only characters present at scene open. Later entrants must be represented in the guide by a reserved position/entry route but must not appear early. Distinct characters need distinct faces unless the screenplay explicitly calls for an intentional duplicate identity/role. Visually compare faces against the character sheets and each other. If no vision-capable reviewer or compatible image-evaluation path is available, mark the visual check unresolved; do not claim a pass.
+
+| Finding | Meaning |
+|---------|---------|
+| `ANCHOR_CAST_OMISSION` | A character scripted as present at scene opening is absent from the anchor |
+| `ANCHOR_EARLY_ENTRY` | A character whose entrance occurs later is already visible in the opening anchor |
+| `ANCHOR_UNSCRIPTED_PERSON` | The anchor contains an unaccounted-for person |
+| `POSITION_GUIDE_MISSING` | A multi-person location/scene has no color-coded translucent position guide, or the guide omits a character/entry zone |
+| `FACE_COLLISION` | Two distinct characters appear to share a face without an intentional duplicate in the screenplay |
+
+Treat these findings as high priority before shot generation. Present the exact cast/shot evidence and recommended correction; follow the normal user checkpoint for accepted limitations. Never silently add, remove, or duplicate a character.
+
 ### 3. Consistency — name/description vs image alignment
 
 For each reference that has both structured details and at least one image, check for contradictions:
@@ -308,6 +322,7 @@ CLEAN references: POPPY, BED, BEDSIDE TABLE, NAPOLI POSTER, TABLET, PHONE, PERSI
 **High-priority criteria:**
 - Any `MISSING_REF` for an entity appearing in ≥2 shots
 - Any `MISSING_IMAGE_HIGH_USAGE`
+- Any `ANCHOR_CAST_OMISSION`, `ANCHOR_EARLY_ENTRY`, `ANCHOR_UNSCRIPTED_PERSON`, `POSITION_GUIDE_MISSING`, or `FACE_COLLISION` before shot generation
 - Any HIGH-severity metadata gap on a character appearing in ≥1 scene — a missing `visualAnchor` means every prompt mentioning that character lacks its identity anchor, no matter how few scenes it appears in
 - Any HIGH-severity metadata gap on a location appearing in ≥1 scene — `setting` and `lighting` are required to render the scene's anchor frame without guessing
 - Any `GENDER_MISMATCH` confirmed by both text and vision (not advisory-only)

@@ -244,6 +244,12 @@ Surfaces & palette: Dark hardwood, large Persian rug (deep reds, navy, cream), p
 - Evaluate each required variant as its own `image-location` pack with at least two image views, a `location-reference` anchor, and explicit `reference-coverage` metadata. Map each evaluation alias to the exact variant and image label. Use an approved anchor from the same configuration when available; otherwise use a representative staged candidate only if the live evaluation contract accepts its URL as the evaluation-only `location-reference`. Never substitute another configuration's image for the anchor. Missing view/configuration coverage is blocking; do not substitute a different variant's image silently.
 - No reference image → header gets `(TEXT-ONLY)`, unknown fields get `UNKNOWN`. Do not fill `Layout: UNKNOWN` with a plausible invention; the audit needs to know it is unverified.
 
+### Location position guides
+
+For every location variant/view used to stage people, make a position-guide copy before generating its scene anchor. Draw a differently colored bounding box for each character position and include a name/role legend. Use translucent fills (about 20–35% opacity), not solid fills, so the underlying layout remains visible. Preserve the unmarked location image as the clean appearance reference; use the marked copy as a spatial input for relative position and scale. The overlay is a guide, not set dressing.
+
+If no location image exists, first select or generate the location view, then make the guide before anchor generation. Record the positions, axes, and entry points in the location sheet as well, so the spatial plan survives outside the image.
+
 ### Persisting the sheet
 
 The sheet has real fields, not prose blobs — map the six sheet fields onto `locationDetails` (`spatialLayout`, `accessPoints`, `keyLandmarks`, `depthAxes`, `lightSources`, `surfaces`/`palette`, …). Write straight into `locationDetails`/`characterDetails`; the shared prompt-projection table reads them directly, no top-level `metadata` mirroring needed on a current Studio.
@@ -302,10 +308,18 @@ One per scene, and the highest-leverage image in the pipeline.
 
 An anchor is a **wide master of the scene at its opening moment**: the set as described in the location sheet, characters in their `Characters at start` staging, lit as the scene's `Time + light`. Every shot in the scene then inherits from it (`Lighting: as Anchor 1`), which is why cuts within a scene hold together.
 
+#### Mandatory cast and staging preflight
+
+Before anchor generation, build a scene-by-scene cast ledger from the accepted shot plan and screenplay, then cross-check it against every planned shot and `appears_in` relation in the episode. Include each distinct character who appears later in the scene, including brief/special appearances, story-relevant background roles, entrances from off-screen, exits, and returns. Cross-check the full episode roster so every character is mapped to their scenes and later anchors are planned. Resolve aliases to canonical character references; if screenplay, accepted plan, and relations disagree, surface the exact discrepancy before rendering.
+
+For each character, record whether they are present at scene opening or enter later, their first shot, any special entrance/appearance condition, opening position when present, and later position/entry route. Distinct characters get distinct character references and visibly distinct faces; reuse a face only when the screenplay explicitly calls for the same identity or an intentional duplicate role/double. Put each person in a differently colored, translucent box on the location position guide with a legend. Mark later entrants' reserved positions/entry routes as **later entry**; do not place them visibly in the opening anchor early.
+
+The opening anchor must show every character present at scene opening, no character whose entrance is later, and no unscripted person. Check each face against its character sheet and against the other visible faces. After accepting the clean anchor, make a matching annotated anchor-guide copy with translucent boxes around the people actually visible and the same legend. Keep both: use the clean anchor for scene appearance and the annotated anchor guide as a spatial input for later multi-person shots.
+
 - Render at `anchor_aspect_ratio` (wider than delivery — `16:9` when delivering `9:16`). The extra horizontal information is the point: shots crop *into* a known space instead of each inventing its own.
-- Include: full set with the CAPS key elements visible, the scene's characters at start position/facing/posture, the scene's light direction and shadow length.
+- Include: full set with the CAPS key elements visible, every character present at scene start in the accepted cast ledger's position/facing/posture, and the scene's light direction and shadow length.
 - Exclude: dramatic framing, mid-scene action, anything that only happens later. An anchor is a reference, not a shot.
-- Feed the location reference into `location_ref` and each character sheet into `character_ref` on the same job so the anchor is consistent with the sheets.
+- Feed the marked location position guide, clean location image, and character sheets for the scene-opening cast into the anchor job. Later entrants' sheets may be used when preparing later coverage, but must not cause them to appear early in the opening anchor.
 - A scene with a big lighting or staging shift mid-way (day→night, everyone relocates) needs a second anchor. Note the switch shot in the staging block: `Coverage: Shots 1–10 → Anchor 1; Shots 11–18 → Anchor 2`.
 
 Persist the anchor candidate as an IMAGE or KEYFRAME element with a usable image URL. Frames View loads scene anchor candidates from elements related directly to the scene and classifies KEYFRAME/IMAGE items as reference frames when they have relation type `source_reference_for`, subtype `STORYBOARD_REFERENCE`, `frameRole: "storyboard_reference"`, `storyboardRole: "source_reference"`, or `isGenerated: false`. `metadata.kind: "anchor"` by itself is not a Frames View classifier. The canonical `scene.metadata.anchorRef` field has a separate purpose: it makes generation attach the selected anchor to shots in that scene. Do not assume setting `anchorRef` alone makes an unattached element visible in the scene lane.
@@ -351,7 +365,7 @@ Without the `@scene1` token in the prompt and URL-valued `mentionMap` binding, p
 ## Workflow
 
 ```
-1. read the accepted shot plan and source → characters, canonical places, required looks, location configurations/views, camera zones, and story-critical props
+1. read the accepted shot plan and source → characters, canonical places, required looks, location configurations/views, camera zones, and story-critical props; build a scene-by-scene cast ledger cross-checked against every planned shot and `appears_in` relation, including special appearances and entrance/exit conditions
 2. studio_get_project({ projectId }) → reference policies and allowed variant names
 3. studio_list_references({ projectId }) → existing entities, variants, and approved images
 4. build the variant × view matrix; map supplied images to exact rows; show gaps and confirm the grouping/render round in chat (prior authorization for the same scope is enough)
@@ -359,8 +373,8 @@ Without the `@scene1` token in the prompt and URL-valued `mentionMap` binding, p
 6. render missing candidates outside the active reference; evaluate each character/location pack and retain the receipt + feedback
 7. apply the candidate review checkpoint in `mixio-references`; show candidates and request the user's chat decision
 8. attach only user-selected images; read back the reference and verify rejected media is absent from active stores
-9. present the separate scene-anchor render round; render per-scene anchors with the selected location configuration and character variants on confirmation or prior authorization
-10. show scene anchors as a checkpoint; if the user accepts incomplete packs/anchors, continue to Step 05 with limitations recorded when schema and project policy allow
+9. present the separate scene-anchor render round; create a differently colored, translucent location position guide for each multi-person scene, then render per-scene anchors with the selected location configuration and only the scene-opening character variants on confirmation or prior authorization
+10. check anchor cast, special/later entrances, and distinct faces against the ledger; make a matching annotated anchor-guide copy for later multi-person shots; show clean anchors and annotated guides as a checkpoint. If the user accepts incomplete packs/anchors, continue to Step 05 with limitations recorded when schema and project policy allow
 ```
 
 Persist the confirmed matrix and each row's confirmation, media status, evaluation run IDs,
