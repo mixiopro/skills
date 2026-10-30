@@ -28,6 +28,8 @@ Declare the evidence mode:
 
 Missing sheets and anchors are readiness gaps. They do not block writing the checklist or local planning.
 
+The checklist is written before Studio sync. If a later optional `/mixio:blocking` proxy review reveals a staging issue after sync, update the affected local plan and checklist items, present the revised exact diff, and return through the pipeline's Step 03 confirmation and readback before planning. Do not treat proxy review as permission to mutate synced shots directly.
+
 ## Checklist construction
 
 Build the checklist in story order. For each concern, include its evidence, scope, why it matters to the audience, the likely image/video generation failure, and the missing shot or corrective direction. Do not turn unknowns into facts.

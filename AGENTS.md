@@ -75,6 +75,7 @@ The `how-to-make-script` root skill is vendored under `skills/how-to-make-script
 | `mixio-reference-audit` | `/mixio:reference-audit` | Audit the accepted plan against reference looks/views, visual evidence, Cast & World consistency, duplicates, and metadata before generation |
 | `mixio-script-breakdown` | `/mixio:script-breakdown` | Enrich a supplied/existing scene-and-shot breakdown, or create one from the script when absent; prepare a reviewable Studio diff |
 | `mixio-continuity` | `/mixio:continuity` | Director-led Continuity Checklist covering scene, shot, cross-scene/shot risks and missing coverage before Studio sync; pair `/mixio:eval` with rendered media |
+| `mixio-blocking` | `/mixio:blocking` | Optional Three.js staging proxies for selected persisted shots after sync and reference readiness; inspect geography and movement before shot planning |
 | `mixio-shot-planning` | `/mixio:shot-planning` | 6 structural archetypes (incl. `MULTI_CUT` 10–15s) + model matching, execution audit, and batches |
 
 For story work, start with `/mixio:screenwriting`; do not look up a Studio project or episode until the screenplay handoff is ready. For production work, use `/mixio:pipeline` to coordinate the gated steps. Invoke a production skill directly when you only need that one step — each one's description says which of its siblings it isn't, and falls back to `mixio-pipeline` when that's still unclear.
@@ -94,6 +95,7 @@ PRE Story development + screenplay handoff → Mixio-owned `how-to-make-script` 
 02  Continuity Checklist   → /mixio:continuity — write scene, shot, and cross-scene checks; identify generation risks and missing coverage
 03  Review + sync           → show exact Studio diff; proceed on chat confirmation/prior authorization; sync and verify by readback
 04  Reference readiness     → /mixio:reference-audit; build missing sheets/anchors with /mixio:sheets
+04.5 Spatial blocking      → /mixio:blocking for selected persisted shots; review non-billable Three.js proxies and loop direction changes through Step 03
 05  Shot planning           → /mixio:shot-planning — select methods/models, validate feasibility, review the production plan
 06  Generation              → /mixio:generate per confirmed/authorized batch, then offer /mixio:eval findings as a delivery checkpoint
 ```

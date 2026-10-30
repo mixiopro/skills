@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](./VERSION)
-[![Skills](https://img.shields.io/badge/skills-13-blueviolet.svg)](#skills)
+[![Skills](https://img.shields.io/badge/skills-14-blueviolet.svg)](#skills)
 
 AI agent skills for media generation, workspace management, and creative workflows via [Mixio Studio](https://mixio.pro). Works with Claude Code, Cursor, Codex, and other AI coding agents that load Markdown-based skills.
 
@@ -114,11 +114,12 @@ Mixio's data model: a **project** contains episodes and a Cast & World roster. A
 
 | Skill | Invoke | Description |
 |-------|--------|-------------|
-| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — project/episode setup → local director’s plan → director-led Continuity Checklist → chat-confirmed Studio diff → reference readiness → shot planning → generation. |
+| [`mixio-pipeline`](./skills/mixio-pipeline) | `/mixio:pipeline` | The orchestrator — project/episode setup → local director’s plan → director-led Continuity Checklist → chat-confirmed Studio diff → reference readiness → optional Three.js blocking → shot planning → generation. |
 | [`mixio-sheets`](./skills/mixio-sheets) | `/mixio:sheets` | Build or enrich approved character defaults/variants, location configurations/views, prop sheets, and one wide anchor frame per scene after the breakdown is accepted. |
 | [`mixio-reference-audit`](./skills/mixio-reference-audit) | `/mixio:reference-audit` | Audit the accepted plan against required looks/views, visual evidence, Cast & World completeness, duplicates, metadata, and policy before generation. |
 | [`mixio-script-breakdown`](./skills/mixio-script-breakdown) | `/mixio:script-breakdown` | Enrich a supplied or existing scene/shot breakdown with production detail, or create one when no breakdown exists; prepare the exact Studio diff for review. |
 | [`mixio-continuity`](./skills/mixio-continuity) | `/mixio:continuity` | Write a director-led Continuity Checklist for state, geography, coverage, and flow within shots and across scenes before Studio sync. Pair with `/mixio:eval` after rendering. |
+| [`mixio-blocking`](./skills/mixio-blocking) | `/mixio:blocking` | Create optional Three.js staging proxies for selected persisted shots; review performer routes, eyelines, props, axis, and camera geography before shot planning. |
 | [`mixio-shot-planning`](./skills/mixio-shot-planning) | `/mixio:shot-planning` | Classify each shot into 6 structural archetypes (grid, multi-cut, sequence, master anchor multi-shot, single/dual frame, t2v), match to best model, audit execution feasibility, and group into generation batches. |
 
 Tool skills are reference docs for the MCP surface and are safe to use standalone. Production skills encode the craft and the gating — start at `/mixio:pipeline` for a full episode.
@@ -136,6 +137,7 @@ Step 01  Local shot plan         → /mixio:script-breakdown — enrich a suppli
 Step 02  Continuity Checklist    → /mixio:continuity — director-led checklist for state, geography, screen direction, shot flow, and missing shots, reactions, and other edit coverage
 Step 03  Review + sync           → show exact Studio diff; proceed on chat confirmation; sync and verify by readback
 Step 04  Reference readiness     → /mixio:reference-audit; build missing sheets/anchors with /mixio:sheets
+Step 04.5 Spatial blocking      → /mixio:blocking for selected persisted shots; inspect non-billable Three.js proxies before shot planning
 Step 05  Shot planning           → /mixio:shot-planning — select methods/models, validate feasibility, review the production plan
 Step 06  Generation              → /mixio:generate per confirmed/authorized batch, then offer /mixio:eval findings as a delivery checkpoint
 ```
