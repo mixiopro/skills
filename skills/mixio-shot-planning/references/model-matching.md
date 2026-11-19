@@ -26,14 +26,14 @@ This is the craft layer — which model tends to produce better results for whic
 |---------------------------------|------------------------|-----|
 | **Dialogue / lip sync** | Pre-generate character dialogue with Gemini 3.8 Flash Lite TTS (`gemini-3-8-flash-lite-tts`) and attach the audio only when the selected video model/use-case schema accepts audio references (for example H3 `multi-shot-video` `audio_urls`). Some video models, including the checked Seedance I2V and Gemini Omni schemas, expose no audio-reference slot; preserve dialogue in the prompt for those routes. | Lip sync naturalism varies; audio input support is model- and use-case-specific |
 | **Fast action / fights** | Seedance, Kling | Better temporal coherence under rapid motion |
-| **Slow / cinematic camera** | Veo, Sora | Smooth, intentional camera choreography |
+| **Slow / cinematic camera** | Veo | Smooth, intentional camera choreography |
 | **Static holds / reactions** | Any (`SINGLE`) — cheapest option wins | Low complexity, all models handle simple holds |
 | **Master Anchor reference** | Veo, Seedance (`MASTER_ANCHOR_MULTI_SHOT`) | Strong spatial grounding against the wide scene anchor |
 | **Character consistency** | Models with strong `character_ref` / multi-image support | Maintaining identity across frames |
-| **Establishing / landscape** | Sora, Veo (`T2V` or `SINGLE`) | Superior scale, depth, and atmospheric coherence |
+| **Establishing / landscape** | Veo (`T2V` or `SINGLE`) | Superior scale, depth, and atmospheric coherence |
 | **Multi-panel / Montage** | Gemini Image, GPT Image (`GRID`) | Multi-cell layout composition and style adherence |
 | **Multi-cut long take (10–15s)** | H3 Ref2Vid (`MULTI_CUT`) | One native multi-shot job with persisted per-cut specs; 15s on a single job |
-| **Multi-person blocking** | Veo, Sora | Better spatial reasoning with multiple subjects |
+| **Multi-person blocking** | Veo | Better spatial reasoning with multiple subjects |
 
 ## Video use-case selection
 

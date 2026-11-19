@@ -66,7 +66,7 @@ Model → profile, with `lifecycle`:
 |---|---|
 | `prompted-frame-anchored-video` | `seedance_image_to_video_pro`, `seedance_image_to_video_v2`/`_fast`/`_mini`, `kling_image_to_video_2_6_pro`, `ltx_2_3_quality_image_to_video`, `grok_imagine_video`, `gemini_omni_image_to_video` *(preview)* |
 | `prompted-text-video` | `seedance_text_to_video_pro`, `seedance_text_to_video_v2`/`_fast`/`_mini`, `kling_text_to_video_pro`, `kling_text_to_video_2_6_pro`, `gemini_omni_text_to_video` *(preview)* |
-| `hybrid-text-or-start-frame` | `veo_3_1`, `sora_2` *(**retiring**)* |
+| `hybrid-text-or-start-frame` | `veo_3_1` |
 | `structured-reference-video` | `seedance_reference_to_video_v2`/`_fast`/`_mini`, `hailuo_v3_reference_to_video`, `kling_multi_image_to_video` |
 | `structured-multi-shot-reference-video` | `kling_image_to_video_pro`, `kling_o3_standard_reference_to_video`, `kling_o3_pro_reference_to_video` |
 | `gemini-omni-image-reference-preview` | `gemini_omni_multishot` *(preview)* |
@@ -78,12 +78,12 @@ Model → profile, with `lifecycle`:
 
 Practical consequences:
 
-- **A binding can narrow its profile, and several do.** These accept `primary` **only** — no `endFrame` — despite sitting on a two-role profile: `seedance_image_to_video_pro`, `ltx_2_3_quality_image_to_video`, `grok_imagine_video`, `gemini_omni_image_to_video`, and `sora_2`. `kling_image_to_video_pro` widens instead, to `primary` + `endFrame` + `references`; `kling_multi_image_to_video` narrows to `image_urls` alone. Read the binding, not just the profile.
+- **A binding can narrow its profile, and several do.** These accept `primary` **only** — no `endFrame` — despite sitting on a two-role profile: `seedance_image_to_video_pro`, `ltx_2_3_quality_image_to_video`, `grok_imagine_video`, and `gemini_omni_image_to_video`. `kling_image_to_video_pro` widens instead, to `primary` + `endFrame` + `references`; `kling_multi_image_to_video` narrows to `image_urls` alone. Read the binding, not just the profile.
 - **A text-to-video model discards every image you attach.** Passing `primary` to `seedance_text_to_video_pro` does not make it image-to-video; pick the I2V sibling.
 - **Only the `structured-*` profiles carry an ordered keyframe array.** A start/end model given a multi-keyframe shot keeps frame 1 and the last frame and pushes the middle into prompt-only context (`apps/app-kalaasetu/src/lib/studio/sequence-video-models.ts`).
 - **Reference count is capped and truncation is silent.** Still-image flows cap at 10 provider images (`defaults.stillImageReferencePolicy`); video flows at 9, or 4 on `kling_multi_image_to_video`, `kling_o3_standard_reference_to_video`, `kling_o3_pro_reference_to_video`. Over-cap references are dropped by coverage/fill order, not rejected.
 - **`aspectHandling`** on each profile says which aspects the reference owns versus the prompt. On `prompted-frame-anchored-video`, subject / environment / render / composition are `reference_owned` — prompt text will not override the start frame on those, while camera, blocking, motion, timing and lighting are prompt-driven.
-- `lifecycle: preview` and `retiring` are the only stability signal in the catalog. `sora_2` is marked retiring.
+- `lifecycle: preview` and `retiring` are the only stability signal in the catalog.
 
 ## 4. Prompt ceilings
 
