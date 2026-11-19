@@ -31,8 +31,7 @@ Archetype distribution:
 
 Model assignments:
   veo_3_1:                    5 shots (cinematic, multi-person)
-  seedance_image_to_video_v2: 6 shots (action, simple holds)
-  sora_2:                     1 shot  (establishing)
+  seedance_image_to_video_v2: 7 shots (action, simple holds, establishing)
   seedance_text_to_video_pro: 1 shot  (t2v abstract)
 
 Execution audit findings:
@@ -61,7 +60,6 @@ contract with `studio_get_use_case_input_schema` before assigning work.
 | Seedance v2 | 10s | 5 | Default profile |
 | Seedance Pro | 15s | 5 | Higher quality, same limits |
 | Veo 3.1 | 8s | 3 | Shorter ceiling, high fidelity |
-| Sora 2 | 20s | 4 | Longer single-pass output |
 | Kling 2.6 Pro | 10s | 5 | Similar to Seedance |
 | multi-shot-video (H3 Ref2Vid) | 15s (enum `auto,5–15`) | 5 (`maxBatchShots` default) | A `MULTI_CUT` shot in the 10–15s band fills the default `maxBatchDuration` alone |
 
@@ -82,8 +80,7 @@ Generation submissions:         28  (15 keyframe submissions + 13 shot-scoped vi
 Per-model breakdown:
   veo_3_1 (fast, 4s):          5 shots / 20.0s
   seedance_image_to_video_v2 (720p, 4s):
-                                6 shots / 24.0s
-  sora_2 (4s):                 1 shot  /  4.0s
+                                7 shots / 28.0s
   seedance_text_to_video_pro (5s):
                                 1 shot  /  5.0s
 
@@ -164,7 +161,7 @@ await studio_update_episode({ projectId, episodeId, updates: { metadata: { pipel
     ...pipeline.shot_plan,
     total_batches: 7,
     total_runtime: 53.0, // generated candidate video seconds; intended final edit is 40s in this example
-    models_used: ["gpt_image_2", "veo_3_1", "seedance_image_to_video_v2", "sora_2", "seedance_text_to_video_pro"],
+    models_used: ["gpt_image_2", "veo_3_1", "seedance_image_to_video_v2", "seedance_text_to_video_pro"],
     archetypes: { SINGLE: 6, DUAL_FRAME: 3, MASTER_ANCHOR_MULTI_SHOT: 2, SEQUENCE: 1, T2V: 1 },
     keyframe_submissions: 15,
     keyframe_outputs: 18,
